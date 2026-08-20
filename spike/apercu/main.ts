@@ -14,6 +14,10 @@ void (async () => {
   await attendre(60)
   document.querySelector<HTMLButtonElement>('.bouton')?.click()
   await attendre(400)
+  if (params.get('modele') !== null) {
+    document.querySelector<HTMLButtonElement>('.modele .mode-aide')?.click()
+    await attendre(80)
+  }
   if (params.get('approuver') !== null) {
     document.querySelector<HTMLButtonElement>('.porte-actions .bouton:last-child')?.click()
     await attendre(300)
