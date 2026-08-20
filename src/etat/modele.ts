@@ -37,6 +37,10 @@ export interface NoeudVue {
   fabrication?: Fabrication
   /** Le composant qui l'a fabriquée. */
   fabriquePar?: IdComposant
+  /** Vrai quand ce composant a réellement appelé un modèle. */
+  branche?: boolean
+  /** Ce qui l'a fait retomber sur son repli déterministe. */
+  repli?: string
   /** Séquence de son apparition — c'est l'ordre de révélation. */
   apparuA: number
 }
@@ -84,6 +88,8 @@ export interface EtatRun {
   incidents: readonly IncidentJournal[]
   /** Présente dès que le run atteint la porte, et conservée après la décision. */
   porte?: PorteVue
+  /** Tokens réellement consommés. Reste à zéro en mode déterministe. */
+  tokens: { entree: number; sortie: number }
   /** Nombre de nœuds ni libérés ni en erreur. */
   agentsVivants: number
   /** Dernière séquence réduite. Sert à repérer un flux qui saute. */

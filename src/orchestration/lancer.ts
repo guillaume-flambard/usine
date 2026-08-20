@@ -4,6 +4,8 @@
 
 import type { Composant, IdComposant } from '../runtime/contrat'
 import type { Noyau } from '../runtime/noyau'
+import type { Fabrique } from '../runtime/fabrique'
+import type { Raisonneur } from '../runtime/raisonneur'
 import type { EntreeCasting, Scenario } from '../scenarios/types'
 
 export interface DefautScenario {
@@ -107,11 +109,16 @@ export interface Lancement {
  * emporterait pas. Le scénario reste une donnée ; on ne fait que refermer sa
  * déclaration sur son maître.
  */
-function orchestrateur(scenario: Scenario, brief?: string): Composant {
+function orchestrateur(
+  scenario: Scenario,
+  brief?: string,
+  raisonneur?: Raisonneur,
+  fabrique?: Fabrique,
+): Composant {
   const maitre =
-    brief === undefined || brief === scenario.brief
+    brief === undefined && raisonneur === undefined && fabrique === undefined
       ? scenario.maitre.composant
-      : scenario.maitre.construire(brief)
+      : scenario.maitre.construire(brief ?? scenario.brief, raisonneur, fabrique)
   return {
     ...maitre,
     applique(contexte) {
@@ -131,7 +138,7 @@ function orchestrateur(scenario: Scenario, brief?: string): Composant {
 export async function lancer(
   noyau: Noyau,
   scenario: Scenario,
-  options: { brief?: string } = {},
+  options: { brief?: string; raisonneur?: Raisonneur; fabrique?: Fabrique } = {},
 ): Promise<Lancement> {
   const defauts = verifierScenario(scenario)
   if (defauts.length > 0) {
@@ -141,7 +148,9 @@ export async function lancer(
     )
   }
 
-  const maitre = await noyau.charger(orchestrateur(scenario, options.brief))
+  const maitre = await noyau.charger(
+    orchestrateur(scenario, options.brief, options.raisonneur, options.fabrique),
+  )
   if (maitre === undefined) throw new Error("L'agent maître n'a pas pu être chargé.")
   return { maitre }
 }

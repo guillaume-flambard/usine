@@ -1,7 +1,7 @@
 // Le câblage réel de l'application — noyau, store, disposition, brief — testé
 // hors composant. Sans ça, on peut casser l'application entière au niveau du
 // branchement avec une suite entièrement verte.
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { creerPilote, disposerScenario } from '../pilote'
 import { claimCheck } from '../../scenarios/claim-check'
 import { topologieDeclaree } from '../lancer'
@@ -120,5 +120,131 @@ describe('la présentation des nœuds', () => {
       (composant) => composant.presentation.libelle === undefined,
     )
     expect(sansLibelle.map((c) => c.nom)).toEqual([])
+  })
+})
+
+describe('le mode de raisonnement', () => {
+  it('est déterministe par défaut, et rien ne part sur le réseau', async () => {
+    const fetchEspion = vi.spyOn(globalThis, 'fetch')
+    const pilote = creerPilote(claimCheck)
+    expect(pilote.modeRaisonnement()).toBe('deterministe')
+
+    await pilote.demarrer(claimCheck.brief)
+    await tick()
+    pilote.approuver()
+    await tick()
+
+    expect(fetchEspion).not.toHaveBeenCalled()
+    expect(pilote.store.etat.value.tokens).toEqual({ entree: 0, sortie: 0 })
+    fetchEspion.mockRestore()
+  })
+
+  it('compte les tokens réellement dépensés, et marque l agent branché', async () => {
+    const pilote = creerPilote(claimCheck)
+    // Un raisonneur factice : ce qui est testé, c'est le chemin du port
+    // jusqu'au compteur, pas le fournisseur.
+    pilote.brancher({
+      origine: 'llm',
+      raisonner: async (demande) => ({
+        texte: `Rédigé par un modèle. ${demande.instruction}`,
+        origine: 'llm' as const,
+        tokens: { entree: 1200, sortie: 340 },
+      }),
+    })
+    expect(pilote.modeRaisonnement()).toBe('llm')
+
+    await pilote.demarrer(claimCheck.brief)
+    await tick()
+    pilote.approuver()
+    await tick()
+
+    expect(pilote.store.etat.value.tokens).toEqual({ entree: 1200, sortie: 340 })
+    const architecte = pilote.store.etat.value.noeuds.find((n) => n.nom === 'architecte')
+    expect(architecte?.branche).toBe(true)
+    expect(architecte?.artefact?.corps).toContain('Rédigé par un modèle')
+  })
+
+  it('poursuit le run et le dit quand le modèle échoue', async () => {
+    const pilote = creerPilote(claimCheck)
+    pilote.brancher({
+      origine: 'llm',
+      raisonner: async (demande) => ({
+        texte: demande.repli,
+        origine: 'llm' as const,
+        echec: 'quota dépassé',
+      }),
+    })
+
+    await pilote.demarrer(claimCheck.brief)
+    await tick()
+    pilote.approuver()
+    await tick()
+
+    // Le run va au bout : un modèle indisponible ne casse pas la démonstration.
+    expect(pilote.phase()).toBe('Terminé')
+    const architecte = pilote.store.etat.value.noeuds.find((n) => n.nom === 'architecte')
+    expect(architecte?.artefact?.corps).toContain('Repli déterministe : quota dépassé')
+    // Aucun token n'a été dépensé : le compteur ne fait pas semblant.
+    expect(pilote.store.etat.value.tokens).toEqual({ entree: 0, sortie: 0 })
+  })
+
+  it('revient au déterministe quand on débranche', async () => {
+    const pilote = creerPilote(claimCheck)
+    pilote.brancher({
+      origine: 'llm',
+      raisonner: async (d) => ({ texte: d.repli, origine: 'llm' as const }),
+    })
+    pilote.brancher(undefined)
+    expect(pilote.modeRaisonnement()).toBe('deterministe')
+  })
+})
+
+describe('la voie de fabrication', () => {
+  const modeleFactice = {
+    origine: 'llm' as const,
+    raisonner: async (d: { repli: string }) => ({ texte: d.repli, origine: 'llm' as const }),
+  }
+
+  it('reste la composition tant que rien n a été consenti', () => {
+    const pilote = creerPilote(claimCheck)
+    expect(pilote.voieDeFabrication()).toBe('composition')
+
+    pilote.brancher(modeleFactice)
+    // Brancher un modèle n'autorise pas à évaluer du code : c'est un
+    // arbitrage séparé.
+    expect(pilote.voieDeFabrication()).toBe('composition')
+  })
+
+  it("passe à l'évaluation seulement branchée et consentie", () => {
+    const pilote = creerPilote(claimCheck)
+    pilote.brancher(modeleFactice, { evaluation: true })
+    expect(pilote.voieDeFabrication()).toBe('evaluation')
+  })
+
+  it("refuse l'évaluation sans modèle branché", () => {
+    const pilote = creerPilote(claimCheck)
+    pilote.brancher(undefined, { evaluation: true })
+    expect(pilote.voieDeFabrication()).toBe('composition')
+  })
+
+  it('referme la voie par évaluation quand on débranche', () => {
+    const pilote = creerPilote(claimCheck)
+    pilote.brancher(modeleFactice, { evaluation: true })
+    pilote.brancher(undefined)
+    expect(pilote.voieDeFabrication()).toBe('composition')
+  })
+
+  it('fabrique réellement par évaluation quand la voie est ouverte', async () => {
+    const pilote = creerPilote(claimCheck)
+    pilote.brancher(modeleFactice, { evaluation: true })
+    await pilote.demarrer(claimCheck.brief)
+    await tick()
+    pilote.approuver()
+    await tick()
+
+    const piece = pilote.store.etat.value.noeuds.find((n) => n.nom === 'verificateur-allegations')
+    expect(piece?.fabrication?.voie).toBe('evaluation')
+    // Et la pièce évaluée marche : elle classe pour de vrai.
+    expect(pilote.verificateur()?.('Ce produit guérit les carences.')[0]?.statut).toBe('interdit')
   })
 })

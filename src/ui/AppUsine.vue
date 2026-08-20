@@ -10,6 +10,7 @@ import GrapheVivant from './GrapheVivant.vue'
 import PanneauNoeud from './PanneauNoeud.vue'
 import PorteHumaine from './PorteHumaine.vue'
 import ProduitLivre from './ProduitLivre.vue'
+import InterrupteurModele from './InterrupteurModele.vue'
 
 const pilote = creerPilote(scenarioParDefaut())
 const etat = pilote.store.etat
@@ -22,6 +23,20 @@ const demarrage = ref(false)
 const erreur = ref<string | undefined>()
 const choisi = ref<string | undefined>()
 const aideMode = ref(false)
+const mode = ref<'deterministe' | 'llm'>(pilote.modeRaisonnement())
+
+async function brancherModele(cle: string, evaluation: boolean) {
+  // Import dynamique : sans branchement, le SDK n'est jamais chargé et le
+  // bundle du mode par défaut n'en porte pas une ligne.
+  const { raisonneurClaude } = await import('../runtime/raisonneur/claude')
+  pilote.brancher(raisonneurClaude({ cle }), { evaluation })
+  mode.value = pilote.modeRaisonnement()
+}
+
+function debrancherModele() {
+  pilote.brancher(undefined)
+  mode.value = pilote.modeRaisonnement()
+}
 const debut = ref(0)
 const maintenant = ref(0)
 let horloge: ReturnType<typeof setInterval> | undefined
@@ -143,8 +158,8 @@ onBeforeUnmount(() => {
       </header>
 
       <div class="mode">
-        <span class="mode-pastille" aria-hidden="true"></span>
-        <span>Mode déterministe</span>
+        <span class="mode-pastille" :data-branche="mode === 'llm'" aria-hidden="true"></span>
+        <span>{{ mode === 'llm' ? 'Mode LLM branché' : 'Mode déterministe' }}</span>
         <button
           class="mode-aide"
           :aria-expanded="aideMode"
@@ -155,9 +170,23 @@ onBeforeUnmount(() => {
         </button>
       </div>
       <p v-if="aideMode" id="explication-mode" class="mode-explication">
-        Les agents se composent et travaillent réellement ; leur jugement est écrit à la main, pas
-        produit par un modèle. Aucune clé, aucun token.
+        <template v-if="mode === 'llm'">
+          L’architecte raisonne réellement : sa décision de composition est rédigée par un modèle.
+          Le reste du run demeure déterministe, et un échec d’appel retombe sur la réponse écrite à
+          la main.
+        </template>
+        <template v-else>
+          Les agents se composent, fabriquent et travaillent réellement ; leur jugement est écrit à
+          la main, pas produit par un modèle. Aucune clé, aucun token.
+        </template>
       </p>
+      <div class="mode-branchement">
+        <InterrupteurModele
+          :mode="mode"
+          @brancher="brancherModele"
+          @debrancher="debrancherModele"
+        />
+      </div>
 
       <div class="pane">
         <h1 class="titre-cache">L'usine agentique — du besoin au produit</h1>
@@ -217,8 +246,14 @@ onBeforeUnmount(() => {
         </div>
         <div class="compteur">
           <p class="compteur-cle">Tokens</p>
-          <p class="compteur-valeur">0</p>
-          <p class="compteur-note">aucun, mode déterministe</p>
+          <p class="compteur-valeur">{{ etat.tokens.entree + etat.tokens.sortie }}</p>
+          <p class="compteur-note">
+            {{
+              mode === 'llm'
+                ? `${etat.tokens.entree} entrée · ${etat.tokens.sortie} sortie`
+                : 'aucun, mode déterministe'
+            }}
+          </p>
         </div>
         <div class="compteur">
           <p class="compteur-cle">Temps</p>

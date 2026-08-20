@@ -6,6 +6,8 @@ import { disposer, type Disposition } from '../etat/disposition'
 import { creerStore, type StoreRun } from '../etat/store'
 import { creerNoyau, type Noyau } from '../runtime/noyau'
 import type { Verdict } from '../runtime/fabrique/primitives'
+import { fabriqueParComposition, fabriqueParEvaluation, type Fabrique } from '../runtime/fabrique'
+import { raisonneurDeterministe, type Raisonneur } from '../runtime/raisonneur'
 import type { Scenario } from '../scenarios/types'
 import { lancer, ordreDuScenario, topologieDeclaree } from './lancer'
 
@@ -23,6 +25,15 @@ export type PhaseRun =
   | 'Incident'
   | 'Libéré'
 
+export interface OptionsBranchement {
+  /**
+   * Autorise la fabrication par évaluation de code. Elle exige une politique
+   * de sécurité permissive, d'où le consentement séparé : ce n'est pas un
+   * effet de bord du branchement d'un modèle.
+   */
+  evaluation?: boolean
+}
+
 export interface Pilote {
   readonly store: StoreRun
   disposition(): Disposition
@@ -32,6 +43,15 @@ export interface Pilote {
   fini(): boolean
   erreur(): string | undefined
   demarrer(brief: string): Promise<void>
+  /**
+   * Branche un vrai modèle sur les agents qui raisonnent. Sans appel, le run
+   * reste déterministe : aucune clé, aucun token, aucune requête.
+   */
+  brancher(raisonneur: Raisonneur | undefined, options?: OptionsBranchement): void
+  /** Le mode de raisonnement en vigueur au prochain run. */
+  modeRaisonnement(): 'deterministe' | 'llm'
+  /** La voie de fabrication en vigueur au prochain run. */
+  voieDeFabrication(): 'composition' | 'evaluation'
   arreter(): Promise<void>
   changerScenario(scenario: Scenario): Promise<void>
   /** Approuve la porte en attente. Rend `false` si aucune n'attend. */
@@ -59,6 +79,8 @@ export function creerPilote(scenarioInitial: Scenario): Pilote {
   let debrancher: (() => void) | undefined
   let derniereErreur: string | undefined
   let demarrageEnCours = false
+  let raisonneurCourant: Raisonneur = raisonneurDeterministe()
+  let fabriqueCourante: Fabrique = fabriqueParComposition()
 
   const phase = (): PhaseRun => {
     const noeuds = store.etat.value.noeuds
@@ -120,7 +142,11 @@ export function creerPilote(scenarioInitial: Scenario): Pilote {
         derniereErreur = undefined
         noyauCourant = creerNoyau()
         debrancher = store.brancher(noyauCourant)
-        await lancer(noyauCourant, scenarioCourant, { brief })
+        await lancer(noyauCourant, scenarioCourant, {
+          brief,
+          raisonneur: raisonneurCourant,
+          fabrique: fabriqueCourante,
+        })
       } catch (cause) {
         derniereErreur = cause instanceof Error ? cause.message : String(cause)
         await arreter()
@@ -155,6 +181,17 @@ export function creerPilote(scenarioInitial: Scenario): Pilote {
       }
       return true
     },
+    brancher(raisonneur: Raisonneur | undefined, options: OptionsBranchement = {}) {
+      raisonneurCourant = raisonneur ?? raisonneurDeterministe()
+      // La voie par évaluation n'est atteignable que branché ET consenti :
+      // débrancher la referme, pour qu'on ne l'oublie pas active.
+      fabriqueCourante =
+        raisonneur !== undefined && options.evaluation === true
+          ? fabriqueParEvaluation()
+          : fabriqueParComposition()
+    },
+    modeRaisonnement: () => raisonneurCourant.origine,
+    voieDeFabrication: () => fabriqueCourante.voie,
     async changerScenario(scenario: Scenario) {
       await arreter()
       scenarioCourant = scenario

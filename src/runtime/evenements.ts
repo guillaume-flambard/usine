@@ -85,6 +85,15 @@ export interface PorteAtteinte extends Base {
   objet: ObjetDeDecision
 }
 
+export interface TokensConsommes extends Base {
+  type: 'tokens-consommes'
+  id: IdComposant
+  entree: number
+  sortie: number
+  /** Ce qui a fait retomber l'agent sur son repli déterministe, le cas échéant. */
+  echec?: string
+}
+
 export interface PorteRetiree extends Base {
   type: 'porte-retiree'
   id: IdComposant
@@ -113,6 +122,7 @@ export type EvenementRun =
   | ValeurTransmise
   | ArtefactProduit
   | ComposantFabrique
+  | TokensConsommes
   | PorteAtteinte
   | PorteRetiree
   | DecisionPrise

@@ -4,6 +4,7 @@
 
 import type { Composant } from '../runtime/contrat'
 import type { Verdict } from '../runtime/fabrique/primitives'
+import { raisonneurDeterministe, type Raisonneur } from '../runtime/raisonneur'
 import {
   fabriqueParComposition,
   type Fabrique,
@@ -35,9 +36,13 @@ export interface Specification {
   criteres: readonly string[]
 }
 
-export const agentMaitre = (besoin: Besoin): Composant => ({
+export const agentMaitre = (
+  besoin: Besoin,
+  raisonnerAvec?: Raisonneur,
+  fabriquerAvec?: Fabrique,
+): Composant => ({
   nom: 'agent-maitre',
-  fournit: ['besoin', 'memoire', 'fabrique'],
+  fournit: ['besoin', 'memoire', 'fabrique', 'raisonneur'],
   presentation: { libelle: 'Agent maître', role: 'Ouvre le run et tient la mémoire du secteur' },
   applique(contexte) {
     const memoire: Memoire = {
@@ -45,7 +50,9 @@ export const agentMaitre = (besoin: Besoin): Composant => ({
       decisions: [
         `Brief retenu : ${besoin.brief}`,
         'Mode déterministe : les agents composent et fabriquent réellement.',
-        'La fabrication passe par composition de primitives, sans évaluation de code.',
+        (fabriquerAvec ?? fabriqueParComposition()).voie === 'evaluation'
+          ? 'La fabrication passe par évaluation de code, sur consentement explicite.'
+          : 'La fabrication passe par composition de primitives, sans évaluation de code.',
       ],
     }
     contexte.emettre(`Constitue sa mémoire sur le secteur : ${besoin.secteur}.`)
@@ -53,7 +60,12 @@ export const agentMaitre = (besoin: Besoin): Composant => ({
     contexte.fournir('memoire', memoire)
     // La fabrique est un coeffect : aucun agent ne la construit lui-même,
     // et le graphe montre qui en dépend.
-    contexte.fournir('fabrique', fabriqueParComposition())
+    // La voie par composition est le défaut. La voie par évaluation n'est
+    // atteignable que si l'appelant l'a explicitement choisie.
+    contexte.fournir('fabrique', fabriquerAvec ?? fabriqueParComposition())
+    // Le raisonneur est un coeffect : aucun agent ne parle à un fournisseur,
+    // et le graphe montre qui dépend de la faculté de raisonner.
+    contexte.fournir('raisonneur', raisonnerAvec ?? raisonneurDeterministe())
     contexte.publierArtefact({
       titre: 'Mémoire de run',
       corps: [`Secteur : ${memoire.secteur}`, '', ...memoire.decisions.map((d) => `— ${d}`)].join(
@@ -90,33 +102,72 @@ export const planificateur: Composant = {
 
 export const architecte: Composant = {
   nom: 'architecte',
-  injecte: ['histoires', 'memoire'],
+  injecte: ['histoires', 'memoire', 'raisonneur'],
   fournit: ['specification'],
   presentation: { libelle: 'Architecte', role: 'Choisit la composition et écrit la spécification' },
   applique(contexte) {
     const histoires = contexte.lire<Histoires>('histoires')
     const memoire = contexte.lire<Memoire>('memoire')
+    const raisonneur = contexte.lire<Raisonneur>('raisonneur') ?? raisonneurDeterministe()
     const specification: Specification = {
       produit: 'verificateur-allegations',
       constructeurs: ['regles', 'interface', 'tests'],
       criteres: histoires?.titres ?? [],
     }
-    contexte.emettre(
-      `Retient trois constructeurs parallèles pour le secteur « ${memoire?.secteur ?? '?'} ».`,
-    )
-    contexte.fournir('specification', specification)
-    contexte.publierArtefact({
-      titre: 'Décision de composition',
-      corps: [
-        `Produit visé : ${specification.produit}`,
-        `Constructeurs en parallèle : ${specification.constructeurs.join(', ')}`,
-        '',
-        'Critères retenus :',
-        ...specification.criteres.map((critere) => `— ${critere}`),
-      ].join('\n'),
-      decouleDe: 'les histoires et la mémoire de run',
-    })
-    contexte.terminer()
+
+    // Le seul jugement du run qui passe par le port : ce que l'architecte
+    // écrit pour motiver sa composition. En mode déterministe c'est le repli
+    // qui sort ; branché sur un modèle, c'est une vraie rédaction.
+    void raisonneur
+      .raisonner({
+        role: 'architecte',
+        instruction:
+          'Motive en trois phrases la composition retenue pour ce produit, et nomme son risque principal.',
+        contexte: [
+          `Secteur : ${memoire?.secteur ?? 'inconnu'}`,
+          `Produit visé : ${specification.produit}`,
+          `Constructeurs en parallèle : ${specification.constructeurs.join(', ')}`,
+          'Critères :',
+          ...(specification.criteres ?? []).map((critere) => `- ${critere}`),
+        ].join('\n'),
+        repli: [
+          'Trois constructeurs en parallèle : les règles, l’interface et les tests ne partagent',
+          'aucune donnée, donc rien ne les oblige à s’attendre. Le moteur de vérification est',
+          'fabriqué à l’exécution pour que la pièce livrée découle de la spécification et non',
+          'd’un catalogue. Risque principal : la couverture du registre reste plus étroite que',
+          'le nom du produit ne le laisse croire.',
+        ].join(' '),
+      })
+      .then((raisonnement) => {
+        if (raisonnement.tokens !== undefined) {
+          contexte.compterTokens(
+            raisonnement.tokens.entree,
+            raisonnement.tokens.sortie,
+            raisonnement.echec,
+          )
+        }
+        contexte.emettre(
+          `Retient trois constructeurs parallèles pour le secteur « ${memoire?.secteur ?? '?'} ».`,
+        )
+        contexte.fournir('specification', specification)
+        contexte.publierArtefact({
+          titre: 'Décision de composition',
+          corps: [
+            raisonnement.texte,
+            '',
+            `Produit visé : ${specification.produit}`,
+            `Constructeurs en parallèle : ${specification.constructeurs.join(', ')}`,
+            '',
+            'Critères retenus :',
+            ...specification.criteres.map((critere) => `— ${critere}`),
+            ...(raisonnement.echec !== undefined
+              ? ['', `Repli déterministe : ${raisonnement.echec}`]
+              : []),
+          ].join('\n'),
+          decouleDe: 'les histoires et la mémoire de run',
+        })
+        contexte.terminer()
+      })
   },
 }
 

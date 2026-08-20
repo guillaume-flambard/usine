@@ -3,6 +3,8 @@
 // du moteur.
 
 import type { Composant } from '../runtime/contrat'
+import type { Fabrique } from '../runtime/fabrique'
+import type { Raisonneur } from '../runtime/raisonneur'
 
 /** Une entrée du casting : le composant, et la clé qui fixe son rang. */
 export interface EntreeCasting {
@@ -36,7 +38,9 @@ export interface Scenario {
    * `construire` reçoit le brief réellement saisi : sans ça, le champ de
    * brief serait décoratif.
    */
-  maitre: EntreeCasting & { construire(brief: string): Composant }
+  maitre: EntreeCasting & {
+    construire(brief: string, raisonneur?: Raisonneur, fabrique?: Fabrique): Composant
+  }
   /** Tout ce que le run met en scène, agents et outils confondus. */
   casting: readonly EntreeCasting[]
   /** Qui publie quoi. Un nom sans propriétaire déclaré est une erreur de scénario. */

@@ -25,6 +25,7 @@ export function etatInitial(): EtatComplet {
       aretes: [],
       journal: [],
       incidents: [],
+      tokens: { entree: 0, sortie: 0 },
       agentsVivants: 0,
       derniereSequence: 0,
     }),
@@ -55,6 +56,7 @@ export function reduire(etat: EtatComplet, evenement: EvenementRun): EtatComplet
   let incidents = etat.vue.incidents
   let narration = etat.vue.narration
   let porte = etat.vue.porte
+  let tokens = etat.vue.tokens
 
   /** Remplace un nœud et redérive son état affiché. */
   const majNoeud = (
@@ -193,6 +195,25 @@ export function reduire(etat: EtatComplet, evenement: EvenementRun): EtatComplet
       }))
       break
 
+    case 'tokens-consommes':
+      tokens = {
+        entree: tokens.entree + evenement.entree,
+        sortie: tokens.sortie + evenement.sortie,
+      }
+      majNoeud(
+        evenement.id,
+        (noeud, memoire) => ({
+          noeud: {
+            ...noeud,
+            branche: true,
+            ...(evenement.echec !== undefined ? { repli: evenement.echec } : {}),
+          },
+          memoire,
+        }),
+        true,
+      )
+      break
+
     case 'porte-atteinte':
       // Une porte déjà tranchée ne se rouvre pas : sans ce garde, une
       // réactivation du composant effacerait la décision enregistrée.
@@ -244,6 +265,7 @@ export function reduire(etat: EtatComplet, evenement: EvenementRun): EtatComplet
       ...(porte !== undefined ? { porte } : {}),
       journal,
       incidents,
+      tokens,
       agentsVivants: noeuds.filter(vivant).length,
       derniereSequence: evenement.sequence,
     }),

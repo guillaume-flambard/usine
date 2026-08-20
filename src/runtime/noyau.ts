@@ -270,6 +270,16 @@ export function creerNoyau(): Noyau {
             if (!utilisable()) return
             emettre({ type: 'artefact-produit', id, artefact })
           },
+          compterTokens(entree: number, sortie: number, echec?: string) {
+            if (!utilisable()) return
+            emettre({
+              type: 'tokens-consommes',
+              id,
+              entree,
+              sortie,
+              ...(echec !== undefined ? { echec } : {}),
+            })
+          },
           attendreDecision(objet: ObjetDeDecision, surDecision: (decision: Decision) => void) {
             if (!utilisable()) return
             if (decisions.has(id)) {

@@ -84,6 +84,11 @@ export interface ContexteComposant {
   /** Publie un artefact consultable, attribué à ce composant. */
   publierArtefact(artefact: Artefact): void
   /**
+   * Déclare une consommation réelle de tokens. Le compteur de l'interface
+   * n'affiche que ce qui a été réellement dépensé — jamais une animation.
+   */
+  compterTokens(entree: number, sortie: number, echec?: string): void
+  /**
    * Arrête le run sur une décision humaine. Aucun délai ne la franchit :
    * tant que personne n'a tranché, rien ne se poursuit.
    */

@@ -70,12 +70,12 @@ development_status:
   4-5-le-point-de-contact: review
   epic-4-retrospective: optional
 
-  epic-5: backlog
-  5-1-le-port-raisonneur: backlog
-  5-2-l-interrupteur-et-la-clé: backlog
-  5-3-le-compteur-de-tokens-honnête: backlog
-  5-4-l-affichage-du-mode-actif: backlog
-  5-5-la-fabrication-par-évaluation-sous-consentement: backlog
+  epic-5: in-progress
+  5-1-le-port-raisonneur: review
+  5-2-l-interrupteur-et-la-clé: review
+  5-3-le-compteur-de-tokens-honnête: review
+  5-4-l-affichage-du-mode-actif: review
+  5-5-la-fabrication-par-évaluation-sous-consentement: review
   epic-5-retrospective: optional
 
   epic-6: backlog

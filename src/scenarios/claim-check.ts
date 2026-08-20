@@ -13,6 +13,8 @@ import {
   sceptique,
 } from '../agents/deterministes'
 import { registreEu, type Regle } from '../outils/registre-eu'
+import type { Fabrique } from '../runtime/fabrique'
+import type { Raisonneur } from '../runtime/raisonneur'
 import type { Scenario } from './types'
 
 const REGLES: readonly Regle[] = [
@@ -99,7 +101,8 @@ export const claimCheck: Scenario = {
   maitre: {
     cle: 'a-maitre',
     composant: agentMaitre({ brief: BRIEF, secteur: SECTEUR }),
-    construire: (brief: string) => agentMaitre({ brief, secteur: SECTEUR }),
+    construire: (brief: string, raisonneur?: Raisonneur, fabrique?: Fabrique) =>
+      agentMaitre({ brief, secteur: SECTEUR }, raisonneur, fabrique),
   },
   casting: [
     { cle: 'b-registre', composant: registreEu(REGLES) },
@@ -117,6 +120,7 @@ export const claimCheck: Scenario = {
     { nom: 'besoin', proprietaire: 'a-maitre' },
     { nom: 'memoire', proprietaire: 'a-maitre' },
     { nom: 'fabrique', proprietaire: 'a-maitre' },
+    { nom: 'raisonneur', proprietaire: 'a-maitre' },
     { nom: 'registre', proprietaire: 'b-registre' },
     { nom: 'histoires', proprietaire: 'c-planificateur' },
     { nom: 'specification', proprietaire: 'd-architecte' },
