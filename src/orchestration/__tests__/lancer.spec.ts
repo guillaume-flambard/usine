@@ -5,6 +5,10 @@ import { creerNoyau } from '../../runtime/noyau'
 import { creerStore } from '../../etat/store'
 import type { Scenario } from '../../scenarios/types'
 
+// Le casting déclaré, plus l'agent maître, plus la pièce que le
+// constructeur produit fabrique pendant le run.
+const NOEUDS_ATTENDUS = claimCheck.casting.length + 2
+
 const tick = async () => {
   for (let index = 0; index < 5; index += 1) {
     await new Promise<void>((resolve) => setTimeout(resolve, 0))
@@ -83,12 +87,14 @@ describe('un run complet du scénario livré', () => {
     await tick()
 
     const etat = store.etat.value
-    expect(etat.noeuds).toHaveLength(claimCheck.casting.length + 1)
+    expect(etat.noeuds).toHaveLength(NOEUDS_ATTENDUS)
 
     // Le casting minimum exigé : planificateur, architecte, deux outils au
     // moins, trois constructeurs en parallèle, un sceptique, une livraison.
+    // Trois constructeurs en parallèle, plus celui qui fabrique la pièce.
     const constructeurs = etat.noeuds.filter((n) => n.nom.startsWith('constructeur-'))
-    expect(constructeurs).toHaveLength(3)
+    expect(constructeurs.length).toBeGreaterThanOrEqual(3)
+    expect(etat.noeuds.some((n) => n.nom === 'constructeur-produit')).toBe(true)
     expect(etat.noeuds.some((n) => n.nom === 'planificateur')).toBe(true)
     expect(etat.noeuds.some((n) => n.nom === 'architecte')).toBe(true)
     expect(etat.noeuds.some((n) => n.nom === 'sceptique')).toBe(true)
@@ -96,7 +102,9 @@ describe('un run complet du scénario livré', () => {
 
     // Tout le monde a terminé : la chaîne s'est propagée de bout en bout.
     expect(etat.noeuds.every((n) => n.etat === 'termine')).toBe(true)
-    expect(etat.agentsVivants).toBe(claimCheck.casting.length + 1)
+    // La pièce fabriquée pendant le run est là, à la place qui lui était tenue.
+    expect(etat.noeuds.some((n) => n.nom === 'verificateur-allegations')).toBe(true)
+    expect(etat.agentsVivants).toBe(NOEUDS_ATTENDUS)
   })
 
   it("n'affiche une technologie que sur les nœuds qui en exécutent une", async () => {
@@ -132,7 +140,7 @@ describe('un run complet du scénario livré', () => {
     const noyau = creerNoyau()
     const { maitre } = await lancer(noyau, claimCheck)
     await tick()
-    expect(noyau.introspecter().composants).toHaveLength(claimCheck.casting.length + 1)
+    expect(noyau.introspecter().composants).toHaveLength(NOEUDS_ATTENDUS)
 
     // Libérer le seul agent maître suffit : tout le reste tombe en cascade.
     await noyau.liberer(maitre)

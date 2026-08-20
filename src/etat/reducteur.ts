@@ -172,6 +172,22 @@ export function reduire(etat: EtatComplet, evenement: EvenementRun): EtatComplet
       break
     }
 
+    case 'artefact-produit':
+      // On ne garde que la dernière version : « l'artefact d'un nœud » doit
+      // toujours être défini et unique.
+      majNoeud(evenement.id, (noeud, memoire) => ({
+        noeud: { ...noeud, artefact: evenement.artefact },
+        memoire,
+      }))
+      break
+
+    case 'composant-fabrique':
+      majNoeud(evenement.id, (noeud, memoire) => ({
+        noeud: { ...noeud, fabrication: evenement.fabrication, fabriquePar: evenement.parent },
+        memoire,
+      }))
+      break
+
     case 'valeur-transmise':
       aretes = aretes.map((arete) =>
         arete.de === evenement.de && arete.vers === evenement.vers && arete.nom === evenement.nom

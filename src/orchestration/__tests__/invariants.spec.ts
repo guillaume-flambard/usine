@@ -9,6 +9,10 @@ import { claimCheck } from '../../scenarios/claim-check'
 import { registreEu } from '../../outils/registre-eu'
 import type { IdComposant } from '../../runtime/contrat'
 
+// Le casting déclaré, plus l'agent maître, plus la pièce que le
+// constructeur produit fabrique pendant le run.
+const NOEUDS_ATTENDUS = claimCheck.casting.length + 2
+
 const tick = async () => {
   for (let index = 0; index < 6; index += 1) {
     await new Promise<void>((resolve) => setTimeout(resolve, 0))
@@ -65,7 +69,7 @@ describe("l'invariant C3 : le graphe est la topologie réelle", () => {
     expect(noyau.introspecter().composants).toHaveLength(0)
     expect(affichesVivants(store.etat.value.noeuds)).toEqual([])
     // Les nœuds restent visibles, marqués libérés : la rétractation se montre.
-    expect(store.etat.value.noeuds).toHaveLength(claimCheck.casting.length + 1)
+    expect(store.etat.value.noeuds).toHaveLength(NOEUDS_ATTENDUS)
     expect(store.etat.value.noeuds.every((n) => n.etat === 'libere')).toBe(true)
   })
 })
@@ -104,7 +108,7 @@ describe('la réversibilité, observable', () => {
     const relance = await lancer(noyau, claimCheck)
     await tick()
     expect(relance.maitre).toBeDefined()
-    expect(noyau.introspecter().composants).toHaveLength(claimCheck.casting.length + 1)
+    expect(noyau.introspecter().composants).toHaveLength(NOEUDS_ATTENDUS)
   })
 
   it("n'émet aucun événement d'incident sur un run nominal", async () => {

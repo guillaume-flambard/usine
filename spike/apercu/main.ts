@@ -15,10 +15,12 @@ void (async () => {
   document.querySelector<HTMLButtonElement>('.bouton')?.click()
   await attendre(400)
   if (params.get('choisir') !== null) {
-    const noeuds = document.querySelectorAll<SVGGElement>('.noeud')
-    noeuds[Math.min(4, noeuds.length - 1)]?.dispatchEvent(
-      new MouseEvent('click', { bubbles: true }),
-    )
+    const cible = params.get('choisir') ?? ''
+    const noeuds = [...document.querySelectorAll<SVGGElement>('.noeud')]
+    const choisi =
+      noeuds.find((n) => (n.getAttribute('aria-label') ?? '').includes(cible)) ??
+      noeuds[Math.min(4, noeuds.length - 1)]
+    choisi?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
   }
   document.title = `pret-${document.querySelectorAll('.noeud').length}`
 })()

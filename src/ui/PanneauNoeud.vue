@@ -17,8 +17,10 @@ const LIBELLES: Record<NoeudVue['etat'], string> = {
 <template>
   <aside class="panneau" aria-label="Détail du composant">
     <button class="panneau-fermer" @click="$emit('fermer')">Fermer</button>
-    <h2>{{ noeud.nom }}</h2>
+    <h2>{{ noeud.presentation.libelle ?? noeud.nom }}</h2>
     <dl>
+      <dt>Composant</dt>
+      <dd class="identite">{{ noeud.nom }}</dd>
       <dt>Rôle</dt>
       <dd>{{ noeud.presentation.role }}</dd>
       <dt>État</dt>
@@ -50,6 +52,41 @@ const LIBELLES: Record<NoeudVue['etat'], string> = {
         <dd>{{ noeud.erreur.code }} — {{ noeud.erreur.message }}</dd>
       </template>
     </dl>
+    <template v-if="noeud.artefact">
+      <p class="eyebrow">Ce qu'il a écrit</p>
+      <article class="artefact">
+        <h3>{{ noeud.artefact.titre }}</h3>
+        <p v-if="noeud.artefact.decouleDe" class="artefact-origine">
+          Découle de {{ noeud.artefact.decouleDe }}.
+        </p>
+        <pre class="artefact-corps">{{ noeud.artefact.corps }}</pre>
+      </article>
+    </template>
+
+    <template v-if="noeud.fabrication">
+      <p class="eyebrow">Fabriqué pendant le run</p>
+      <p class="artefact-origine">
+        Voie :
+        {{
+          noeud.fabrication.voie === 'composition'
+            ? 'composition de primitives'
+            : 'évaluation de code'
+        }}.
+      </p>
+      <!-- La spécification dont la pièce découle et le code qui tourne
+           réellement, côte à côte : c'est la preuve qu'elle a été fabriquée. -->
+      <div class="cote-a-cote">
+        <div>
+          <p class="eyebrow">Spécification</p>
+          <pre class="code">{{ noeud.fabrication.specification }}</pre>
+        </div>
+        <div>
+          <p class="eyebrow">Code chargé</p>
+          <pre class="code">{{ noeud.fabrication.source }}</pre>
+        </div>
+      </div>
+    </template>
+
     <template v-if="messages.length">
       <p class="eyebrow">Ce qu'il a dit</p>
       <div class="panneau-fil">

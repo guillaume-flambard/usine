@@ -24,6 +24,29 @@ export interface Presentation {
   technologie?: string
 }
 
+/**
+ * Ce qu'un agent a réellement écrit, consultable par l'utilisateur.
+ * C'est l'antidote au « c'est creux » : on doit pouvoir ouvrir un nœud et
+ * lire ce qu'il a produit.
+ */
+export interface Artefact {
+  titre: string
+  /** Le contenu, en français, lisible par un non-technicien. */
+  corps: string
+  /** De quoi il découle : le brief, la mémoire, ou l'artefact d'un amont. */
+  decouleDe?: string
+}
+
+/** L'origine d'une pièce fabriquée pendant le run, pour l'inspection. */
+export interface Fabrication {
+  /** La spécification dont la pièce découle, rendue lisible. */
+  specification: string
+  /** Le code de la pièce, tel qu'il a été assemblé et chargé. */
+  source: string
+  /** Par quelle voie elle a été produite. */
+  voie: 'composition' | 'evaluation'
+}
+
 /** Annule un effet. Rendu par la fonction passée à `effet`. */
 export type Annulation = () => void
 
@@ -48,12 +71,17 @@ export interface ContexteComposant {
   emettre(message: string): void
   /** Signale que le travail de ce composant est terminé. */
   terminer(): void
+  /** Publie un artefact consultable, attribué à ce composant. */
+  publierArtefact(artefact: Artefact): void
   /**
    * Charge un composant enfant. Sa libération suit celle de ce composant.
    * Rend `undefined` quand le chargement est refusé — un nom de dépendance
    * déjà pris, par exemple.
+   *
+   * `fabrication` marque une pièce produite à l'exécution : elle sera
+   * distinguée dans le graphe et son code sera consultable.
    */
-  charger(composant: Composant): Promise<IdComposant | undefined>
+  charger(composant: Composant, fabrication?: Fabrication): Promise<IdComposant | undefined>
 }
 
 /**

@@ -2,8 +2,10 @@
 // Produit exclusivement par le réducteur, jamais écrit ailleurs.
 
 import type {
+  Artefact,
   CauseDesactivation,
   ErreurComposant,
+  Fabrication,
   IdComposant,
   Presentation,
 } from '../runtime/contrat'
@@ -27,6 +29,12 @@ export interface NoeudVue {
   cause?: CauseDesactivation
   /** L'erreur qui l'a mis en défaut, s'il y en a une. */
   erreur?: ErreurComposant
+  /** Ce que ce composant a écrit, dans sa dernière version. */
+  artefact?: Artefact
+  /** Renseigné quand la pièce a été fabriquée pendant le run. */
+  fabrication?: Fabrication
+  /** Le composant qui l'a fabriquée. */
+  fabriquePar?: IdComposant
   /** Séquence de son apparition — c'est l'ordre de révélation. */
   apparuA: number
 }

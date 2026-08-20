@@ -3,6 +3,11 @@
 // entrée, produisent une sortie, la publient, et déclenchent l'aval.
 
 import type { Composant } from '../runtime/contrat'
+import {
+  fabriqueParComposition,
+  type Fabrique,
+  type SpecificationComposant,
+} from '../runtime/fabrique'
 
 export interface Besoin {
   brief: string
@@ -31,14 +36,29 @@ export interface Specification {
 
 export const agentMaitre = (besoin: Besoin): Composant => ({
   nom: 'agent-maitre',
-  fournit: ['besoin', 'memoire'],
+  fournit: ['besoin', 'memoire', 'fabrique'],
   presentation: { libelle: 'Agent maître', role: 'Ouvre le run et tient la mémoire du secteur' },
   applique(contexte) {
+    const memoire: Memoire = {
+      secteur: besoin.secteur,
+      decisions: [
+        `Brief retenu : ${besoin.brief}`,
+        'Mode déterministe : les agents composent et fabriquent réellement.',
+        'La fabrication passe par composition de primitives, sans évaluation de code.',
+      ],
+    }
     contexte.emettre(`Constitue sa mémoire sur le secteur : ${besoin.secteur}.`)
     contexte.fournir('besoin', besoin)
-    contexte.fournir('memoire', {
-      secteur: besoin.secteur,
-      decisions: [`Brief retenu : ${besoin.brief}`],
+    contexte.fournir('memoire', memoire)
+    // La fabrique est un coeffect : aucun agent ne la construit lui-même,
+    // et le graphe montre qui en dépend.
+    contexte.fournir('fabrique', fabriqueParComposition())
+    contexte.publierArtefact({
+      titre: 'Mémoire de run',
+      corps: [`Secteur : ${memoire.secteur}`, '', ...memoire.decisions.map((d) => `— ${d}`)].join(
+        '\n',
+      ),
+      decouleDe: 'le brief',
     })
     contexte.terminer()
   },
@@ -58,6 +78,11 @@ export const planificateur: Composant = {
     ]
     contexte.emettre(`Découpe « ${besoin?.brief ?? '?'} » en ${titres.length} histoires.`)
     contexte.fournir('histoires', { titres } satisfies Histoires)
+    contexte.publierArtefact({
+      titre: 'Découpage en histoires',
+      corps: titres.map((titre, index) => `${index + 1}. ${titre}`).join('\n'),
+      decouleDe: 'le besoin',
+    })
     contexte.terminer()
   },
 }
@@ -79,6 +104,17 @@ export const architecte: Composant = {
       `Retient trois constructeurs parallèles pour le secteur « ${memoire?.secteur ?? '?'} ».`,
     )
     contexte.fournir('specification', specification)
+    contexte.publierArtefact({
+      titre: 'Décision de composition',
+      corps: [
+        `Produit visé : ${specification.produit}`,
+        `Constructeurs en parallèle : ${specification.constructeurs.join(', ')}`,
+        '',
+        'Critères retenus :',
+        ...specification.criteres.map((critere) => `— ${critere}`),
+      ].join('\n'),
+      decouleDe: 'les histoires et la mémoire de run',
+    })
     contexte.terminer()
   },
 }
@@ -106,9 +142,86 @@ export const constructeur = (quoi: string, technologie?: string): Composant => (
       `Travaille depuis ${specification?.criteres.length ?? 0} critères et ${registre?.regles.length ?? 0} règles.`,
     )
     contexte.fournir(`sortie-${quoi}`, { quoi, criteres: specification?.criteres ?? [] })
+    contexte.publierArtefact({
+      titre: `Sortie du constructeur ${LIBELLES_CONSTRUCTEUR[quoi] ?? quoi}`,
+      corps: [
+        `Couvre ${specification?.criteres.length ?? 0} critères.`,
+        '',
+        ...(specification?.criteres ?? []).map((critere) => `— ${critere}`),
+      ].join('\n'),
+      decouleDe: "la décision de composition de l'architecte",
+    })
     contexte.terminer()
   },
 })
+
+/**
+ * Le constructeur qui fabrique vraiment une pièce : il écrit une
+ * spécification de composant, la passe à la fabrique, et charge le résultat.
+ * C'est ce qui sépare une orchestration d'une usine.
+ */
+export const constructeurFabricant: Composant = {
+  nom: 'constructeur-produit',
+  injecte: ['specification', 'registre', 'fabrique'],
+  fournit: ['sortie-produit'],
+  presentation: {
+    libelle: 'Constr. · produit',
+    role: 'Écrit une spécification de composant et fabrique la pièce',
+  },
+  applique(contexte) {
+    const specification = contexte.lire<Specification>('specification')
+    const registre = contexte.lire<{ regles: readonly unknown[] }>('registre')
+    const fabrique = contexte.lire<Fabrique>('fabrique')
+    if (fabrique === undefined) return
+
+    const aFabriquer: SpecificationComposant = {
+      nom: 'verificateur-allegations',
+      libelle: 'Vérificateur',
+      role: 'Classe chaque allégation et cite sa source',
+      injecte: ['registre'],
+      fournit: ['verificateur'],
+      etapes: ['decouper-allegations', 'classer-par-regles', 'exiger-une-source'],
+    }
+
+    const resultat = fabrique.compiler(aFabriquer)
+    if (!resultat.ok) {
+      contexte.emettre(`Fabrication refusée : ${resultat.echec.message}`)
+      contexte.fournir('sortie-produit', { fabrique: false })
+      contexte.terminer()
+      return
+    }
+
+    contexte.emettre(
+      `Fabrique « ${aFabriquer.nom} » : ${aFabriquer.etapes.length} primitives, ${registre?.regles.length ?? 0} règles.`,
+    )
+    void contexte.charger(resultat.piece.composant, {
+      specification: [
+        `nom : ${aFabriquer.nom}`,
+        `rôle : ${aFabriquer.role}`,
+        `consomme : ${aFabriquer.injecte.join(', ')}`,
+        `publie : ${aFabriquer.fournit.join(', ')}`,
+        `étapes : ${aFabriquer.etapes.join(' → ')}`,
+        '',
+        `critères repris de l'architecte : ${(specification?.criteres ?? []).length}`,
+      ].join('\n'),
+      source: resultat.piece.source,
+      voie: fabrique.voie,
+    })
+
+    contexte.publierArtefact({
+      titre: 'Spécification de la pièce fabriquée',
+      corps: [
+        `La pièce « ${aFabriquer.nom} » n'existait pas avant ce run.`,
+        `Elle enchaîne : ${aFabriquer.etapes.join(' → ')}.`,
+        '',
+        "Aucune chaîne de code n'est évaluée : les primitives sont assemblées.",
+      ].join('\n'),
+      decouleDe: "la décision de composition de l'architecte",
+    })
+    contexte.fournir('sortie-produit', { fabrique: true })
+    contexte.terminer()
+  },
+}
 
 export const sceptique: Composant = {
   nom: 'sceptique',
@@ -130,6 +243,11 @@ export const sceptique: Composant = {
       'Relève une couverture plus étroite que le nom du produit ne le laisse croire.',
     )
     contexte.fournir('objection', objection)
+    contexte.publierArtefact({
+      titre: 'Objection',
+      corps: objection.texte,
+      decouleDe: `l'artefact « ${objection.cible} »`,
+    })
     contexte.terminer()
   },
 }

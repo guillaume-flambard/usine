@@ -7,6 +7,10 @@ import { claimCheck } from '../../scenarios/claim-check'
 import { topologieDeclaree } from '../lancer'
 import type { Scenario } from '../../scenarios/types'
 
+// Le casting déclaré, plus l'agent maître, plus la pièce que le
+// constructeur produit fabrique pendant le run.
+const NOEUDS_ATTENDUS = claimCheck.casting.length + 2
+
 const tick = async () => {
   for (let index = 0; index < 6; index += 1) {
     await new Promise<void>((resolve) => setTimeout(resolve, 0))
@@ -21,7 +25,7 @@ describe('pilote', () => {
     await pilote.demarrer(claimCheck.brief)
     await tick()
 
-    expect(pilote.store.etat.value.noeuds).toHaveLength(claimCheck.casting.length + 1)
+    expect(pilote.store.etat.value.noeuds).toHaveLength(NOEUDS_ATTENDUS)
     expect(pilote.store.etat.value.narration).toBeDefined()
     expect(pilote.phase()).toBe('Terminé')
     expect(pilote.fini()).toBe(true)
@@ -50,7 +54,7 @@ describe('pilote', () => {
     await pilote.demarrer(claimCheck.brief)
     await tick()
 
-    expect(pilote.store.etat.value.noeuds).toHaveLength(claimCheck.casting.length + 1)
+    expect(pilote.store.etat.value.noeuds).toHaveLength(NOEUDS_ATTENDUS)
     expect(pilote.store.etat.value.derniereSequence).toBeLessThanOrEqual(premier)
     expect(pilote.store.etat.value.incidents).toEqual([])
   })

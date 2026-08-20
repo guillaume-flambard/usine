@@ -1,7 +1,14 @@
 // Le canal unique. Tout ce que le reste de l'application apprend d'un run
 // passe par ici. Ajouter une information visible, c'est ajouter une variante.
 
-import type { CauseDesactivation, ErreurComposant, IdComposant, Presentation } from './contrat'
+import type {
+  Artefact,
+  CauseDesactivation,
+  ErreurComposant,
+  Fabrication,
+  IdComposant,
+  Presentation,
+} from './contrat'
 
 interface Base {
   /** Strictement croissant, sans trou, attribué par le noyau. */
@@ -56,6 +63,20 @@ export interface ValeurTransmise extends Base {
   nom: string
 }
 
+export interface ArtefactProduit extends Base {
+  type: 'artefact-produit'
+  id: IdComposant
+  artefact: Artefact
+}
+
+export interface ComposantFabrique extends Base {
+  type: 'composant-fabrique'
+  id: IdComposant
+  /** Le composant qui l'a fabriqué. */
+  parent: IdComposant
+  fabrication: Fabrication
+}
+
 /** Émis quand un abonné lève : le run continue, l'incident est visible. */
 export interface AbonneEnErreur extends Base {
   type: 'abonne-en-erreur'
@@ -71,6 +92,8 @@ export type EvenementRun =
   | MessageEmis
   | TravailTermine
   | ValeurTransmise
+  | ArtefactProduit
+  | ComposantFabrique
   | AbonneEnErreur
 
 export type Abonne = (evenement: EvenementRun) => void

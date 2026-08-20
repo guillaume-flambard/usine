@@ -6,6 +6,7 @@ import {
   agentMaitre,
   architecte,
   constructeur,
+  constructeurFabricant,
   livraison,
   planificateur,
   sceptique,
@@ -54,18 +55,22 @@ export const claimCheck: Scenario = {
     { cle: 'e-constructeur-regles', composant: constructeur('regles') },
     { cle: 'f-constructeur-interface', composant: constructeur('interface', 'Vue 3') },
     { cle: 'g-constructeur-tests', composant: constructeur('tests') },
+    { cle: 'g2-constructeur-produit', composant: constructeurFabricant },
     { cle: 'h-sceptique', composant: sceptique },
     { cle: 'i-livraison', composant: livraison },
   ],
   nomsReserves: [
     { nom: 'besoin', proprietaire: 'a-maitre' },
     { nom: 'memoire', proprietaire: 'a-maitre' },
+    { nom: 'fabrique', proprietaire: 'a-maitre' },
     { nom: 'registre', proprietaire: 'b-registre' },
     { nom: 'histoires', proprietaire: 'c-planificateur' },
     { nom: 'specification', proprietaire: 'd-architecte' },
     { nom: 'sortie-regles', proprietaire: 'e-constructeur-regles' },
     { nom: 'sortie-interface', proprietaire: 'f-constructeur-interface' },
     { nom: 'sortie-tests', proprietaire: 'g-constructeur-tests' },
+    { nom: 'sortie-produit', proprietaire: 'g2-constructeur-produit' },
+    { nom: 'verificateur', proprietaire: 'j-verificateur' },
     { nom: 'objection', proprietaire: 'h-sceptique' },
     { nom: 'livrable', proprietaire: 'i-livraison' },
   ],
@@ -75,9 +80,12 @@ export const claimCheck: Scenario = {
   emplacementsReserves: [
     {
       cle: 'j-verificateur',
+      // Cette entrée ne réserve que la place et le nom : la vraie pièce est
+      // fabriquée pendant le run par le constructeur produit.
       composant: {
         nom: 'verificateur-allegations',
-        injecte: ['livrable', 'registre'],
+        injecte: ['registre'],
+        fournit: ['verificateur'],
         presentation: {
           libelle: 'Vérificateur',
           role: 'Le produit livré — fabriqué pendant le run',

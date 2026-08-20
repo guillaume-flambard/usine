@@ -5,11 +5,13 @@
 import { Context } from 'cordis'
 import type {
   Annulation,
+  Artefact,
   CauseDesactivation,
   Composant,
   ContexteComposant,
   Dependance,
   ErreurComposant,
+  Fabrication,
   EtatComposant,
   IdComposant,
   NoeudTopologie,
@@ -45,6 +47,16 @@ export interface Noyau {
   charger(composant: Composant): Promise<IdComposant | undefined>
   /** Libère un composant et, en cascade, tout ce qu'il a chargé. */
   liberer(id: IdComposant): Promise<void>
+  /**
+   * Remplace un composant vivant par une nouvelle version, à chaud.
+   * Si la nouvelle version échoue à se charger, l'ancienne est remise :
+   * une auto-modification ratée ne laisse pas le run amputé.
+   */
+  remplacer(
+    id: IdComposant,
+    remplacant: Composant,
+    fabrication?: Fabrication,
+  ): Promise<IdComposant | undefined>
   /** Libère la totalité du run, chargements encore en vol compris. */
   libererTout(): Promise<void>
   /** Photographie de la topologie vivante. */
@@ -66,6 +78,8 @@ export function creerNoyau(): Noyau {
    */
   const reserves = new Map<string, IdComposant>()
   const abonnes = new Set<Abonne>()
+  /** Le contexte Cordis de chaque composant, pour recharger un enfant au bon endroit. */
+  const contextesParEntree = new Map<IdComposant, Context>()
   let sequence = 0
   let compteur = 0
 
@@ -145,6 +159,7 @@ export function creerNoyau(): Noyau {
       ...(injecte.length > 0 ? { inject: injecte } : {}),
       ...(fournit.length > 0 ? { provide: fournit } : {}),
       apply(contexte: Context) {
+        contextesParEntree.set(id, contexte)
         // Sentinelle : son inverse se joue à chaque désactivation, qu'elle vienne
         // du départ d'une dépendance ou d'une libération complète.
         contexte.effect(
@@ -231,9 +246,13 @@ export function creerNoyau(): Noyau {
             entree.termine = true
             emettre({ type: 'travail-termine', id })
           },
-          charger(enfant: Composant) {
+          publierArtefact(artefact: Artefact) {
+            if (!utilisable()) return
+            emettre({ type: 'artefact-produit', id, artefact })
+          },
+          charger(enfant: Composant, fabrication?: Fabrication) {
             if (!utilisable()) return Promise.resolve(undefined)
-            return chargerDans(contexte, enfant, id)
+            return chargerDans(contexte, enfant, id, fabrication)
           },
         }
 
@@ -271,6 +290,7 @@ export function creerNoyau(): Noyau {
     contexte: Context,
     composant: Composant,
     parent?: IdComposant,
+    fabrication?: Fabrication,
   ): Promise<IdComposant | undefined> {
     const conflit = nomsPris(composant)
     if (conflit !== undefined) {
@@ -312,6 +332,10 @@ export function creerNoyau(): Noyau {
       fournit,
     })
 
+    if (fabrication !== undefined && parent !== undefined) {
+      emettre({ type: 'composant-fabrique', id, parent, fabrication })
+    }
+
     let fibre: Awaited<ReturnType<Context['plugin']>>
     try {
       fibre = await contexte.plugin(construirePlugin(composant, id, entree))
@@ -340,6 +364,7 @@ export function creerNoyau(): Noyau {
         await fibre.dispose()
         relacherNoms(id, fournit)
         entrees.delete(id)
+        contextesParEntree.delete(id)
         emettre({ type: 'composant-libere', id })
       })()
       return entree.enCours
@@ -360,6 +385,26 @@ export function creerNoyau(): Noyau {
       const entree = entrees.get(id)
       if (entree === undefined) return
       await entree.liberer()
+    },
+    async remplacer(id: IdComposant, remplacant: Composant, fabrication?: Fabrication) {
+      const entree = entrees.get(id)
+      if (entree === undefined) return undefined
+      const ancien = entree.composant
+      const parent = entree.parent
+      const contexteParent =
+        parent !== undefined ? (contextesParEntree.get(parent) ?? racine) : racine
+
+      await entree.liberer()
+      const nouveau = await chargerDans(contexteParent, remplacant, parent, fabrication)
+      // Une version qui se charge mais tombe en défaut n'a pas « pris » :
+      // un composant en erreur n'est pas un remplacement réussi.
+      const enDefaut = nouveau !== undefined && entrees.get(nouveau)?.etat === 'en-erreur'
+      if (nouveau !== undefined && !enDefaut) return nouveau
+
+      if (nouveau !== undefined) await entrees.get(nouveau)?.liberer()
+      // Rollback : on remet l'ancienne version pour ne pas amputer le run.
+      await chargerDans(contexteParent, ancien, parent)
+      return undefined
     },
     async libererTout() {
       // Une passe ne suffit pas : un chargement encore en vol s'inscrit après
