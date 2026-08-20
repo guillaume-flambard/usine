@@ -13,8 +13,10 @@
     "lint:oxlint": "oxlint . --fix",
     "lint:eslint": "eslint . --fix --cache",
     "format": "prettier --write --experimental-cli src/",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run --project noyau",
+    "test:watch": "vitest",
+    "test:navigateur": "vitest run --project navigateur",
+    "test:tout": "vitest run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.119.0",
@@ -26,6 +28,8 @@
     "@tsconfig/node24": "^24.0.4",
     "@types/node": "^24.13.3",
     "@vitejs/plugin-vue": "^6.0.8",
+    "@vitest/browser": "^4.1.11",
+    "@vitest/browser-playwright": "^4.1.11",
     "@vue/eslint-config-typescript": "^14.9.0",
     "@vue/tsconfig": "^0.9.1",
     "eslint": "^10.7.0",
@@ -35,11 +39,13 @@
     "jiti": "^2.7.0",
     "npm-run-all2": "^9.0.2",
     "oxlint": "~1.74.0",
+    "playwright": "^1.62.1",
     "prettier": "3.9.5",
     "typescript": "~6.0.0",
     "vite": "^8.1.5",
     "vite-plugin-vue-devtools": "^8.1.5",
     "vitest": "^4.1.11",
+    "vitest-browser-vue": "^2.1.0",
     "vue-eslint-parser": "^10.4.1",
     "vue-tsc": "^3.3.7"
   },

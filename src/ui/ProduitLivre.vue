@@ -11,6 +11,8 @@ const props = defineProps<{
   contact: string
 }>()
 
+const emit = defineEmits<{ soumis: [] }>()
+
 /** Le verdict est calculé sur le fil principal : on borne l'entrée. */
 const LIMITE = 20000
 
@@ -39,6 +41,7 @@ function verifierTexte() {
   try {
     erreur.value = undefined
     verdicts.value = props.verifier(texte.value)
+    emit('soumis')
   } catch (cause) {
     erreur.value = cause instanceof Error ? cause.message : String(cause)
     verdicts.value = undefined

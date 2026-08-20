@@ -1,4 +1,5 @@
-// Un outil : il ne décide rien, il publie une source de vérité.
+// Un outil : il ne décide rien, il publie une source de vérité. Changer de
+// niche, c'est changer ce registre et l'expert qui le signe — pas le moteur.
 import type { Composant } from '../runtime/contrat'
 
 export interface Regle {
@@ -7,13 +8,26 @@ export interface Regle {
   source: string
 }
 
-export const registreEu = (regles: readonly Regle[]): Composant => ({
+export interface Identite {
+  /** Ce qui s'affiche sous le nom du nœud. */
+  technologie: string
+  /** Le rôle, en une ligne. */
+  role: string
+}
+
+export const registreEu = (
+  regles: readonly Regle[],
+  identite: Identite = {
+    technologie: 'registre EU',
+    role: 'Source de vérité réglementaire',
+  },
+): Composant => ({
   nom: 'outil-registre',
   fournit: ['registre'],
   presentation: {
     libelle: 'Outil · registre',
-    role: 'Source de vérité réglementaire',
-    technologie: 'registre EU',
+    role: identite.role,
+    technologie: identite.technologie,
   },
   applique(contexte) {
     // Une règle sans motif correspondrait à tout ; une règle tranchée sans

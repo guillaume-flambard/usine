@@ -54,8 +54,25 @@ pnpm build
 pnpm lint
 ```
 
-### Run Unit Tests with [Vitest](https://vitest.dev/)
+### Tests
 
 ```sh
-pnpm test
+pnpm test            # le noyau, le réducteur, les scénarios — sans navigateur
+pnpm test:navigateur # les promesses d'interface, dans un vrai Chromium
+pnpm test:tout       # les deux
 ```
+
+Les promesses d'interface — la page qui ne défile jamais, le parcours critique
+au clavier, aucun état porté par la seule couleur, le mouvement réduit — ne se
+vérifient que dans un navigateur réel. Elles ont leur propre projet de tests.
+
+### Déploiement
+
+```sh
+docker build -t usine-agentique .
+docker run --rm -p 8080:80 usine-agentique
+```
+
+Voir `deploiement/README.md`. La politique de sécurité servie est stricte,
+sans `unsafe-eval` : le mode par défaut doit passer dessous, et un test de
+non-régression le vérifie.

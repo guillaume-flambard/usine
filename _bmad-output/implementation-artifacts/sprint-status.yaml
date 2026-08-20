@@ -78,10 +78,10 @@ development_status:
   5-5-la-fabrication-par-évaluation-sous-consentement: review
   epic-5-retrospective: optional
 
-  epic-6: backlog
-  6-1-le-second-scénario: backlog
-  6-2-la-télémétrie-fermée: backlog
-  6-3-le-build-servi-sous-csp-stricte: backlog
-  6-4-accessibilité-et-mouvement-réduit: backlog
+  epic-6: in-progress
+  6-1-le-second-scénario: review
+  6-2-la-télémétrie-fermée: review
+  6-3-le-build-servi-sous-csp-stricte: review
+  6-4-accessibilité-et-mouvement-réduit: review
   6-5-la-mise-en-ligne: backlog
   epic-6-retrospective: optional

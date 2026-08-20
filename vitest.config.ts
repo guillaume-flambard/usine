@@ -2,19 +2,41 @@ import { fileURLToPath } from 'node:url'
 import { mergeConfig, defineConfig, configDefaults } from 'vitest/config'
 // Sans extension : `allowImportingTsExtensions` n'est pas activé et
 // `vue-tsc` refuserait un chemin en `.ts`.
+import { playwright } from '@vitest/browser-playwright'
 import viteConfig from './vite.config'
 
-// Fusionné avec la config Vite plutôt que redéclaré : deux définitions
-// d'alias finiraient par diverger.
+// Deux projets. Le noyau, le réducteur et les scénarios se testent sans
+// navigateur ; les promesses d'interface — la page qui ne défile pas, le
+// clavier, le mouvement réduit — ne se vérifient que dans un vrai navigateur.
 export default mergeConfig(
   viteConfig,
   defineConfig({
     test: {
-      // Le noyau ne touche ni au DOM ni à Vue : il se teste sans navigateur.
-      environment: 'node',
-      include: ['src/**/*.{spec,test}.ts', 'src/**/__tests__/**/*.{spec,test}.ts'],
-      exclude: [...configDefaults.exclude, 'e2e/**', 'spike/**'],
       root: fileURLToPath(new URL('./', import.meta.url)),
+      projects: [
+        {
+          extends: true,
+          test: {
+            name: 'noyau',
+            environment: 'node',
+            include: ['src/**/*.{spec,test}.ts', 'src/**/__tests__/**/*.{spec,test}.ts'],
+            exclude: [...configDefaults.exclude, 'e2e/**', 'spike/**', 'src/**/*.navigateur.spec.ts'],
+          },
+        },
+        {
+          extends: true,
+          test: {
+            name: 'navigateur',
+            include: ['src/**/*.navigateur.spec.ts'],
+            browser: {
+              enabled: true,
+              provider: playwright(),
+              headless: true,
+              instances: [{ browser: 'chromium' }],
+            },
+          },
+        },
+      ],
     },
   }),
 )

@@ -11,6 +11,7 @@ import PanneauNoeud from './PanneauNoeud.vue'
 import PorteHumaine from './PorteHumaine.vue'
 import ProduitLivre from './ProduitLivre.vue'
 import InterrupteurModele from './InterrupteurModele.vue'
+import { payoffAffiche, porteAtteinte, runLance, verificationSoumise } from '../telemetrie'
 
 const pilote = creerPilote(scenarioParDefaut())
 const etat = pilote.store.etat
@@ -94,6 +95,21 @@ function arreterHorloge() {
 
 // Le temps se fige à la fin du run : un compteur qui monte sur une usine à
 // l'arrêt est un faux signal.
+// Les quatre faits mesurés se déduisent de l'état, jamais d'un contenu.
+watch(
+  () => etat.value.porte !== undefined,
+  (atteinte) => {
+    if (atteinte) porteAtteinte()
+  },
+)
+
+watch(
+  () => verificateur.value !== undefined,
+  (livre) => {
+    if (livre) payoffAffiche()
+  },
+)
+
 watch(
   () => phase.value,
   (valeur) => {
@@ -112,6 +128,7 @@ async function relancer() {
   maintenant.value = debut.value
   arreterHorloge()
   horloge = setInterval(() => (maintenant.value = Date.now()), 500)
+  runLance()
   await pilote.demarrer(brief.value)
   erreur.value = pilote.erreur()
   if (erreur.value !== undefined) arreterHorloge()
@@ -296,6 +313,7 @@ onBeforeUnmount(() => {
           v-if="verificateur"
           :verifier="verificateur"
           :contact="pilote.scenario().contact"
+          @soumis="verificationSoumise"
         />
 
         <PanneauNoeud

@@ -1,7 +1,8 @@
 import { claimCheck } from './claim-check'
+import { pubCheck } from './pub-check'
 import type { Scenario } from './types'
 
-export const SCENARIOS: readonly Scenario[] = [claimCheck]
+export const SCENARIOS: readonly Scenario[] = [claimCheck, pubCheck]
 
 export const scenarioParDefaut = (): Scenario => claimCheck
 
