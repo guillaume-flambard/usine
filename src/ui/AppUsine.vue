@@ -2,7 +2,7 @@
 // La coquille : deux volets, 100vh, la page ne défile jamais.
 // Tout ce qui fait vivre le run est dans le pilote, hors de ce composant :
 // c'est ce qui rend le câblage testable sans navigateur.
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { creerPilote } from '../orchestration/pilote'
 import { CONTACT, EXEMPLES, briefParDefaut } from '../exemples'
 import type { NoeudVue } from '../etat/modele'

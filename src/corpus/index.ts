@@ -3,7 +3,12 @@
 // aucune. C'est la limite honnête de l'exercice — l'usine compose et
 // fabrique librement, mais elle ne fabrique pas la loi.
 
-import type { Regle } from '../outils/registre-eu'
+/** Une règle du corpus : un motif, un verdict, et le texte qui l'adosse. */
+export interface Regle {
+  motif: string
+  statut: 'autorise' | 'interdit' | 'a-verifier'
+  source: string
+}
 
 export interface Corpus {
   /** Identifiant court, celui qu'un plan cite. */

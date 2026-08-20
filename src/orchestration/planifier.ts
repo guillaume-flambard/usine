@@ -6,7 +6,7 @@
 // site sans clé redeviendrait la démonstration figée qu'il ne doit plus être.
 
 import { CORPUS, corpusParDefaut, trouverCorpus, type Corpus } from '../corpus'
-import { normaliser } from '../runtime/fabrique/primitives'
+import { motifCorrespond, normaliser } from '../runtime/fabrique/primitives'
 import { raisonneurDeterministe, type Raisonneur } from '../runtime/raisonneur'
 import { CONTRAINTES, verifierPlan, type AgentPlanifie, type Plan } from './plan'
 
@@ -42,10 +42,11 @@ export const CHAINE_SURE: readonly string[] = [
   'exiger-une-source',
 ]
 
-const contient = (brief: string, mots: readonly string[]): boolean => {
-  const normalise = ` ${normaliser(brief)} `
-  return mots.some((mot) => normalise.includes(` ${mot} `) || normalise.includes(` ${mot}s `))
-}
+// Les frontières de mot, pas l'inclusion brute : « un écran, » ne doit pas
+// échapper au déclencheur parce qu'une virgule le suit, et « api » ne doit
+// pas se déclencher sur « rapide ».
+const contient = (brief: string, mots: readonly string[]): boolean =>
+  mots.some((mot) => motifCorrespond(brief, mot))
 
 /** Le corpus que le brief désigne. À égalité, le premier déclaré. */
 export function corpusDuBrief(brief: string): Corpus {

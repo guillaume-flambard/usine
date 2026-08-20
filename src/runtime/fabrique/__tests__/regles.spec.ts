@@ -5,9 +5,19 @@ import { describe, expect, it } from 'vitest'
 import { fabriqueParComposition, type SpecificationComposant } from '../index'
 import { motifCorrespond, normaliser, type Verdict } from '../primitives'
 import { creerNoyau } from '../../noyau'
-import { registreEu } from '../../../outils/registre-eu'
-import { claimCheck } from '../../../scenarios/claim-check'
+import { CORPUS } from '../../../corpus'
 import type { Composant } from '../../contrat'
+
+/** Le corpus des allégations santé, publié comme la source de vérité le fait. */
+const sourceDeVerite = (): Composant => ({
+  nom: 'source-de-verite',
+  fournit: ['registre'],
+  presentation: { libelle: 'Source', role: 'Source de vérité' },
+  applique(contexte) {
+    contexte.fournir('registre', { regles: CORPUS[0]?.regles ?? [] })
+    contexte.terminer()
+  },
+})
 
 const SPEC: SpecificationComposant = {
   nom: 'verificateur-allegations',
@@ -27,13 +37,11 @@ const tick = async () => {
   for (let i = 0; i < 4; i += 1) await new Promise<void>((r) => setTimeout(r, 0))
 }
 
-/** Un vérificateur adossé au vrai registre du scénario livré. */
+/** Un vérificateur adossé au vrai corpus, pas à un registre de test. */
 async function verificateurReel() {
   const noyau = creerNoyau()
   let verifier: ((texte: string) => readonly Verdict[]) | undefined
-  const regles = (claimCheck.casting.find((e) => e.composant.nom === 'outil-registre')?.composant ??
-    registreEu([])) as Composant
-  await noyau.charger(regles)
+  await noyau.charger(sourceDeVerite())
   const resultat = fabriqueParComposition().compiler(SPEC)
   if (!resultat.ok) throw new Error('compilation échouée')
   await noyau.charger(resultat.piece.composant)
@@ -146,14 +154,11 @@ describe('découpage', () => {
   })
 })
 
-describe('le registre du scénario livré', () => {
+describe('le corpus des allégations santé', () => {
   it('classe chaque motif comme il le déclare', async () => {
     const verifier = await verificateurReel()
-    const regles = claimCheck.casting.find((e) => e.composant.nom === 'outil-registre')
-      ?.composant as Composant | undefined
-    expect(regles).toBeDefined()
 
-    // Chaque règle du registre est exercée : une règle inerte ou mal
+    // Chaque règle du corpus est exercée : une règle inerte ou mal
     // classée passerait sinon inaperçue.
     for (const { motif, statut, source } of REGLES_ATTENDUES) {
       const verdict = premier(verifier(`Ce produit ${motif}.`))

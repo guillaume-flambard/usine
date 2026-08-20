@@ -2,7 +2,7 @@
 // la charge à sa place réservée, et tout ce que les agents écrivent est
 // consultable.
 import { describe, expect, it } from 'vitest'
-import { runApprouve, runTermine } from './aide'
+import { runTermine } from './aide'
 
 /** Un run mené jusqu'au bout : la porte humaine l'arrête, on approuve. */
 const run = () => runTermine()

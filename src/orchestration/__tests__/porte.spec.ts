@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { creerNoyau } from '../../runtime/noyau'
 import { porteHumaine } from '../../agents/deterministes'
 import type { Composant, IdComposant } from '../../runtime/contrat'
-import { jusqua, runJusquALaPorte } from './aide'
+import { runJusquALaPorte } from './aide'
 
 const tick = async () => {
   for (let i = 0; i < 8; i += 1) await new Promise<void>((r) => setTimeout(r, 0))

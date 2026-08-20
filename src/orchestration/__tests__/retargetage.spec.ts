@@ -1,51 +1,30 @@
-// Story 6.1 — la retargetabilité. Ce qui compte n'est pas qu'un second
-// scénario existe : c'est qu'il n'ait demandé aucune modification du moteur.
+// La retargetabilité, désormais sans scénario : deux briefs, deux corpus,
+// deux graphes — et aucune ligne de moteur qui les connaisse.
 import { describe, expect, it } from 'vitest'
-import { creerPilote } from '../pilote'
-import { verifierScenario } from '../lancer'
-import { SCENARIOS, trouverScenario } from '../../scenarios'
-import { pubCheck } from '../../scenarios/pub-check'
-import { claimCheck } from '../../scenarios/claim-check'
+import { CORPUS } from '../../corpus'
+import { BRIEF_PUB, BRIEF_SANTE, runApprouve, runTermine } from './aide'
 
-const tick = async () => {
-  for (let i = 0; i < 8; i += 1) await new Promise<void>((r) => setTimeout(r, 0))
-}
+const runComplet = (brief: string) => runTermine(brief)
 
-async function runComplet(scenario: typeof pubCheck) {
-  const pilote = creerPilote(scenario)
-  await pilote.demarrer(scenario.brief)
-  await tick()
-  pilote.approuver()
-  await tick()
-  return pilote
-}
-
-describe('le second scénario', () => {
-  it('est cohérent et sélectionnable', () => {
-    expect(verifierScenario(pubCheck)).toEqual([])
-    expect(SCENARIOS.length).toBeGreaterThanOrEqual(2)
-    expect(trouverScenario('pub-check')).toBe(pubCheck)
-  })
-
-  it('emploie exactement le même casting que le premier', () => {
-    // Le moteur ne connaît pas les scénarios : deux niches, une seule chaîne.
-    expect(pubCheck.casting.map((e) => e.cle)).toEqual(claimCheck.casting.map((e) => e.cle))
-    expect(pubCheck.casting.map((e) => e.composant.nom)).toEqual(
-      claimCheck.casting.map((e) => e.composant.nom),
-    )
+describe('un second domaine', () => {
+  it('existe comme corpus, pas comme scénario', () => {
+    // Changer de niche, c'est ajouter un corpus. Aucun casting, aucune
+    // topologie, aucun fichier de moteur.
+    expect(CORPUS.length).toBeGreaterThanOrEqual(2)
+    expect(CORPUS.map((c) => c.cle)).toContain('pratiques-commerciales')
   })
 
   it('mène un run complet et fabrique sa propre pièce', async () => {
-    const pilote = await runComplet(pubCheck)
+    const pilote = await runComplet(BRIEF_PUB)
 
     expect(pilote.phase()).toBe('Terminé')
-    const piece = pilote.store.etat.value.noeuds.find((n) => n.nom === 'verificateur-allegations')
+    const piece = pilote.store.etat.value.noeuds.find((n) => n.fabrication !== undefined)
     expect(piece?.fabrication).toBeDefined()
     expect(pilote.store.etat.value.incidents).toEqual([])
   })
 
   it('classe selon SA source de vérité, pas celle de l autre niche', async () => {
-    const pilote = await runComplet(pubCheck)
+    const pilote = await runComplet(BRIEF_PUB)
     const verifier = pilote.verificateur()
 
     const trompeur = verifier?.('Notre offre est sans aucun risque.')[0]
@@ -60,22 +39,25 @@ describe('le second scénario', () => {
   })
 
   it('affiche sa propre identité de source', async () => {
-    const pilote = await runComplet(pubCheck)
-    const registre = pilote.store.etat.value.noeuds.find((n) => n.nom === 'outil-registre')
-    expect(registre?.presentation.technologie).toBe('Code conso.')
+    const pilote = await runComplet(BRIEF_PUB)
+    const registre = pilote.store.etat.value.noeuds.find((n) => n.fournit.includes('registre'))
+    expect(registre?.presentation.technologie).toBe('Code de la consommation')
   })
 
-  it('bascule proprement d une niche à l autre', async () => {
-    const pilote = creerPilote(claimCheck)
-    await pilote.demarrer(claimCheck.brief)
-    await tick()
+  it("ne garde rien de la niche précédente d'un run à l'autre", async () => {
+    const premier = await runApprouve(BRIEF_SANTE)
+    const nomsSante = premier.store.etat.value.noeuds.map((n) => n.nom)
+    // Le plan vit dans le noyau : le lire après l'arrêt ne rendrait rien.
+    const corpusSante = premier.plan()?.corpus
+    await premier.arreter()
 
-    await pilote.changerScenario(pubCheck)
-    expect(pilote.scenario().cle).toBe('pub-check')
-    expect(pilote.store.etat.value.noeuds).toHaveLength(0)
-    expect(pilote.noyau()).toBeUndefined()
-    // La disposition suit le scénario : chaque niche a sa propre topologie.
-    expect(pilote.disposition().boites.has('verificateur-allegations')).toBe(true)
+    const second = await runApprouve(BRIEF_PUB)
+    // Le graphe du second run n'est pas celui du premier : ni les mêmes
+    // agents, ni le même corpus, ni la même disposition.
+    expect(second.plan()?.corpus).toBe('pratiques-commerciales')
+    expect(corpusSante).toBe('allegations-sante')
+    expect(second.store.etat.value.noeuds.map((n) => n.nom)).not.toEqual(nomsSante)
+    expect(second.disposition.value.boites.size).toBe(second.store.etat.value.noeuds.length)
   })
 })
 
@@ -96,7 +78,7 @@ const REGLES_PUBLICITAIRES = [
 
 describe('le registre publicitaire, règle par règle', () => {
   it('classe chaque motif comme il le déclare', async () => {
-    const pilote = await runComplet(pubCheck)
+    const pilote = await runComplet(BRIEF_PUB)
     const verifier = pilote.verificateur()
 
     // Dix des douze règles n'étaient exercées par rien : une règle inerte ou
@@ -109,7 +91,7 @@ describe('le registre publicitaire, règle par règle', () => {
   })
 
   it('reconnaît la ponctuation française avec ou sans espace fine', async () => {
-    const pilote = await runComplet(pubCheck)
+    const pilote = await runComplet(BRIEF_PUB)
     const verifier = pilote.verificateur()
 
     // La moitié des copies écrit « 100% » : l'exiger avec l'espace fine

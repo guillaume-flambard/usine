@@ -234,14 +234,14 @@ describe('la mesure, telle que la coquille la produit', () => {
 })
 
 describe('le changement de niche depuis la page', () => {
-  it('suit le scénario choisi, brief et graphe compris', async () => {
+  it('suit le brief choisi, jusque dans la source de vérité du graphe', async () => {
     await monter()
     const selecteur = document.querySelector<HTMLSelectElement>('.selecteur')
-    expect(selecteur, 'le sélecteur de scénario est absent').not.toBeNull()
+    expect(selecteur, "le sélecteur d'exemples est absent").not.toBeNull()
     if (selecteur === null) return
-    expect(selecteur.options.length).toBeGreaterThanOrEqual(2)
+    expect(selecteur.options.length).toBeGreaterThanOrEqual(3)
 
-    selecteur.value = 'pub-check'
+    selecteur.value = 'publicite'
     selecteur.dispatchEvent(new Event('change', { bubbles: true }))
     await attendre(200)
 
@@ -249,10 +249,11 @@ describe('le changement de niche depuis la page', () => {
     expect(brief?.value ?? '').toContain('publicitaires')
 
     await lancer()
-    const registre = [...document.querySelectorAll<SVGGElement>('.noeud')].find((n) =>
-      (n.getAttribute('aria-label') ?? '').includes('Outil'),
+    await attendre(600)
+    const source = [...document.querySelectorAll<SVGGElement>('.noeud')].find((n) =>
+      (n.getAttribute('aria-label') ?? '').includes('Source'),
     )
-    // La niche a changé jusque dans l'étiquette de la source de vérité.
-    expect(registre?.textContent ?? '').toContain('Code conso.')
+    // Le brief a changé la source de vérité que l'usine s'est choisie.
+    expect(source?.textContent ?? '').toContain('Code de la consommation')
   })
 })

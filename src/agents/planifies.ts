@@ -331,6 +331,9 @@ export function maitreDuPlan(options: OptionsMaitre): Composant {
           secteur: corpus.titre,
           decisions: [
             `Brief retenu : ${options.brief}`,
+            raisonneur.origine === 'llm'
+              ? 'Mode LLM branché : les agents qui raisonnent le font par un modèle.'
+              : 'Mode déterministe : les agents composent et fabriquent réellement.',
             plan.origine === 'modele'
               ? 'Plan rédigé par un modèle, puis vérifié avant chargement.'
               : `Plan déterministe, déduit du brief.${echec !== undefined ? ` Le modèle a été écarté : ${echec}` : ''}`,
@@ -346,6 +349,7 @@ export function maitreDuPlan(options: OptionsMaitre): Composant {
         contexte.publierArtefact({
           titre: 'Plan du run',
           corps: [
+            `Brief : ${options.brief}`,
             `Produit visé : ${plan.produit}`,
             `Corpus : ${corpus.titre}`,
             `Origine du plan : ${plan.origine === 'modele' ? 'un modèle' : 'déduction du brief'}`,
