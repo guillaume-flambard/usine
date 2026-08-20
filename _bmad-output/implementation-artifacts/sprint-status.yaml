@@ -1,0 +1,87 @@
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created, ready for development
+#   - in-progress: Developer actively working on implementation
+#   - review: Implementation complete, ready for review
+#   - done: Story completed
+
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when its first story starts (via build's sprint sync)
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates the next story after the previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; the status view surfaces open ones
+generated: 08-20-2026 17:55
+last_updated: 08-20-2026 17:55
+project: usine
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+development_status:
+  epic-1: backlog
+  1-1-le-noyau-de-composition-isolé: backlog
+  1-2-le-store-et-les-états-dérivés: backlog
+  1-3-le-scénario-comme-donnée-et-le-casting-du-run: backlog
+  1-4-le-graphe-qui-pousse: backlog
+  1-5-le-brief-et-le-lancement: backlog
+  1-6-la-narration-et-les-compteurs: backlog
+  1-7-inspecter-un-nœud: backlog
+  1-8-prouver-que-rien-n-est-simulé: backlog
+  epic-1-retrospective: optional
+
+  epic-2: backlog
+  2-1-le-port-fabrique-et-le-registre-des-primitives: backlog
+  2-2-un-agent-fabrique-un-composant-et-le-charge: backlog
+  2-3-la-mémoire-de-run: backlog
+  2-4-les-artefacts-produits-par-les-agents: backlog
+  2-5-spécification-et-code-côte-à-côte: backlog
+  2-6-remplacer-et-retirer-une-version-fautive: backlog
+  epic-2-retrospective: optional
+
+  epic-3: backlog
+  3-1-l-agent-sceptique: backlog
+  3-2-la-porte-humaine: backlog
+  3-3-approuver: backlog
+  3-4-écarter-et-montrer-la-rétractation: backlog
+  epic-3-retrospective: optional
+
+  epic-4: backlog
+  4-1-le-moteur-de-règles-pur: backlog
+  4-2-pas-de-verdict-sans-source: backlog
+  4-3-le-payoff-monté-dans-le-graphe: backlog
+  4-4-utiliser-le-vérificateur: backlog
+  4-5-le-point-de-contact: backlog
+  epic-4-retrospective: optional
+
+  epic-5: backlog
+  5-1-le-port-raisonneur: backlog
+  5-2-l-interrupteur-et-la-clé: backlog
+  5-3-le-compteur-de-tokens-honnête: backlog
+  5-4-l-affichage-du-mode-actif: backlog
+  5-5-la-fabrication-par-évaluation-sous-consentement: backlog
+  epic-5-retrospective: optional
+
+  epic-6: backlog
+  6-1-le-second-scénario: backlog
+  6-2-la-télémétrie-fermée: backlog
+  6-3-le-build-servi-sous-csp-stricte: backlog
+  6-4-accessibilité-et-mouvement-réduit: backlog
+  6-5-la-mise-en-ligne: backlog
+  epic-6-retrospective: optional
