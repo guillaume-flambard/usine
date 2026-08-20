@@ -34,7 +34,7 @@ companions: []
 
 **Noyau de composition + projection unidirectionnelle** — des ports et adaptateurs autour du runtime Cordis.
 
-Le runtime est le cœur : c'est lui qui charge les composants, propage les coeffects, fabrique et révoque. Il ne connaît ni Vue, ni le DOM, ni les scénarios. Tout ce que le reste du monde apprend de lui sort par un **flux d'événements typés**, réduit dans un **modèle de lecture** que l'interface se contente d'afficher.
+Le runtime est le cœur : c'est lui qui charge les composants, propage les coeffects, fabrique et révoque. Il ne connaît ni Vue, ni le DOM, ni le domaine. Tout ce que le reste du monde apprend de lui sort par un **flux d'événements typés**, réduit dans un **modèle de lecture** que l'interface se contente d'afficher.
 
 Le sens de la dépendance ne s'inverse jamais. L'interface pose des **intentions** (lancer, approuver, écarter, brancher un modèle) ; elle ne touche jamais une fiber.
 
@@ -44,7 +44,7 @@ graph LR
   etat["etat/ — store et réducteur"]
   runtime["runtime/ — noyau Cordis"]
   agents["agents/ — composants"]
-  scenarios["scenarios/ — données pures"]
+  scenarios["corpus/ + exemples — données pures"]
   produits["produits/ — moteurs de payoff"]
   telemetrie["telemetrie/"]
 
@@ -115,19 +115,33 @@ Correspondance couche / répertoire : le paradigme est appliqué par l'arboresce
 - **Prevents:** des appels au modèle dispersés dans les agents, et un repli d'erreur réimplémenté à chaque endroit
 - **Rule:** un agent ne parle jamais à un fournisseur. Il consomme le coeffect `Raisonneur`. L'implémentation déterministe est le défaut ; l'adaptateur LLM la remplace agent par agent. En cas d'échec (clé, quota, réseau), le port retombe sur l'implémentation déterministe et émet un `RunEvent` d'erreur — le repli exigé par FR-046 est mécanique, pas répété.
 
-### AD-10 — Un scénario est une donnée, pas du code
+### AD-10 — Le casting est un résultat du brief, pas une déclaration
+
+*Révisé. La version initiale faisait du scénario une donnée déclarant le casting complet ; c'était une chaîne connue d'avance dont le brief ne changeait rien. Voir AD-23 et AD-24.*
 
 - **Binds:** F9, F1, F6
-- **Prevents:** des branchements conditionnels par scénario dans le moteur, qui ruineraient FR-050
-- **Rule:** un scénario déclare : brief par défaut, composants à charger, source de vérité, produit livré. Il n'importe ni `ui/`, ni `runtime/`. Ajouter un scénario ne modifie aucun fichier du moteur.
+- **Prevents:** qu'un graphe connu d'avance se fasse passer pour une composition, et des branchements conditionnels par niche dans le moteur
+- **Rule:** aucun fichier ne déclare quels agents existent. Un **plan** est produit à l'exécution à partir du brief (AD-23) et le maître le charge (AD-24). Ce qui reste déclaré est de la **donnée métier** : les corpus de règles (`src/corpus/`), que l'usine choisit et n'invente pas, et des briefs d'exemple (`src/exemples.ts`) qui ne décrivent aucun graphe. Ajouter une niche, c'est ajouter un corpus — aucun fichier de moteur, aucune topologie.
 
-### AD-11 — La disposition est calculée une fois, sur la topologie déclarée
+### AD-23 — Un plan est une donnée hostile, vérifiée avant tout chargement
+
+- **Binds:** F1, F9, F10
+- **Prevents:** qu'un plan rédigé par un modèle fige le run, produise des verdicts faux ou fasse dériver la facture
+- **Rule:** le plan (`orchestration/plan.ts`) déclare des agents — nom, rôle, injections, publications, outil à fabriquer. Il vient d'un modèle ou d'une déduction du brief, donc **il est vérifié avant le moindre chargement** : cycles, dépendances sans fournisseur, noms en double, noms appartenant au maître, primitives inventées, agents décoratifs, promesses non tenues envers la suite fixe, nombre d'agents plafonné. Une chaîne qui classe sans `ecarter-les-negations` ni `exiger-une-source` est refusée : **le plan décide de la composition, jamais de la justesse du verdict.** Tout refus retombe sur le plan déterministe, et la raison s'affiche.
+
+### AD-24 — Le maître fait naître le graphe, vague après vague
+
+- **Binds:** F1, F3, F11
+- **Prevents:** qu'un graphe entier apparaisse d'un bloc, et qu'un agent en panne fige le run sans écran
+- **Rule:** le maître publie ses coeffets, planifie, puis charge les agents par **vagues** : une vague ne naît qu'une fois la précédente réellement publiée (`noyau.attendre`), avec une borne au-delà de laquelle le run poursuit en le disant. Ce qui ne se planifie pas — porte humaine, livraison — est une **suite fixe** chargée après le plan : un produit qui pourrait se livrer sans décision humaine ne serait plus le même produit. Une **cadence de lecture** impose un temps minimum entre deux naissances ; elle est annoncée dans l'artefact du plan, jamais présentée comme du travail.
+
+### AD-11 — La disposition suit la topologie vivante, et ne se recalcule que quand elle change
+
+*Révisé. La version initiale calculait la disposition une fois sur la topologie déclarée ; elle supposait un graphe connu avant le run, ce qui n'est plus le cas.*
 
 - **Binds:** F3, F9, F11
-- **Prevents:** que les nœuds déjà posés sautent quand un nouveau arrive, et que deux runs de même topologie ne se ressemblent pas
-- **Rule:** la disposition est calculée **une seule fois par run**, au démarrage, sur la **topologie complète déclarée par le scénario** — y compris les emplacements réservés aux composants qui seront fabriqués à l'exécution (AD-17 leur réserve déjà leur nom de coeffect ; le scénario leur réserve aussi leur place). Les nœuds sont ensuite **révélés**, jamais repositionnés. Les couches viennent de la profondeur topologique des coeffects, l'ordre interne de la clé de déclaration. Le calcul de coordonnées s'appuie sur `@dagrejs/dagre` ; le **rendu** reste du code du projet, en SVG.
-
-Un composant qui apparaîtrait hors de toute place réservée est une erreur de scénario, pas un cas à absorber par un recalcul.
+- **Prevents:** qu'un nœud vivant n'ait aucune place, que la disposition se recalcule à chaque message, et que deux runs de même topologie ne se ressemblent pas
+- **Rule:** la disposition est calculée sur les **nœuds et arêtes réellement vivants**, et recalculée **au seul changement de topologie** — une signature `noms + arêtes` en décide ; ni un état, ni un artefact, ni un message ne déplace quoi que ce soit. Les nœuds **glissent** vers leur nouvelle place, la transition étant neutralisée sous `prefers-reduced-motion`. L'ordre interne d'une couche vient de l'ordre d'apparition. Le graphe est tenu entier dans son cadre par un `viewBox` : sa taille n'est pas connue d'avance. Le calcul de coordonnées s'appuie sur `@dagrejs/dagre` ; le **rendu** reste du code du projet, en SVG.
 
 ### AD-12 — Le vérificateur est une fonction pure
 
@@ -163,7 +177,7 @@ Un composant qui apparaîtrait hors de toute place réservée est une erreur de 
 
 - **Binds:** F2, F9, F11
 - **Prevents:** que deux composants fournissent le même nom de coeffect et qu'un agent se câble au hasard sur l'un ou l'autre
-- **Rule:** chaque nom de coeffect est déclaré une fois dans le scénario, avec le composant qui le fournit. Charger un second fournisseur pour un nom déjà pris est une erreur de chargement, pas un remplacement silencieux — le runtime la convertit en `RunEvent` d'erreur (AD-15). Un composant fabriqué à l'exécution ne peut fournir qu'un nom que le scénario a réservé pour lui.
+- **Rule:** chaque nom de coeffect a un fournisseur unique. Le plan le déclare — et sa vérification (AD-23) refuse un nom publié deux fois ou un nom appartenant au maître. Charger un second fournisseur pour un nom déjà pris est une erreur de chargement, pas un remplacement silencieux — le runtime la convertit en `RunEvent` d'erreur (AD-15).
 
 ### AD-18 — Un composant produit au plus un artefact final
 
@@ -204,7 +218,7 @@ Un composant qui apparaîtrait hors de toute place réservée est une erreur de 
 | Événements | `RunEvent` discriminé sur `type`, valeurs en `kebab-case` (`composant-active`, `artefact-produit`, `porte-atteinte`). Passé composé : un événement décrit un fait accompli. |
 | Identifiants | `IdComposant` est un type nominal produit par `runtime/`. Jamais une chaîne nue dans une signature publique. |
 | Dates et durées | Millisecondes entières pour les durées ; aucune date absolue dans le modèle de run. |
-| Ordre | Tout ordre visible dérive du numéro de séquence des événements (AD-20) ou d'une clé de déclaration (AD-11), jamais de l'ordre d'arrivée ni d'un tri par date. |
+| Ordre | Tout ordre visible dérive du numéro de séquence des événements (AD-20) : ordre d'apparition dans une couche du graphe, ordre du journal. Jamais un tri par date. |
 | Forme d'erreur | `{ code: string, message: string, composant?: IdComposant }`. Jamais une `Error` brute franchissant la frontière du runtime. |
 | Mutation d'état | Une seule voie : le réducteur. Les composants Vue reçoivent des valeurs, émettent des intentions. |
 | Journalisation | Aucune sortie console en production. Le journal du run (NFR-014) est une projection du flux d'événements, pas un `console.log`. |
@@ -339,7 +353,7 @@ src/
       llm.ts
   agents/           # un fichier par composant : planificateur, architecte, constructeurs, sceptique, livraison
   outils/           # composants qui fournissent des coeffects (registre, mémoire)
-  scenarios/        # données pures (AD-10) — claim-check, pulse, tandem
+  corpus/           # données métier (AD-10) — les règles réelles, par domaine
   produits/         # moteurs de payoff purs (AD-12) — verificateur-allegations
   etat/             # store en lecture seule + réducteur (AD-4)
     reducteur.ts
@@ -353,7 +367,7 @@ src/
 
 | Capability / Area | Lives in | Governed by |
 | --- | --- | --- |
-| F1 · Brief et lancement | `ui/`, `scenarios/` | AD-1, AD-10 |
+| F1 · Brief et lancement | `ui/`, `orchestration/` | AD-1, AD-10, AD-23, AD-24 |
 | F2 · Moteur de composition | `runtime/` | AD-1, AD-2, AD-3, AD-6, AD-7, AD-15, AD-17, AD-19 |
 | F3 · Graphe vivant | `etat/`, `ui/` | AD-4, AD-5, AD-11, AD-19, AD-20, AD-22 |
 | F4 · Agents qui parlent | `runtime/`, `etat/`, `ui/` | AD-3, AD-4, AD-20 |
@@ -361,7 +375,7 @@ src/
 | F6 · Produit livré | `produits/` | AD-12, AD-22 |
 | F7 · Mode LLM branché | `runtime/raisonneur/` | AD-9, AD-13 |
 | F8 · Compteurs | `etat/`, `telemetrie/` | AD-4, AD-14 |
-| F9 · Scénarios | `scenarios/` | AD-10, AD-17 |
+| F9 · Domaines | `corpus/`, `exemples.ts` | AD-10, AD-17, AD-23 |
 | F10 · Artefacts | `runtime/`, `etat/`, `ui/` | AD-3, AD-7, AD-18 |
 | F11 · Fabrication à l'exécution | `runtime/fabrique/` | AD-8, AD-16, AD-17, AD-21 |
 
@@ -371,5 +385,5 @@ src/
 - **La tenue à quarante nœuds** (NFR-002). Non mesurée. Le budget de rendu et l'éventuelle virtualisation se décident quand le graphe existe et qu'on peut le charger.
 - **Le fournisseur LLM et la forme des invites.** Le port `Raisonneur` fixe la frontière ; ce qui vit derrière est une décision de phase 3.
 - **La forme exacte des artefacts** produits par les agents. Le contrat dit qu'ils existent, sont attribués et traçables ; leur structure interne appartient aux histoires.
-- **Le second scénario.** Trois existent déjà dans `src/usine/run.ts` ; le choix est une lecture, pas une décision d'architecture.
+- **Le second domaine.** Il n'est plus un scénario mais un corpus de règles dans `src/corpus/` ; l'usine le choisit à partir du brief. Ajouter un domaine est une donnée à écrire, pas une décision d'architecture.
 - **Tout ce qui relève d'un serveur** : persistance, comptes, traitement par lot, monétisation, base vectorielle. Hors périmètre client-only, et l'architecture n'a pas à s'y préparer tant que ce n'est pas décidé.
