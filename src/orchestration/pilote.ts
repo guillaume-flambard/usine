@@ -79,7 +79,14 @@ const DISPOSITION_VIDE: Disposition = {
   hauteur: 0,
 }
 
-export function creerPilote(): Pilote {
+export interface OptionsPilote {
+  /** Temps minimum entre deux naissances. Les tests la mettent à zéro. */
+  cadenceMs?: number
+  /** Borne l'attente d'une vague avant de charger la suivante. */
+  delaiParVague?: number
+}
+
+export function creerPilote(options: OptionsPilote = {}): Pilote {
   const store = creerStore()
   let noyauCourant: Noyau | undefined
   let debrancher: (() => void) | undefined
@@ -171,6 +178,8 @@ export function creerPilote(): Pilote {
           brief,
           raisonneur: raisonneurCourant,
           fabrique: fabriqueCourante,
+          ...(options.cadenceMs !== undefined ? { cadenceMs: options.cadenceMs } : {}),
+          ...(options.delaiParVague !== undefined ? { delaiParVague: options.delaiParVague } : {}),
         })
       } catch (cause) {
         derniereErreur = cause instanceof Error ? cause.message : String(cause)

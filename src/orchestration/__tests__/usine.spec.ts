@@ -20,7 +20,7 @@ async function courir(
     trace.evenements.push(evenement)
     if (evenement.type === 'composant-cree') trace.nomsCrees.push(evenement.nom)
   })
-  await lancerUsine(noyau, { brief, delaiParVague: 2000 })
+  await lancerUsine(noyau, { brief, delaiParVague: 2000, cadenceMs: 0 })
   // Le plan est épuisé quand la suite fixe est chargée : la porte est le
   // dernier composant que le maître fait naître avant la livraison.
   for (let i = 0; i < 200 && !trace.nomsCrees.includes('porte-humaine'); i += 1) {
@@ -36,7 +36,7 @@ describe("l'usine lancée sur un brief", () => {
     noyau.abonner((e) => {
       if (e.type === 'composant-cree') nomsCrees.push(e.nom)
     })
-    await lancerUsine(noyau, { brief: 'Vérifier mes allégations santé.' })
+    await lancerUsine(noyau, { brief: 'Vérifier mes allégations santé.', cadenceMs: 0 })
 
     // Le premier composant du run est le maître, et il est seul à naître de
     // l'extérieur : tout le reste dépend de ce qu'il aura décidé.

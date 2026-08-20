@@ -19,7 +19,7 @@ const MODELE_MUET = modele(async (demande) => ({ texte: demande.repli, origine: 
 
 describe('pilote', () => {
   it('mène un run complet et remplit la vue', async () => {
-    const pilote = creerPilote()
+    const pilote = creerPilote({ cadenceMs: 0 })
     expect(pilote.phase()).toBe('Au repos')
 
     await pilote.demarrer(BRIEF_SANTE)
@@ -38,7 +38,7 @@ describe('pilote', () => {
   })
 
   it('fait réellement piloter le run par le brief saisi', async () => {
-    const pilote = creerPilote()
+    const pilote = creerPilote({ cadenceMs: 0 })
     await pilote.demarrer('Un outil de conformité pour les cosmétiques bio, avec un écran.')
     await jusqua(() => pilote.plan() !== undefined)
 
@@ -101,7 +101,7 @@ describe('la présentation des nœuds', () => {
 describe('le mode de raisonnement', () => {
   it('est déterministe par défaut, et rien ne part sur le réseau', async () => {
     const fetchEspion = vi.spyOn(globalThis, 'fetch')
-    const pilote = creerPilote()
+    const pilote = creerPilote({ cadenceMs: 0 })
     expect(pilote.modeRaisonnement()).toBe('deterministe')
 
     await pilote.demarrer(BRIEF_SANTE)
@@ -116,7 +116,7 @@ describe('le mode de raisonnement', () => {
   })
 
   it('compte les tokens réellement dépensés, et marque les agents branchés', async () => {
-    const pilote = creerPilote()
+    const pilote = creerPilote({ cadenceMs: 0 })
     // Un raisonneur factice : ce qui est testé, c'est le chemin du port
     // jusqu'au compteur, pas le fournisseur.
     pilote.brancher(
@@ -150,7 +150,7 @@ describe('le mode de raisonnement', () => {
   })
 
   it('poursuit le run et le dit quand le modèle échoue', async () => {
-    const pilote = creerPilote()
+    const pilote = creerPilote({ cadenceMs: 0 })
     pilote.brancher(
       modele(async (demande) => ({
         texte: demande.repli,
@@ -175,7 +175,7 @@ describe('le mode de raisonnement', () => {
   })
 
   it('revient au déterministe quand on débranche', () => {
-    const pilote = creerPilote()
+    const pilote = creerPilote({ cadenceMs: 0 })
     pilote.brancher(MODELE_MUET)
     pilote.brancher(undefined)
     expect(pilote.modeRaisonnement()).toBe('deterministe')
@@ -184,7 +184,7 @@ describe('le mode de raisonnement', () => {
 
 describe('la voie de fabrication', () => {
   it('reste la composition tant que rien n a été consenti', () => {
-    const pilote = creerPilote()
+    const pilote = creerPilote({ cadenceMs: 0 })
     expect(pilote.voieDeFabrication()).toBe('composition')
 
     pilote.brancher(MODELE_MUET)
@@ -194,26 +194,26 @@ describe('la voie de fabrication', () => {
   })
 
   it("passe à l'évaluation seulement branchée et consentie", () => {
-    const pilote = creerPilote()
+    const pilote = creerPilote({ cadenceMs: 0 })
     pilote.brancher(MODELE_MUET, { evaluation: true })
     expect(pilote.voieDeFabrication()).toBe('evaluation')
   })
 
   it("refuse l'évaluation sans modèle branché", () => {
-    const pilote = creerPilote()
+    const pilote = creerPilote({ cadenceMs: 0 })
     pilote.brancher(undefined, { evaluation: true })
     expect(pilote.voieDeFabrication()).toBe('composition')
   })
 
   it('referme la voie par évaluation quand on débranche', () => {
-    const pilote = creerPilote()
+    const pilote = creerPilote({ cadenceMs: 0 })
     pilote.brancher(MODELE_MUET, { evaluation: true })
     pilote.brancher(undefined)
     expect(pilote.voieDeFabrication()).toBe('composition')
   })
 
   it('fabrique réellement par évaluation quand la voie est ouverte', async () => {
-    const pilote = creerPilote()
+    const pilote = creerPilote({ cadenceMs: 0 })
     pilote.brancher(MODELE_MUET, { evaluation: true })
     await pilote.demarrer(BRIEF_SANTE)
     await jusqua(() => pilote.phase() === 'Décision')
@@ -230,7 +230,7 @@ describe('la voie de fabrication', () => {
 
 describe('la robustesse du branchement', () => {
   it('ne fige pas le run quand le port rejette', async () => {
-    const pilote = creerPilote()
+    const pilote = creerPilote({ cadenceMs: 0 })
     pilote.brancher(
       modele(async () => {
         throw new Error('boum')
@@ -253,7 +253,7 @@ describe('la robustesse du branchement', () => {
   })
 
   it('dit dans la mémoire de run quel mode a réellement servi', async () => {
-    const pilote = creerPilote()
+    const pilote = creerPilote({ cadenceMs: 0 })
     pilote.brancher(MODELE_MUET)
     await pilote.demarrer(BRIEF_SANTE)
     await jusqua(() => pilote.plan() !== undefined)
@@ -264,7 +264,7 @@ describe('la robustesse du branchement', () => {
   })
 
   it('dit dans la mémoire de run quelle voie de fabrication a servi', async () => {
-    const pilote = creerPilote()
+    const pilote = creerPilote({ cadenceMs: 0 })
     pilote.brancher(MODELE_MUET, { evaluation: true })
     await pilote.demarrer(BRIEF_SANTE)
     await jusqua(() => pilote.plan() !== undefined)
@@ -275,7 +275,7 @@ describe('la robustesse du branchement', () => {
   })
 
   it('dit quand le plan du modèle a été écarté, et lequel a servi', async () => {
-    const pilote = creerPilote()
+    const pilote = creerPilote({ cadenceMs: 0 })
     pilote.brancher(
       modele(async () => ({ texte: 'je préfère en parler', origine: 'llm' as const })),
     )

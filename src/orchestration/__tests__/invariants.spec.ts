@@ -38,7 +38,7 @@ async function runLance() {
   const noyau = creerNoyau()
   const store = creerStore()
   store.brancher(noyau)
-  const lancement = await lancerUsine(noyau, { brief: BRIEF_SANTE })
+  const lancement = await lancerUsine(noyau, { brief: BRIEF_SANTE, cadenceMs: 0 })
   await jusqua(() => noyau.portesEnAttente().length > 0)
   await approuver(noyau)
   await jusqua(() => noyau.produit('livrable') !== undefined)
@@ -139,7 +139,7 @@ describe('la réversibilité, observable', () => {
     expect(noyau.introspecter().dependances).toHaveLength(0)
 
     // Le run peut repartir : aucun nom n'est resté réservé.
-    const relance = await lancerUsine(noyau, { brief: BRIEF_SANTE })
+    const relance = await lancerUsine(noyau, { brief: BRIEF_SANTE, cadenceMs: 0 })
     await jusqua(() => noyau.portesEnAttente().length > 0)
     await approuver(noyau)
     await jusqua(() => noyau.produit('livrable') !== undefined)

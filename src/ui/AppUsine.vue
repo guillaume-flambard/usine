@@ -95,6 +95,12 @@ const phase = computed(() => {
   return pilote.phase()
 })
 
+/** Ce que l'usine s'est donné comme plan. Absent tant qu'elle n'a pas lu le brief. */
+const plan = computed(() => {
+  void etat.value.derniereSequence
+  return pilote.plan()
+})
+
 /** Le produit livré, dès que la porte est franchie. */
 const verificateur = computed(() => {
   void etat.value.derniereSequence
@@ -287,6 +293,15 @@ onBeforeUnmount(() => {
 
         <p class="narration" :class="{ 'narration-vide': !etat.narration }" aria-live="polite">
           {{ etat.narration?.message ?? "L'usine attend un brief." }}
+        </p>
+
+        <!-- Le plan est la seule chose qui explique le graphe : il n'existait
+             pas avant le brief, et il n'est pas le même d'un brief à l'autre. -->
+        <p v-if="plan" class="plan-resume">
+          <span class="plan-cle">Plan</span>
+          {{ plan.agents.length }} agents ·
+          {{ plan.origine === 'modele' ? 'rédigé par un modèle' : 'déduit du brief' }} ·
+          {{ plan.produit }}
         </p>
 
         <div class="fil">

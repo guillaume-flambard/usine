@@ -19,6 +19,8 @@ export interface OptionsRun {
   fabrique?: Fabrique
   /** Borne l'attente d'une vague. Les tests la raccourcissent. */
   delaiParVague?: number
+  /** Temps minimum entre deux naissances. Les tests la mettent à zéro. */
+  cadenceMs?: number
 }
 
 /** La partie du run qui ne se planifie pas, dans l'ordre où elle se charge. */
@@ -36,6 +38,7 @@ export async function lancerUsine(noyau: Noyau, options: OptionsRun): Promise<La
       ...(options.raisonneur !== undefined ? { raisonneur: options.raisonneur } : {}),
       ...(options.fabrique !== undefined ? { fabrique: options.fabrique } : {}),
       ...(options.delaiParVague !== undefined ? { delaiParVague: options.delaiParVague } : {}),
+      ...(options.cadenceMs !== undefined ? { cadenceMs: options.cadenceMs } : {}),
       attendre: (nom, delaiMs) => noyau.attendre(nom, delaiMs),
       suite: SUITE_FIXE,
     }),

@@ -24,7 +24,9 @@ export async function jusqua(condition: () => boolean, delaiMs = 3000): Promise<
 
 /** Un run mené jusqu'à la porte humaine, quel que soit le graphe choisi. */
 export async function runJusquALaPorte(brief = BRIEF_SANTE): Promise<Pilote> {
-  const pilote = creerPilote()
+  // Cadence à zéro : la cadence de lecture est une affaire d'écran, elle n'a
+  // rien à faire dans le temps d'une suite de tests.
+  const pilote = creerPilote({ cadenceMs: 0 })
   await pilote.demarrer(brief)
   await jusqua(() => pilote.store.etat.value.porte !== undefined)
   return pilote

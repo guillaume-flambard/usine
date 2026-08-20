@@ -16,9 +16,11 @@ async function monter() {
   return ecran
 }
 
+// Le graphe naît à la cadence de lecture du produit : l'attente suit le
+// vrai rythme de l'écran, elle ne le devine pas.
 const lancer = async () => {
   document.querySelector<HTMLButtonElement>('.pane .bouton')?.click()
-  await attendre(500)
+  await attendre(4000)
 }
 
 /**

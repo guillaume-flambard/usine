@@ -287,9 +287,17 @@ export interface OptionsMaitre {
    * qu'aucun écran ne le dise.
    */
   delaiParVague?: number
+  /**
+   * Cadence de lecture : le temps minimum entre deux naissances. Ce n'est
+   * pas une simulation de travail — en mode déterministe le travail dure
+   * moins d'une milliseconde, et sans cadence le graphe entier apparaîtrait
+   * en une image. Le run l'annonce, il ne la cache pas.
+   */
+  cadenceMs?: number
 }
 
 const DELAI_PAR_VAGUE = 10_000
+const CADENCE = 350
 
 /**
  * Le maître. Il ne connaît pas le graphe : il lit le brief, en tire un plan,
@@ -353,6 +361,7 @@ export function maitreDuPlan(options: OptionsMaitre): Composant {
             `Produit visé : ${plan.produit}`,
             `Corpus : ${corpus.titre}`,
             `Origine du plan : ${plan.origine === 'modele' ? 'un modèle' : 'déduction du brief'}`,
+            `Cadence de lecture : ${options.cadenceMs ?? CADENCE} ms entre deux naissances — le travail lui-même est plus rapide que ça en mode déterministe.`,
             ...(echec !== undefined ? ['', `Modèle écarté : ${echec}`] : []),
             '',
             ...plan.agents.map(
@@ -367,8 +376,22 @@ export function maitreDuPlan(options: OptionsMaitre): Composant {
           decouleDe: 'le brief',
         })
 
+        const cadence = options.cadenceMs ?? CADENCE
+        let derniereNaissance = 0
+        // La cadence de lecture. Ce n'est pas une simulation de travail : en
+        // mode déterministe le travail dure moins d'une milliseconde, et sans
+        // elle le graphe entier apparaîtrait en une image. Le run l'annonce.
+        const attendreLaCadence = async () => {
+          const reste = cadence - (Date.now() - derniereNaissance)
+          if (reste > 0 && derniereNaissance > 0) {
+            await new Promise((suite) => setTimeout(suite, reste))
+          }
+          derniereNaissance = Date.now()
+        }
+
         for (const vague of vagues) {
           for (const agent of vague) {
+            await attendreLaCadence()
             await contexte.charger(agentDuPlan(agent, { corpus, plan }))
           }
           // La vague suivante n'existe qu'une fois celle-ci publiée : le
@@ -381,6 +404,7 @@ export function maitreDuPlan(options: OptionsMaitre): Composant {
         }
 
         for (const composant of options.suite) {
+          await attendreLaCadence()
           await contexte.charger(composant)
         }
         contexte.terminer()
