@@ -124,6 +124,9 @@ describe('la pièce fabriquée tourne vraiment pendant le run', () => {
     expect(livraison?.artefact?.corps).toContain('autorisé')
     expect(livraison?.artefact?.corps).toContain('à vérifier')
     expect(livraison?.artefact?.corps).toContain('1924/2006')
+    // La livraison dit de quelle décision humaine elle procède.
+    expect(livraison?.artefact?.corps).toContain('Décision humaine : approuvée.')
+    expect(livraison?.artefact?.decouleDe).toBe('la décision humaine')
   })
 
   it('ne laisse aucun verdict tranché sans source', async () => {

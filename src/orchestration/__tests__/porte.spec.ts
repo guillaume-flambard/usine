@@ -83,6 +83,8 @@ describe('approuver', () => {
     const porteNoeud = pilote.store.etat.value.noeuds.find((n) => n.nom === 'porte-humaine')
     expect(porteNoeud?.artefact?.titre).toBe('Décision humaine')
     expect(porteNoeud?.artefact?.corps).toContain('Approuvée')
+    // Approuver, c'est passer outre l'objection, pas en découler.
+    expect(porteNoeud?.artefact?.decouleDe).toContain("l'examen de l'objection")
     expect(pilote.store.etat.value.journal.some((m) => m.message.includes('approuvée'))).toBe(true)
   })
 

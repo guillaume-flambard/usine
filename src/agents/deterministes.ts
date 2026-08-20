@@ -331,7 +331,7 @@ export const porteHumaine: Composant = {
             titre: 'Décision humaine',
             corps:
               'Écartée. Le produit n’a pas été livré et les composants concernés sont libérés.',
-            decouleDe: "l'objection du sceptique",
+            decouleDe: "l'objection du sceptique, retenue",
           })
           contexte.terminer()
           return
@@ -339,8 +339,10 @@ export const porteHumaine: Composant = {
         contexte.emettre('Décision : approuvée. La livraison peut se faire.')
         contexte.publierArtefact({
           titre: 'Décision humaine',
-          corps: 'Approuvée. Le produit est livré dans la page.',
-          decouleDe: "l'objection du sceptique",
+          corps: 'Approuvée. Le produit est livré dans la page, malgré l’objection relevée.',
+          // Approuver, c'est passer outre l'objection : dire que la décision
+          // en « découle » serait faux là où ça compte.
+          decouleDe: "l'examen de l'objection du sceptique",
         })
         contexte.fournir('approbation', { approuve: true })
         contexte.terminer()
@@ -379,7 +381,9 @@ export const livraison: Composant = {
         ),
         '',
         `Objection retenue avant livraison : ${objection?.texte ?? 'aucune'}`,
-        `Décision humaine : ${approbation?.approuve === true ? 'approuvée' : 'inconnue'}.`,
+        `Décision humaine : ${
+          approbation === undefined ? 'inconnue' : approbation.approuve ? 'approuvée' : 'refusée'
+        }.`,
       ].join('\n'),
       decouleDe: 'la décision humaine',
     })
