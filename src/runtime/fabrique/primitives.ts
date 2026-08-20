@@ -58,6 +58,10 @@ export const normaliser = (texte: string): string =>
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
     .replace(/[\u2019\u02BC]/g, "'")
+    // L'espace fine avant %, !, ?, : et ; est une convention typographique
+    // française que la moitié des copies omet. Sans ça, « remboursé à 100 % »
+    // ne reconnaîtrait pas « remboursé à 100% ».
+    .replace(/\s+([%!?:;])/g, '$1')
     .replace(/\s+/g, ' ')
     .toLowerCase()
     .trim()

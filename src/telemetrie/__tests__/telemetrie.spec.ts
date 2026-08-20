@@ -52,6 +52,25 @@ describe('télémétrie', () => {
     expect(journal.filter((e) => e === 'verification-soumise')).toHaveLength(1)
   })
 
+  it("n'invente pas d'adresse quand le point d'entrée porte déjà une requête", async () => {
+    const appels: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL) => {
+        appels.push(String(url))
+        return new Response('')
+      }),
+    )
+    installerTelemetrie(transportSansCookie('/mesure?src=lab'))
+    runLance()
+    await new Promise<void>((r) => setTimeout(r, 0))
+
+    const adresse = new URL(appels[0] ?? '')
+    expect(adresse.searchParams.get('src')).toBe('lab')
+    expect(adresse.searchParams.get('e')).toBe('run-lance')
+    vi.unstubAllGlobals()
+  })
+
   it('recompte au run suivant', () => {
     brancher()
     runLance()
@@ -75,7 +94,8 @@ describe('télémétrie', () => {
 
     expect(appels).toHaveLength(1)
     const [url, init] = appels[0] ?? ['', undefined]
-    expect(url).toBe('/mesure?e=run-lance')
+    expect(new URL(url).pathname).toBe('/mesure')
+    expect(new URL(url).searchParams.get('e')).toBe('run-lance')
     // Aucun contenu utilisateur ne peut voyager : il n'y a pas de corps.
     expect(init?.body).toBeUndefined()
     expect(init?.credentials).toBe('omit')

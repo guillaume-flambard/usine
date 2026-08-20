@@ -78,3 +78,44 @@ describe('le second scénario', () => {
     expect(pilote.disposition().boites.has('verificateur-allegations')).toBe(true)
   })
 })
+
+const REGLES_PUBLICITAIRES = [
+  { motif: 'prix le plus bas garanti', statut: 'interdit', source: 'L121-2' },
+  { motif: 'sans aucun risque', statut: 'interdit', source: 'L121-2' },
+  { motif: 'remboursé à 100 %', statut: 'interdit', source: 'L121-4' },
+  { motif: 'garanti à vie', statut: 'interdit', source: 'L121-4' },
+  { motif: 'résultats garantis', statut: 'interdit', source: 'L121-2' },
+  { motif: 'leader incontesté', statut: 'a-verifier', source: 'L121-1' },
+  { motif: 'numéro un', statut: 'a-verifier', source: 'L121-1' },
+  { motif: 'le moins cher du marché', statut: 'a-verifier', source: 'L121-1' },
+  { motif: 'meilleur prix', statut: 'a-verifier', source: 'L121-1' },
+  { motif: 'prix conseillé par le fabricant', statut: 'autorise', source: 'L112-1' },
+  { motif: 'offre valable jusqu’au', statut: 'autorise', source: 'L112-1' },
+  { motif: 'dans la limite des stocks disponibles', statut: 'autorise', source: 'L121-4' },
+] as const
+
+describe('le registre publicitaire, règle par règle', () => {
+  it('classe chaque motif comme il le déclare', async () => {
+    const pilote = await runComplet(pubCheck)
+    const verifier = pilote.verificateur()
+
+    // Dix des douze règles n'étaient exercées par rien : une règle inerte ou
+    // mal classée serait passée inaperçue.
+    for (const { motif, statut, source } of REGLES_PUBLICITAIRES) {
+      const verdict = verifier?.(`Notre offre ${motif}.`)[0]
+      expect(verdict?.statut, motif).toBe(statut)
+      if (statut !== 'a-verifier') expect(verdict?.source, motif).toContain(source)
+    }
+  })
+
+  it('reconnaît la ponctuation française avec ou sans espace fine', async () => {
+    const pilote = await runComplet(pubCheck)
+    const verifier = pilote.verificateur()
+
+    // La moitié des copies écrit « 100% » : l'exiger avec l'espace fine
+    // rendrait la règle inerte sur la moitié des cas réels.
+    for (const forme of ['remboursé à 100 %', 'remboursé à 100%', 'rembourse a 100%']) {
+      expect(verifier?.(`Notre offre est ${forme}.`)[0]?.statut, forme).toBe('interdit')
+    }
+  })
+})

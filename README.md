@@ -57,6 +57,8 @@ pnpm lint
 ### Tests
 
 ```sh
+pnpm exec playwright install chromium   # une fois, sur un dépôt fraîchement cloné
+
 pnpm test            # le noyau, le réducteur, les scénarios — sans navigateur
 pnpm test:navigateur # les promesses d'interface, dans un vrai Chromium
 pnpm test:tout       # les deux

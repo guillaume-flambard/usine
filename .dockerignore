@@ -1,0 +1,16 @@
+# `COPY . .` recopierait sinon les dépendances compilées pour macOS par-dessus
+# celles installées pour Linux, et le build échouerait sur les mauvais binaires.
+node_modules
+dist
+.git
+.gitignore
+.eslintcache
+
+# Rien de tout ceci n'a sa place dans une image dont le contrat est
+# « aucun secret embarqué ».
+_bmad
+_bmad-output
+.claude
+.vscode
+spike
+docs

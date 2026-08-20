@@ -24,10 +24,23 @@ docker run --rm -p 8080:80 usine-agentique
 ## Vérifier avant de mettre en ligne
 
 ```sh
-pnpm test           # le noyau, le réducteur, les scénarios
-pnpm test:navigateur # les promesses d'interface, dans un vrai navigateur
+pnpm exec playwright install chromium   # une fois, sur un dépôt fraîchement cloné
+pnpm test:tout                          # les deux projets : noyau et navigateur
 pnpm build
 ```
+
+L'intégration continue (`.github/workflows/verification.yml`) exécute la même
+séquence, plus la construction de l'image : les promesses d'interface ne valent
+que si quelque chose les vérifie sans qu'on y pense.
+
+## La mesure est éteinte par défaut
+
+Le module de télémétrie n'envoie rien tant qu'aucun transport n'est installé —
+et le build livré n'en installe aucun. Pour mesurer, il faut appeler
+`installerTelemetrie(transportSansCookie('/mesure'))` au démarrage et servir un
+point d'entrée `/mesure` qui compte sans journaliser l'adresse IP ni le
+référent. Tant que ce n'est pas fait, M1, M2 et C2 ne sont pas observés : c'est
+un choix, pas un oubli.
 
 ## Entrée dans le hub
 

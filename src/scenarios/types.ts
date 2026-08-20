@@ -33,6 +33,13 @@ export interface Scenario {
   brief: string
   /** Où écrire pour aller plus loin, une fois le produit essayé. */
   contact: string
+  /** Comment le produit livré se présente. Il change avec la niche. */
+  produit: {
+    /** Le nom du produit, en eyebrow. */
+    titre: string
+    /** Ce qu'on attend du visiteur, en une phrase. */
+    aide: string
+  }
   /**
    * L'agent qui ouvre le run. Les autres sont chargés par lui.
    * `construire` reçoit le brief réellement saisi : sans ça, le champ de

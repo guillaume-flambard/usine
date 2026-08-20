@@ -20,7 +20,12 @@ export default mergeConfig(
             name: 'noyau',
             environment: 'node',
             include: ['src/**/*.{spec,test}.ts', 'src/**/__tests__/**/*.{spec,test}.ts'],
-            exclude: [...configDefaults.exclude, 'e2e/**', 'spike/**', 'src/**/*.navigateur.spec.ts'],
+            exclude: [
+              ...configDefaults.exclude,
+              'e2e/**',
+              'spike/**',
+              'src/**/*.navigateur.spec.ts',
+            ],
           },
         },
         {
@@ -32,6 +37,9 @@ export default mergeConfig(
               enabled: true,
               provider: playwright(),
               headless: true,
+              // Taille fixée : « la page ne défile jamais » se vérifie à une
+              // dimension connue, pas à celle que le fournisseur choisit.
+              viewport: { width: 1440, height: 900 },
               instances: [{ browser: 'chromium' }],
             },
           },

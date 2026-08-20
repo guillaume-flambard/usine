@@ -78,3 +78,19 @@ où ils ont été trouvés. Append-only.
 - source_spec: `epic 5 — mode LLM`
   summary: L'architecte n'est pas réentrant vis-à-vis du raisonnement.
   evidence: Si le composant se désactive puis se réactive pendant qu'un appel est en vol, deux rappels peuvent publier la spécification, dont le second sera refusé. Inatteignable dans le scénario livré, où rien ne retire les dépendances de l'architecte en cours de route.
+
+- source_spec: `epic 6 — mise en ligne`
+  summary: La page charge Google Fonts, ce qui contredit « aucun tiers ».
+  evidence: `index.html` tire Oswald depuis fonts.googleapis.com : l'adresse IP et l'agent du visiteur partent chez Google avant toute décision de mesure. Héberger les fichiers woff2 permettrait de refermer `style-src` et `font-src` sur `'self'` et de tenir la promesse.
+
+- source_spec: `epic 6 — mise en ligne`
+  summary: Le test de mouvement réduit vérifie l'existence de la règle, pas son effet.
+  evidence: Playwright sait émuler `prefers-reduced-motion`, mais l'API n'est pas exposée par le fournisseur navigateur de Vitest tel qu'il est configuré ici. En attendant, le test contrôle que la règle est bien dans la feuille chargée et que les nœuds gardent leur état — c'est moins que la promesse.
+
+- source_spec: `epic 6 — mise en ligne`
+  summary: La parité de largeur des deux boutons de la porte n'est toujours pas vérifiée.
+  evidence: Le test en navigateur les compte mais ne compare pas leurs largeurs rendues. Reporté depuis l'epic 3 ; l'outillage existe maintenant, il reste à écrire l'assertion.
+
+- source_spec: `epic 6 — mise en ligne`
+  summary: Le clavier est vérifié par `focus()` programmatique, pas par une vraie tabulation.
+  evidence: Un élément peut recevoir le focus par programme tout en étant inatteignable par Tab. La vérification devrait envoyer de vraies frappes et contrôler l'ordre de tabulation, ainsi que la visibilité de l'anneau de focus.

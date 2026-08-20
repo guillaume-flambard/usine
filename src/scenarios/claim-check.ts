@@ -2,17 +2,9 @@
 // compléments alimentaires. Donnée pure : aucune logique, aucun import du
 // noyau ni de l'interface.
 
-import {
-  agentMaitre,
-  architecte,
-  constructeur,
-  constructeurFabricant,
-  livraison,
-  planificateur,
-  porteHumaine,
-  sceptique,
-} from '../agents/deterministes'
+import { agentMaitre } from '../agents/deterministes'
 import { registreEu, type Regle } from '../outils/registre-eu'
+import { castingStandard, emplacementDuProduit, nomsStandards } from './casting'
 import type { Fabrique } from '../runtime/fabrique'
 import type { Raisonneur } from '../runtime/raisonneur'
 import type { Scenario } from './types'
@@ -93,64 +85,26 @@ const SECTEUR = 'compléments alimentaires — Europe'
 const BRIEF =
   'Un outil de conformité des allégations santé pour marques de compléments alimentaires en Europe.'
 
+export const CONTACT = 'g.flambard@gmail.com'
+
+const REGISTRE = registreEu(REGLES)
+
 export const claimCheck: Scenario = {
   cle: 'claim-check',
   titre: 'ClaimCheck',
   brief: BRIEF,
-  contact: 'g.flambard@gmail.com',
+  contact: CONTACT,
+  produit: {
+    titre: 'Vérificateur d’allégations santé',
+    aide: 'Collez une copie marketing de complément alimentaire. Chaque allégation sera classée, avec la source réglementaire qui la justifie.',
+  },
   maitre: {
     cle: 'a-maitre',
     composant: agentMaitre({ brief: BRIEF, secteur: SECTEUR }),
     construire: (brief: string, raisonneur?: Raisonneur, fabrique?: Fabrique) =>
       agentMaitre({ brief, secteur: SECTEUR }, raisonneur, fabrique),
   },
-  casting: [
-    { cle: 'b-registre', composant: registreEu(REGLES) },
-    { cle: 'c-planificateur', composant: planificateur },
-    { cle: 'd-architecte', composant: architecte },
-    { cle: 'e-constructeur-regles', composant: constructeur('regles') },
-    { cle: 'f-constructeur-interface', composant: constructeur('interface', 'Vue 3') },
-    { cle: 'g-constructeur-tests', composant: constructeur('tests') },
-    { cle: 'g2-constructeur-produit', composant: constructeurFabricant },
-    { cle: 'h-sceptique', composant: sceptique },
-    { cle: 'h2-porte', composant: porteHumaine },
-    { cle: 'i-livraison', composant: livraison },
-  ],
-  nomsReserves: [
-    { nom: 'besoin', proprietaire: 'a-maitre' },
-    { nom: 'memoire', proprietaire: 'a-maitre' },
-    { nom: 'fabrique', proprietaire: 'a-maitre' },
-    { nom: 'raisonneur', proprietaire: 'a-maitre' },
-    { nom: 'registre', proprietaire: 'b-registre' },
-    { nom: 'histoires', proprietaire: 'c-planificateur' },
-    { nom: 'specification', proprietaire: 'd-architecte' },
-    { nom: 'sortie-regles', proprietaire: 'e-constructeur-regles' },
-    { nom: 'sortie-interface', proprietaire: 'f-constructeur-interface' },
-    { nom: 'sortie-tests', proprietaire: 'g-constructeur-tests' },
-    { nom: 'sortie-produit', proprietaire: 'g2-constructeur-produit' },
-    { nom: 'verificateur', proprietaire: 'j-verificateur' },
-    { nom: 'objection', proprietaire: 'h-sceptique' },
-    { nom: 'approbation', proprietaire: 'h2-porte' },
-    { nom: 'livrable', proprietaire: 'i-livraison' },
-  ],
-  // Le vérificateur n'est pas chargé au démarrage : il sera fabriqué à
-  // l'exécution (story 2.2). Sa place est tenue d'avance pour que son
-  // arrivée ne déplace aucun nœud déjà posé.
-  emplacementsReserves: [
-    {
-      cle: 'j-verificateur',
-      // Cette entrée ne réserve que la place et le nom : la vraie pièce est
-      // fabriquée pendant le run par le constructeur produit.
-      composant: {
-        nom: 'verificateur-allegations',
-        injecte: ['registre'],
-        fournit: ['verificateur'],
-        presentation: {
-          libelle: 'Vérificateur',
-          role: 'Le produit livré — fabriqué pendant le run',
-        },
-        applique() {},
-      },
-    },
-  ],
+  casting: castingStandard(REGISTRE),
+  nomsReserves: nomsStandards,
+  emplacementsReserves: [emplacementDuProduit],
 }

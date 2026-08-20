@@ -11,7 +11,13 @@ import PanneauNoeud from './PanneauNoeud.vue'
 import PorteHumaine from './PorteHumaine.vue'
 import ProduitLivre from './ProduitLivre.vue'
 import InterrupteurModele from './InterrupteurModele.vue'
-import { payoffAffiche, porteAtteinte, runLance, verificationSoumise } from '../telemetrie'
+import {
+  nouveauRun,
+  payoffAffiche,
+  porteAtteinte,
+  runLance,
+  verificationSoumise,
+} from '../telemetrie'
 
 const pilote = creerPilote(scenarioParDefaut())
 const etat = pilote.store.etat
@@ -156,6 +162,8 @@ async function changerScenario(cle: string) {
   choisi.value = undefined
   erreur.value = undefined
   enCours.value = false
+  // Changer de niche clôt le run en cours, mesure comprise.
+  nouveauRun()
   arreterHorloge()
   debut.value = 0
   maintenant.value = 0
@@ -313,6 +321,8 @@ onBeforeUnmount(() => {
           v-if="verificateur"
           :verifier="verificateur"
           :contact="pilote.scenario().contact"
+          :titre="pilote.scenario().produit.titre"
+          :aide="pilote.scenario().produit.aide"
           @soumis="verificationSoumise"
         />
 

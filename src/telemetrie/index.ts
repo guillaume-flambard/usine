@@ -2,8 +2,11 @@
 // d'y glisser du contenu utilisateur par inadvertance. Sans cookie, sans
 // identifiant persistant, sans tiers.
 //
-// C'est le strict minimum qui rend M1, M2 et C2 observables. Au-delà, c'est
-// du suivi, et c'est refusé.
+// C'est le strict minimum qui rendrait M1, M2 et C2 observables. Au-delà,
+// c'est du suivi, et c'est refusé.
+//
+// Rien n'est mesuré tant qu'aucun transport n'est installé, et le build livré
+// n'en installe aucun : voir `deploiement/README.md`.
 
 /** Les quatre seuls faits mesurés. */
 export type Evenement = 'run-lance' | 'porte-atteinte' | 'payoff-affiche' | 'verification-soumise'
@@ -22,6 +25,9 @@ let dejaComptes = new Set<Evenement>()
 
 export function installerTelemetrie(nouveau: Transport | undefined): void {
   transport = nouveau ?? AUCUN
+  // Les faits déjà survenus avant l'installation ne seront pas rattrapés :
+  // on repart proprement plutôt que de compter à moitié.
+  nouveauRun()
 }
 
 /** Repart d'une page blanche : un nouveau run recompte ses quatre faits. */
@@ -36,9 +42,11 @@ const compterUneFois = (evenement: Evenement) => {
 }
 
 export const runLance = (): void => {
+  // Un nouveau run repart d'une page blanche, puis compte son premier fait
+  // par la même voie que les autres : deux clics rapides ne comptent pas deux
+  // lancements distincts d'un même run.
   nouveauRun()
-  dejaComptes.add('run-lance')
-  transport.compter('run-lance')
+  compterUneFois('run-lance')
 }
 export const porteAtteinte = (): void => compterUneFois('porte-atteinte')
 export const payoffAffiche = (): void => compterUneFois('payoff-affiche')
@@ -52,15 +60,23 @@ export const verificationSoumise = (): void => compterUneFois('verification-soum
 export function transportSansCookie(point: string): Transport {
   return {
     compter(evenement) {
-      void fetch(`${point}?e=${encodeURIComponent(evenement)}`, {
-        method: 'POST',
-        credentials: 'omit',
-        cache: 'no-store',
-        keepalive: true,
-      }).catch(() => {
-        // Une mesure perdue n'est pas un incident : le produit ne dépend
-        // d'aucune mesure pour fonctionner.
-      })
+      try {
+        // `URL` plutôt qu'une concaténation : un point d'entrée qui porte
+        // déjà une requête produirait sinon une adresse invalide.
+        const adresse = new URL(point, globalThis.location?.href ?? 'http://localhost')
+        adresse.searchParams.set('e', evenement)
+        void fetch(adresse, {
+          method: 'POST',
+          credentials: 'omit',
+          cache: 'no-store',
+          keepalive: true,
+        }).catch(() => {
+          // Une mesure perdue n'est pas un incident : le produit ne dépend
+          // d'aucune mesure pour fonctionner.
+        })
+      } catch {
+        // `fetch` absent ou levant en synchrone : idem.
+      }
     },
   }
 }

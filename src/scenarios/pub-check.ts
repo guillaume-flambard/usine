@@ -2,17 +2,10 @@
 // même casting, même pièce fabriquée : seule la source de vérité change, et
 // l'expert qui la signe. C'est ce que « retargetable » veut dire.
 
-import {
-  agentMaitre,
-  architecte,
-  constructeur,
-  constructeurFabricant,
-  livraison,
-  planificateur,
-  porteHumaine,
-  sceptique,
-} from '../agents/deterministes'
+import { agentMaitre } from '../agents/deterministes'
 import { registreEu, type Regle } from '../outils/registre-eu'
+import { castingStandard, emplacementDuProduit, nomsStandards } from './casting'
+import { CONTACT } from './claim-check'
 import type { Fabrique } from '../runtime/fabrique'
 import type { Raisonneur } from '../runtime/raisonneur'
 import type { Scenario } from './types'
@@ -82,64 +75,29 @@ const REGLES: readonly Regle[] = [
   },
 ]
 
-const IDENTITE = {
+const REGISTRE_IDENTITE = {
   technologie: 'Code conso.',
   role: 'Source de vérité — pratiques commerciales',
 }
+
+const REGISTRE = registreEu(REGLES, REGISTRE_IDENTITE)
 
 export const pubCheck: Scenario = {
   cle: 'pub-check',
   titre: 'PubCheck',
   brief: BRIEF,
-  contact: 'g.flambard@gmail.com',
+  contact: CONTACT,
+  produit: {
+    titre: 'Vérificateur d’allégations publicitaires',
+    aide: 'Collez une copie publicitaire. Chaque allégation sera classée, avec l’article du Code de la consommation qui la justifie.',
+  },
   maitre: {
     cle: 'a-maitre',
     composant: agentMaitre({ brief: BRIEF, secteur: SECTEUR }),
     construire: (brief: string, raisonneur?: Raisonneur, fabrique?: Fabrique) =>
       agentMaitre({ brief, secteur: SECTEUR }, raisonneur, fabrique),
   },
-  casting: [
-    { cle: 'b-registre', composant: registreEu(REGLES, IDENTITE) },
-    { cle: 'c-planificateur', composant: planificateur },
-    { cle: 'd-architecte', composant: architecte },
-    { cle: 'e-constructeur-regles', composant: constructeur('regles') },
-    { cle: 'f-constructeur-interface', composant: constructeur('interface', 'Vue 3') },
-    { cle: 'g-constructeur-tests', composant: constructeur('tests') },
-    { cle: 'g2-constructeur-produit', composant: constructeurFabricant },
-    { cle: 'h-sceptique', composant: sceptique },
-    { cle: 'h2-porte', composant: porteHumaine },
-    { cle: 'i-livraison', composant: livraison },
-  ],
-  nomsReserves: [
-    { nom: 'besoin', proprietaire: 'a-maitre' },
-    { nom: 'memoire', proprietaire: 'a-maitre' },
-    { nom: 'fabrique', proprietaire: 'a-maitre' },
-    { nom: 'raisonneur', proprietaire: 'a-maitre' },
-    { nom: 'registre', proprietaire: 'b-registre' },
-    { nom: 'histoires', proprietaire: 'c-planificateur' },
-    { nom: 'specification', proprietaire: 'd-architecte' },
-    { nom: 'sortie-regles', proprietaire: 'e-constructeur-regles' },
-    { nom: 'sortie-interface', proprietaire: 'f-constructeur-interface' },
-    { nom: 'sortie-tests', proprietaire: 'g-constructeur-tests' },
-    { nom: 'sortie-produit', proprietaire: 'g2-constructeur-produit' },
-    { nom: 'objection', proprietaire: 'h-sceptique' },
-    { nom: 'approbation', proprietaire: 'h2-porte' },
-    { nom: 'livrable', proprietaire: 'i-livraison' },
-    { nom: 'verificateur', proprietaire: 'j-verificateur' },
-  ],
-  emplacementsReserves: [
-    {
-      cle: 'j-verificateur',
-      composant: {
-        nom: 'verificateur-allegations',
-        injecte: ['registre'],
-        fournit: ['verificateur'],
-        presentation: {
-          libelle: 'Vérificateur',
-          role: 'Le produit livré — fabriqué pendant le run',
-        },
-        applique() {},
-      },
-    },
-  ],
+  casting: castingStandard(REGISTRE),
+  nomsReserves: nomsStandards,
+  emplacementsReserves: [emplacementDuProduit],
 }

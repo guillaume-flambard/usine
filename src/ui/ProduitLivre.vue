@@ -9,6 +9,9 @@ const props = defineProps<{
   verifier: (texte: string) => readonly Verdict[]
   /** Où écrire pour aller plus loin. Le scénario le déclare, pas ce composant. */
   contact: string
+  /** Comment le produit se présente. Il change avec la niche. */
+  titre: string
+  aide: string
 }>()
 
 const emit = defineEmits<{ soumis: [] }>()
@@ -57,10 +60,8 @@ function effacer() {
 
 <template>
   <section class="produit" aria-label="Produit livré">
-    <p class="eyebrow">Produit livré · vérificateur d'allégations</p>
-    <label class="produit-aide" for="copie">
-      Collez une copie marketing. Chaque allégation sera classée, avec la source qui la justifie.
-    </label>
+    <p class="eyebrow">Produit livré · {{ titre }}</p>
+    <label class="produit-aide" for="copie">{{ aide }}</label>
     <textarea
       id="copie"
       v-model="texte"
