@@ -29,6 +29,15 @@ const parId = computed(() => new Map(props.etat.noeuds.map((noeud) => [noeud.id,
 
 const nomsPresents = computed(() => new Set(props.etat.noeuds.map((noeud) => noeud.nom)))
 
+/**
+ * Le cadre du dessin. Un plancher de taille évite qu'un graphe d'un seul
+ * nœud soit affiché en gros plan au premier instant du run.
+ */
+const cadre = computed(() => ({
+  largeur: Math.max(props.disposition.largeur, 900),
+  hauteur: Math.max(props.disposition.hauteur + (orphelins.value.length ? 96 : 0), 420),
+}))
+
 const derniereTransition = computed(() =>
   props.etat.aretes.reduce((max, arete) => Math.max(max, arete.dernierTransit ?? 0), 0),
 )
@@ -79,9 +88,12 @@ const description = computed(() => {
 
 <template>
   <div class="canvas">
+    <!-- Le graphe n'a plus de taille connue d'avance : il pousse pendant le
+         run. Un `viewBox` le garde entier dans le cadre au lieu de le laisser
+         sortir par la droite dès la troisième vague. -->
     <svg
-      :width="Math.max(disposition.largeur, 320)"
-      :height="Math.max(disposition.hauteur + (orphelins.length ? 96 : 0), 240)"
+      :viewBox="`0 0 ${cadre.largeur} ${cadre.hauteur}`"
+      preserveAspectRatio="xMidYMid meet"
       role="group"
       aria-label="Graphe du run"
       :aria-describedby="idDescription"

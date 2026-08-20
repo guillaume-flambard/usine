@@ -385,11 +385,24 @@ body,
 .canvas {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  /* Le graphe tient dans son cadre : c'est le `viewBox` qui s'en charge, et
+     rien n'a plus à défiler. */
+  overflow: hidden;
   position: relative;
 }
 .canvas svg {
   display: block;
+  width: 100%;
+  height: 100%;
+  /* Le graphe se dézoome quand il grandit : le passage doit se voir glisser,
+     pas sauter d'une image à l'autre. */
+  transition: all 320ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas svg {
+    transition: none;
+  }
 }
 
 .noeud-cadre {
