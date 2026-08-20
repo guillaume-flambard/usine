@@ -293,3 +293,47 @@ describe('la façade du composant', () => {
     espion.mockRestore()
   })
 })
+
+describe("l'ordre du flux", () => {
+  it("annonce l'activation avant tout ce que le composant émet", async () => {
+    const { noyau, evenements } = journal()
+    await noyau.charger({
+      nom: 'bavard',
+      presentation: { role: 'Parle et termine dans applique' },
+      applique(contexte) {
+        contexte.emettre('premier mot')
+        contexte.terminer()
+      },
+    })
+    await tick()
+
+    expect(evenements.map((e) => e.type)).toEqual([
+      'composant-cree',
+      'composant-active',
+      'message-emis',
+      'travail-termine',
+    ])
+  })
+
+  it("garde la narration d'un composant qui échoue, avant son erreur", async () => {
+    const { noyau, evenements } = journal()
+    await noyau.charger({
+      nom: 'bavard-fautif',
+      presentation: { role: 'Parle puis échoue' },
+      applique(contexte) {
+        contexte.emettre('je commence')
+        throw new Error('boum')
+      },
+    })
+    await tick()
+
+    // Ordre chronologique : le composant a parlé, puis il a échoué. La
+    // narration ne doit pas être rejetée après l'erreur.
+    expect(evenements.map((e) => e.type)).toEqual([
+      'composant-cree',
+      'message-emis',
+      'composant-en-erreur',
+    ])
+    expect(evenements.some((e) => e.type === 'composant-active')).toBe(false)
+  })
+})

@@ -75,9 +75,21 @@ export function creerNoyau(): Noyau {
    * variante. Seule la recomposition finale demande une assertion.
    */
   function emettre(evenement: SansSequence): void {
+    if (fileAttente !== undefined) {
+      fileAttente.push(evenement)
+      return
+    }
     sequence += 1
     diffuser({ ...evenement, sequence } as EvenementRun)
   }
+
+  /**
+   * Pendant `applique`, les événements du composant sont mis en file : rien de
+   * ce qu'il produit ne doit être annoncé avant son activation. Un abonné qui
+   * verrait « travail terminé » avant « actif » ne pourrait pas en faire un
+   * état cohérent.
+   */
+  let fileAttente: SansSequence[] | undefined
 
   /**
    * Un abonné qui lève ne doit ni interrompre les autres, ni être confondu
@@ -225,16 +237,24 @@ export function creerNoyau(): Noyau {
           },
         }
 
+        // Rien de ce que le composant émet ne sort avant son activation.
+        const fileParente = fileAttente
+        fileAttente = []
         try {
           composant.applique(facade)
         } catch (cause) {
           echouer('echec-activation', cause instanceof Error ? cause.message : String(cause))
         }
+        const differes = fileAttente
+        fileAttente = fileParente
 
         if (entree.etat === 'en-erreur') {
           // Un composant qui a échoué ne garde pas les noms qu'il réservait :
           // sinon aucun remplaçant ne pourrait jamais prendre sa place.
           relacherNoms(id, fournit)
+          // Ordre chronologique : ce que le composant a dit avant de tomber
+          // est rejoué avant l'erreur elle-même.
+          for (const differe of differes) emettre(differe)
           return
         }
 
@@ -242,6 +262,7 @@ export function creerNoyau(): Noyau {
         // un composant en échec ne doit jamais avoir été vu actif.
         entree.etat = 'actif'
         emettre({ type: 'composant-active', id })
+        for (const differe of differes) emettre(differe)
       },
     }
   }
