@@ -17,4 +17,7 @@ FROM nginx:1.27-alpine AS service
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY deploiement/nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
-HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://localhost/ >/dev/null || exit 1
+# 127.0.0.1 et non localhost : celui-ci résout en ::1, et nginx n'écoute
+# qu'en IPv4. Un conteneur marqué malsain n'est pas routé par Traefik.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
+  CMD wget -q --spider http://127.0.0.1/ || exit 1
