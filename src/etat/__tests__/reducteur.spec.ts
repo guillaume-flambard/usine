@@ -215,3 +215,67 @@ describe('réducteur', () => {
     expect(JSON.stringify(depart.vue)).toBe(avant)
   })
 })
+
+describe('artefacts et fabrication', () => {
+  it("ne garde que la dernière version d'un artefact", () => {
+    const etat = rejouer([
+      cree('planificateur'),
+      evt({
+        type: 'artefact-produit',
+        id: id('planificateur'),
+        artefact: { titre: 'Brouillon', corps: 'premier jet' },
+      }),
+      evt({
+        type: 'artefact-produit',
+        id: id('planificateur'),
+        artefact: { titre: 'Découpage', corps: 'version finale', decouleDe: 'le besoin' },
+      }),
+    ])
+    expect(noeud(etat, 'planificateur')?.artefact?.titre).toBe('Découpage')
+    expect(noeud(etat, 'planificateur')?.artefact?.decouleDe).toBe('le besoin')
+  })
+
+  it("garde l'artefact d'un composant qui tombe ensuite en erreur", () => {
+    const etat = rejouer([
+      cree('bavard'),
+      evt({
+        type: 'artefact-produit',
+        id: id('bavard'),
+        artefact: { titre: 'Ce que j ai écrit', corps: 'avant de tomber' },
+      }),
+      evt({
+        type: 'composant-en-erreur',
+        erreur: {
+          code: 'echec-activation',
+          message: 'boum',
+          composant: id('bavard'),
+          nom: 'bavard',
+        },
+      }),
+      evt({
+        type: 'artefact-produit',
+        id: id('bavard'),
+        artefact: { titre: 'Rattrapage', corps: 'publié malgré la chute' },
+      }),
+    ])
+    // Ce qu'un agent a écrit reste ce qu'il a écrit, même s'il tombe après.
+    expect(noeud(etat, 'bavard')?.artefact?.titre).toBe('Rattrapage')
+    expect(noeud(etat, 'bavard')?.etat).toBe('en-erreur')
+  })
+
+  it("retient l'origine de fabrication et son fabricant", () => {
+    const etat = rejouer([
+      cree('fabricant'),
+      cree('piece'),
+      evt({
+        type: 'composant-fabrique',
+        id: id('piece'),
+        parent: id('fabricant'),
+        fabrication: { specification: 'spéc', source: 'code', voie: 'composition' },
+      }),
+    ])
+    expect(noeud(etat, 'piece')?.fabrication?.voie).toBe('composition')
+    expect(noeud(etat, 'piece')?.fabriquePar).toBe('fabricant')
+    expect(noeud(etat, 'fabricant')?.fabrication).toBeUndefined()
+  })
+})

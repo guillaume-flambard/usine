@@ -104,3 +104,117 @@ describe('remplacement à chaud', () => {
     expect(noyau.introspecter().composants).toHaveLength(0)
   })
 })
+
+describe("remplacement d'un composant chargé par un autre", () => {
+  const enfant = (version: number, casse = false): Composant => ({
+    nom: 'piece-enfant',
+    fournit: ['sortie'],
+    presentation: { libelle: `Enfant v${version}`, role: `Version ${version}` },
+    applique(contexte) {
+      if (casse) throw new Error('version fautive')
+      contexte.fournir('sortie', { version })
+      contexte.terminer()
+    },
+  })
+
+  const hote = (aCharger: Composant): Composant => ({
+    nom: 'hote',
+    presentation: { libelle: 'Hôte', role: "Charge l'enfant" },
+    applique(contexte) {
+      void contexte.charger(aCharger)
+    },
+  })
+
+  it('replace la nouvelle version sous son parent, pas à la racine', async () => {
+    const noyau = creerNoyau()
+    const idHote = await noyau.charger(hote(enfant(1)))
+    await tick()
+    const idEnfant = noyau.introspecter().composants.find((c) => c.nom === 'piece-enfant')?.id
+    expect(idEnfant).toBeDefined()
+
+    await noyau.remplacer(idEnfant!, enfant(2))
+    await tick()
+
+    const remplacant = noyau.introspecter().composants.find((c) => c.nom === 'piece-enfant')
+    expect(remplacant?.presentation.libelle).toBe('Enfant v2')
+    expect(remplacant?.parent).toBe(idHote)
+
+    // La cascade tient toujours : libérer l'hôte emporte la nouvelle version.
+    await noyau.liberer(idHote as IdComposant)
+    await tick()
+    expect(noyau.introspecter().composants).toHaveLength(0)
+  })
+
+  it("porte l'origine de fabrication de la nouvelle version", async () => {
+    const noyau = creerNoyau()
+    const evenements: EvenementRun[] = []
+    noyau.abonner((e) => evenements.push(e))
+    await noyau.charger(hote(enfant(1)))
+    await tick()
+    const idEnfant = noyau.introspecter().composants.find((c) => c.nom === 'piece-enfant')?.id
+
+    await noyau.remplacer(idEnfant!, enfant(2), {
+      specification: 'nom : piece-enfant',
+      source: 'assemblée à partir de deux primitives',
+      voie: 'composition',
+    })
+    await tick()
+
+    const fabrique = evenements.find((e) => e.type === 'composant-fabrique')
+    expect(fabrique).toBeDefined()
+    if (fabrique?.type === 'composant-fabrique') {
+      expect(fabrique.fabrication.source).toContain('primitives')
+      expect(fabrique.parent).toBeDefined()
+    }
+  })
+
+  it('remet aussi les enfants de la version remplacée quand le retour arrière joue', async () => {
+    const petitEnfant: Composant = {
+      nom: 'petite-piece',
+      presentation: { libelle: 'Petite pièce', role: 'Chargée par la pièce' },
+      applique(contexte) {
+        contexte.terminer()
+      },
+    }
+    const avecEnfant: Composant = {
+      nom: 'piece-enfant',
+      fournit: ['sortie'],
+      presentation: { libelle: 'Enfant v1', role: 'Charge une petite pièce' },
+      applique(contexte) {
+        contexte.fournir('sortie', { version: 1 })
+        void contexte.charger(petitEnfant)
+      },
+    }
+
+    const noyau = creerNoyau()
+    await noyau.charger(hote(avecEnfant))
+    await tick()
+    const idEnfant = noyau.introspecter().composants.find((c) => c.nom === 'piece-enfant')?.id
+    expect(noyau.introspecter().composants.some((c) => c.nom === 'petite-piece')).toBe(true)
+
+    await noyau.remplacer(idEnfant!, enfant(2, true))
+    await tick()
+
+    const vivants = noyau.introspecter().composants.map((c) => c.nom)
+    // Le retour arrière remet la pièce ET ce qu'elle avait chargé : sinon le
+    // run resterait amputé, ce que cette API promet justement d'éviter.
+    expect(vivants).toContain('piece-enfant')
+    expect(vivants).toContain('petite-piece')
+  })
+
+  it('ignore un second remplacement lancé pendant le premier', async () => {
+    const noyau = creerNoyau()
+    await noyau.charger(hote(enfant(1)))
+    await tick()
+    const idEnfant = noyau.introspecter().composants.find((c) => c.nom === 'piece-enfant')?.id
+
+    const [a, b] = await Promise.all([
+      noyau.remplacer(idEnfant!, enfant(2)),
+      noyau.remplacer(idEnfant!, enfant(3)),
+    ])
+    await tick()
+
+    expect([a, b].filter((r) => r !== undefined)).toHaveLength(1)
+    expect(noyau.introspecter().composants.filter((c) => c.nom === 'piece-enfant')).toHaveLength(1)
+  })
+})

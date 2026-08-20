@@ -78,11 +78,11 @@ const LIBELLES: Record<NoeudVue['etat'], string> = {
       <div class="cote-a-cote">
         <div>
           <p class="eyebrow">Spécification</p>
-          <pre class="code">{{ noeud.fabrication.specification }}</pre>
+          <pre class="code" tabindex="0">{{ noeud.fabrication.specification }}</pre>
         </div>
         <div>
           <p class="eyebrow">Code chargé</p>
-          <pre class="code">{{ noeud.fabrication.source }}</pre>
+          <pre class="code" tabindex="0">{{ noeud.fabrication.source }}</pre>
         </div>
       </div>
     </template>

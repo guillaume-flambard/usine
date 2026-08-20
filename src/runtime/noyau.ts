@@ -80,6 +80,7 @@ export function creerNoyau(): Noyau {
   const abonnes = new Set<Abonne>()
   /** Le contexte Cordis de chaque composant, pour recharger un enfant au bon endroit. */
   const contextesParEntree = new Map<IdComposant, Context>()
+  const remplacementsEnCours = new Set<IdComposant>()
   let sequence = 0
   let compteur = 0
 
@@ -377,6 +378,47 @@ export function creerNoyau(): Noyau {
     return id
   }
 
+  /**
+   * Remplace une entrée vivante. Les enfants qu'elle avait chargés sont
+   * relevés d'abord : sans ça, un retour arrière remettrait la pièce mais
+   * pas ce qu'elle avait fabriqué, et le run resterait amputé — précisément
+   * le cas que cette API promet de couvrir.
+   */
+  async function effectuerRemplacement(
+    entree: Entree,
+    remplacant: Composant,
+    fabrication?: Fabrication,
+  ): Promise<IdComposant | undefined> {
+    const id = entree.id
+    const ancien = entree.composant
+    const parent = entree.parent
+    const contexteParent =
+      parent !== undefined ? (contextesParEntree.get(parent) ?? racine) : racine
+    const enfants = [...entrees.values()]
+      .filter((autre) => autre.parent === id)
+      .map((autre) => autre.composant)
+
+    await entree.liberer()
+    const nouveau = await chargerDans(contexteParent, remplacant, parent, fabrication)
+    // Une version qui se charge mais tombe en défaut n'a pas « pris ».
+    const enDefaut = nouveau !== undefined && entrees.get(nouveau)?.etat === 'en-erreur'
+    if (nouveau !== undefined && !enDefaut) return nouveau
+
+    if (nouveau !== undefined) await entrees.get(nouveau)?.liberer()
+    const remis = await chargerDans(contexteParent, ancien, parent)
+    if (remis === undefined) {
+      signalerErreur({
+        code: 'echec-chargement',
+        message: `Le retour arrière sur « ${ancien.nom} » a échoué : le run est amputé.`,
+        nom: ancien.nom,
+      })
+      return undefined
+    }
+    const contexteRemis = contextesParEntree.get(remis) ?? contexteParent
+    for (const enfant of enfants) await chargerDans(contexteRemis, enfant, remis)
+    return undefined
+  }
+
   return {
     charger(composant: Composant) {
       return chargerDans(racine, composant)
@@ -389,22 +431,14 @@ export function creerNoyau(): Noyau {
     async remplacer(id: IdComposant, remplacant: Composant, fabrication?: Fabrication) {
       const entree = entrees.get(id)
       if (entree === undefined) return undefined
-      const ancien = entree.composant
-      const parent = entree.parent
-      const contexteParent =
-        parent !== undefined ? (contextesParEntree.get(parent) ?? racine) : racine
-
-      await entree.liberer()
-      const nouveau = await chargerDans(contexteParent, remplacant, parent, fabrication)
-      // Une version qui se charge mais tombe en défaut n'a pas « pris » :
-      // un composant en erreur n'est pas un remplacement réussi.
-      const enDefaut = nouveau !== undefined && entrees.get(nouveau)?.etat === 'en-erreur'
-      if (nouveau !== undefined && !enDefaut) return nouveau
-
-      if (nouveau !== undefined) await entrees.get(nouveau)?.liberer()
-      // Rollback : on remet l'ancienne version pour ne pas amputer le run.
-      await chargerDans(contexteParent, ancien, parent)
-      return undefined
+      // Deux remplacements entrelacés liraient la même entrée.
+      if (remplacementsEnCours.has(id)) return undefined
+      remplacementsEnCours.add(id)
+      try {
+        return await effectuerRemplacement(entree, remplacant, fabrication)
+      } finally {
+        remplacementsEnCours.delete(id)
+      }
     },
     async libererTout() {
       // Une passe ne suffit pas : un chargement encore en vol s'inscrit après

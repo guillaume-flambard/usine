@@ -59,6 +59,7 @@ export function reduire(etat: EtatComplet, evenement: EvenementRun): EtatComplet
   const majNoeud = (
     id: IdComposant,
     modifier: (noeud: NoeudVue, memoire: Interne) => { noeud: NoeudVue; memoire: Interne },
+    malgreErreur = false,
   ) => {
     const index = noeuds.findIndex((n) => n.id === id)
     // Un événement portant un identifiant inconnu est ignoré : le store peut
@@ -70,7 +71,7 @@ export function reduire(etat: EtatComplet, evenement: EvenementRun): EtatComplet
     // L'erreur est terminale : ni une activation ni une désactivation
     // ultérieure ne requalifie un composant tombé en défaut. Sans ça, un
     // nœud en erreur redevient « en attente » et le graphe le montre sain.
-    if (memoireAvant.cycle === 'en-erreur') return
+    if (memoireAvant.cycle === 'en-erreur' && !malgreErreur) return
     const { noeud, memoire } = modifier(avant, memoireAvant)
     interne.set(id, memoire)
     const derive: NoeudVue = {
@@ -175,10 +176,13 @@ export function reduire(etat: EtatComplet, evenement: EvenementRun): EtatComplet
     case 'artefact-produit':
       // On ne garde que la dernière version : « l'artefact d'un nœud » doit
       // toujours être défini et unique.
-      majNoeud(evenement.id, (noeud, memoire) => ({
-        noeud: { ...noeud, artefact: evenement.artefact },
-        memoire,
-      }))
+      // Publié « malgré l'erreur » : ce qu'un agent a écrit avant de tomber
+      // reste ce qu'il a écrit, et doit rester consultable.
+      majNoeud(
+        evenement.id,
+        (noeud, memoire) => ({ noeud: { ...noeud, artefact: evenement.artefact }, memoire }),
+        true,
+      )
       break
 
     case 'composant-fabrique':

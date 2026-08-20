@@ -29,22 +29,19 @@ export interface DescriptionPrimitive {
   nom: string
   /** Ce que fait l'étape, en une ligne lisible par un non-technicien. */
   resume: string
-  /** Le corps rendu lisible, pour l'inspection côte à côte. */
-  source: string
   appliquer: Primitive
 }
+
+/**
+ * La source affichée est **dérivée du code exécuté**, jamais recopiée à la
+ * main : une source recopiée dérive, et le panneau finirait par montrer autre
+ * chose que ce qui tourne.
+ */
+export const sourceDe = (primitive: DescriptionPrimitive): string => primitive.appliquer.toString()
 
 const decouper: DescriptionPrimitive = {
   nom: 'decouper-allegations',
   resume: 'Découpe le texte en allégations, une par phrase.',
-  source: `passe => ({
-  ...passe,
-  allegations: passe.texte
-    .split(/[.;!?\\n]+/)
-    .map(t => t.trim())
-    .filter(t => t.length > 0)
-    .map(texte => ({ texte })),
-})`,
   appliquer: (passe) => ({
     ...passe,
     allegations: passe.texte
@@ -58,20 +55,15 @@ const decouper: DescriptionPrimitive = {
 const classer: DescriptionPrimitive = {
   nom: 'classer-par-regles',
   resume: 'Confronte chaque allégation aux règles publiées par la source de vérité.',
-  source: `passe => ({
-  ...passe,
-  verdicts: passe.allegations.map(a => {
-    const regle = passe.regles.find(r => a.texte.toLowerCase().includes(r.motif))
-    return regle
-      ? { texte: a.texte, statut: regle.statut, source: regle.source }
-      : { texte: a.texte, statut: 'a-verifier' }
-  }),
-})`,
   appliquer: (passe) => ({
     ...passe,
     verdicts: passe.allegations.map((allegation) => {
-      const regle = passe.regles.find((r) =>
-        allegation.texte.toLowerCase().includes(r.motif.toLowerCase()),
+      // Un motif vide correspondrait à toutes les allégations et leur
+      // collerait un verdict tranché : on l'écarte.
+      const regle = passe.regles.find(
+        (r) =>
+          r.motif.trim().length > 0 &&
+          allegation.texte.toLowerCase().includes(r.motif.toLowerCase()),
       )
       return regle === undefined
         ? { texte: allegation.texte, statut: 'a-verifier' as const }
@@ -83,26 +75,25 @@ const classer: DescriptionPrimitive = {
 const exigerSource: DescriptionPrimitive = {
   nom: 'exiger-une-source',
   resume: "Retombe sur « à vérifier » tout verdict qui n'est pas adossé à une source.",
-  source: `passe => ({
-  ...passe,
-  verdicts: passe.verdicts.map(v =>
-    v.statut !== 'a-verifier' && v.source === undefined
-      ? { texte: v.texte, statut: 'a-verifier' }
-      : v,
-  ),
-})`,
   appliquer: (passe) => ({
     ...passe,
     verdicts: passe.verdicts.map((verdict) =>
-      verdict.statut !== 'a-verifier' && verdict.source === undefined
+      verdict.statut !== 'a-verifier' && (verdict.source ?? '').trim().length === 0
         ? { texte: verdict.texte, statut: 'a-verifier' as const }
         : verdict,
     ),
   }),
 }
 
-export const REGISTRE_PRIMITIVES: ReadonlyMap<string, DescriptionPrimitive> = new Map(
-  [decouper, classer, exigerSource].map((primitive) => [primitive.nom, primitive]),
-)
+const PRIMITIVES = [decouper, classer, exigerSource].map((primitive) => Object.freeze(primitive))
 
-export const nomsDePrimitives = (): readonly string[] => [...REGISTRE_PRIMITIVES.keys()]
+/**
+ * Le registre est fermé : `chercherPrimitive` est la seule voie d'accès, et
+ * personne ne peut y ajouter une entrée depuis l'extérieur. Une `ReadonlyMap`
+ * ne l'aurait garanti qu'au typage.
+ */
+export const chercherPrimitive = (nom: string): DescriptionPrimitive | undefined =>
+  PRIMITIVES.find((primitive) => primitive.nom === nom)
+
+export const nomsDePrimitives = (): readonly string[] =>
+  PRIMITIVES.map((primitive) => primitive.nom)

@@ -67,3 +67,29 @@ describe('isolement du moteur de composition', () => {
     ).toBe(false)
   })
 })
+
+describe("cantonnement de l'évaluation de code", () => {
+  const evalue = (ids: string[]) =>
+    ids.some((id) => ['no-eval', 'no-implied-eval', 'no-new-func'].includes(id))
+
+  it('refuse `new Function` hors de la fabrique', async () => {
+    expect(
+      evalue(await messages('src/agents/rusé.ts', "const f = new Function('return 1')\nvoid f\n")),
+    ).toBe(true)
+  })
+
+  it('refuse eval hors de la fabrique', async () => {
+    expect(evalue(await messages('src/etat/rusé.ts', "eval('1 + 1')\n"))).toBe(true)
+  })
+
+  it("laisse la fabrique évaluer : c'est sa raison d'être", async () => {
+    expect(
+      evalue(
+        await messages(
+          'src/runtime/fabrique/index.ts',
+          "const f = new Function('return 1')\nvoid f\n",
+        ),
+      ),
+    ).toBe(false)
+  })
+})

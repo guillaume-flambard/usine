@@ -288,7 +288,9 @@ body,
   overflow: auto;
 }
 
-@media (max-width: 1200px) {
+/* Deux colonnes de 11 px de monospace ne se lisent pas : sous cette largeur
+   de panneau, la comparaison s'empile plutôt que de s'écraser. */
+@media (max-width: 1400px) {
   .cote-a-cote {
     grid-template-columns: 1fr;
   }
@@ -478,7 +480,7 @@ body,
   top: 0;
   right: 0;
   bottom: 0;
-  width: min(560px, 66%);
+  width: min(760px, 72%);
   background: var(--surface);
   border-left: 1px solid var(--line);
   padding: 24px;

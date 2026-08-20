@@ -3,6 +3,7 @@
 // entrée, produisent une sortie, la publient, et déclenchent l'aval.
 
 import type { Composant } from '../runtime/contrat'
+import type { Verdict } from '../runtime/fabrique/primitives'
 import {
   fabriqueParComposition,
   type Fabrique,
@@ -172,7 +173,13 @@ export const constructeurFabricant: Composant = {
     const specification = contexte.lire<Specification>('specification')
     const registre = contexte.lire<{ regles: readonly unknown[] }>('registre')
     const fabrique = contexte.lire<Fabrique>('fabrique')
-    if (fabrique === undefined) return
+    if (fabrique === undefined) {
+      // Sortir en silence condamnerait tout l'aval à attendre sans diagnostic.
+      contexte.emettre('Aucune fabrique disponible : rien ne sera fabriqué.')
+      contexte.fournir('sortie-produit', { fabrique: false })
+      contexte.terminer()
+      return
+    }
 
     const aFabriquer: SpecificationComposant = {
       nom: 'verificateur-allegations',
@@ -186,6 +193,11 @@ export const constructeurFabricant: Composant = {
     const resultat = fabrique.compiler(aFabriquer)
     if (!resultat.ok) {
       contexte.emettre(`Fabrication refusée : ${resultat.echec.message}`)
+      contexte.publierArtefact({
+        titre: 'Fabrication refusée',
+        corps: resultat.echec.message,
+        decouleDe: "la décision de composition de l'architecte",
+      })
       contexte.fournir('sortie-produit', { fabrique: false })
       contexte.terminer()
       return
@@ -194,33 +206,60 @@ export const constructeurFabricant: Composant = {
     contexte.emettre(
       `Fabrique « ${aFabriquer.nom} » : ${aFabriquer.etapes.length} primitives, ${registre?.regles.length ?? 0} règles.`,
     )
-    void contexte.charger(resultat.piece.composant, {
-      specification: [
-        `nom : ${aFabriquer.nom}`,
-        `rôle : ${aFabriquer.role}`,
-        `consomme : ${aFabriquer.injecte.join(', ')}`,
-        `publie : ${aFabriquer.fournit.join(', ')}`,
-        `étapes : ${aFabriquer.etapes.join(' → ')}`,
-        '',
-        `critères repris de l'architecte : ${(specification?.criteres ?? []).length}`,
-      ].join('\n'),
-      source: resultat.piece.source,
-      voie: fabrique.voie,
-    })
-
-    contexte.publierArtefact({
-      titre: 'Spécification de la pièce fabriquée',
-      corps: [
-        `La pièce « ${aFabriquer.nom} » n'existait pas avant ce run.`,
-        `Elle enchaîne : ${aFabriquer.etapes.join(' → ')}.`,
-        '',
-        "Aucune chaîne de code n'est évaluée : les primitives sont assemblées.",
-      ].join('\n'),
-      decouleDe: "la décision de composition de l'architecte",
-    })
-    contexte.fournir('sortie-produit', { fabrique: true })
-    contexte.terminer()
+    // Le résultat du chargement est attendu : annoncer une pièce fabriquée
+    // qui n'a pas pris serait exactement le mensonge que ce produit refuse.
+    void contexte
+      .charger(resultat.piece.composant, {
+        specification: [
+          `nom : ${aFabriquer.nom}`,
+          `rôle : ${aFabriquer.role}`,
+          `consomme : ${aFabriquer.injecte.join(', ')}`,
+          `publie : ${aFabriquer.fournit.join(', ')}`,
+          `étapes : ${aFabriquer.etapes.join(' → ')}`,
+          '',
+          `critères repris de l'architecte : ${(specification?.criteres ?? []).length}`,
+        ].join('\n'),
+        source: resultat.piece.source,
+        voie: fabrique.voie,
+      })
+      .then((idPiece) => {
+        if (idPiece === undefined) {
+          contexte.emettre("La pièce fabriquée n'a pas pu être chargée.")
+          contexte.publierArtefact({
+            titre: 'Fabrication non chargée',
+            corps: `La pièce « ${aFabriquer.nom} » a été compilée mais son chargement a été refusé.`,
+            decouleDe: "la décision de composition de l'architecte",
+          })
+          contexte.fournir('sortie-produit', { fabrique: false })
+          contexte.terminer()
+          return
+        }
+        contexte.publierArtefact({
+          titre: 'Spécification de la pièce fabriquée',
+          corps: [
+            `La pièce « ${aFabriquer.nom} » n'existait pas avant ce run.`,
+            `Elle enchaîne : ${aFabriquer.etapes.join(' → ')}.`,
+            '',
+            fabrique.voie === 'composition'
+              ? "Aucune chaîne de code n'est évaluée : les primitives sont assemblées."
+              : 'Le corps de la pièce a été produit par évaluation de code.',
+          ].join('\n'),
+          decouleDe: "la décision de composition de l'architecte",
+        })
+        contexte.fournir('sortie-produit', { fabrique: true })
+        contexte.terminer()
+      })
   },
+}
+
+/** Le texte témoin sert à contrôler la pièce fabriquée avant de la livrer. */
+const TEXTE_DE_CONTROLE =
+  'Ce complément guérit les carences. Il contribue à réduire la fatigue. Il rend la peau lumineuse.'
+
+const LIBELLES_STATUT: Record<string, string> = {
+  autorise: 'autorisé',
+  interdit: 'interdit',
+  'a-verifier': 'à vérifier',
 }
 
 export const sceptique: Composant = {
@@ -246,7 +285,7 @@ export const sceptique: Composant = {
     contexte.publierArtefact({
       titre: 'Objection',
       corps: objection.texte,
-      decouleDe: `l'artefact « ${objection.cible} »`,
+      decouleDe: "la décision de composition de l'architecte",
     })
     contexte.terminer()
   },
@@ -254,13 +293,39 @@ export const sceptique: Composant = {
 
 export const livraison: Composant = {
   nom: 'livraison',
-  injecte: ['objection'],
+  injecte: ['objection', 'verificateur'],
   fournit: ['livrable'],
-  presentation: { libelle: 'Livraison', role: 'Monte le produit livré dans le graphe' },
+  presentation: { libelle: 'Livraison', role: 'Contrôle et monte le produit livré' },
   applique(contexte) {
     const objection = contexte.lire<{ texte: string }>('objection')
-    contexte.emettre('Monte le produit livré dans le graphe.')
-    contexte.fournir('livrable', { pret: true, objection: objection?.texte })
+    // La pièce fabriquée est réellement exécutée avant d'être livrée : une
+    // livraison qui se contenterait d'enregistrer une fonction ne prouverait
+    // rien du tout.
+    const verifier = contexte.lire<(texte: string) => readonly Verdict[]>('verificateur')
+    const controle = verifier?.(TEXTE_DE_CONTROLE) ?? []
+    contexte.emettre(
+      `Contrôle la pièce livrée : ${controle.length} allégations classées sur le texte témoin.`,
+    )
+    contexte.publierArtefact({
+      titre: 'Contrôle avant livraison',
+      corps: [
+        'Le produit livré a été exécuté sur un texte témoin avant sa mise en place.',
+        '',
+        ...controle.map(
+          (verdict) =>
+            `— « ${verdict.texte} » : ${LIBELLES_STATUT[verdict.statut] ?? verdict.statut}` +
+            (verdict.source !== undefined ? ` (${verdict.source})` : ''),
+        ),
+        '',
+        `Objection retenue avant livraison : ${objection?.texte ?? 'aucune'}`,
+      ].join('\n'),
+      decouleDe: "l'objection du sceptique",
+    })
+    contexte.fournir('livrable', {
+      pret: true,
+      objection: objection?.texte,
+      controle: controle.length,
+    })
     contexte.terminer()
   },
 }

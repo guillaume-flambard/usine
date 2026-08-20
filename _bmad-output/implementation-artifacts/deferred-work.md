@@ -34,3 +34,15 @@ où ils ont été trouvés. Append-only.
 - source_spec: `spec-1-2-le-store-et-les-etats-derives.md`
   summary: Le banc d'aperçu `spike/apercu/` pilote l'application par des sélecteurs CSS et des attentes fixes.
   evidence: Il sert à capturer l'application sans humain. Un renommage de classe le casse en silence. À remplacer par de vrais points d'ancrage de test le jour où l'exécuteur navigateur arrive.
+
+- source_spec: `epic 2 — fabrication`
+  summary: Le rapprochement des allégations est une simple recherche de sous-chaîne.
+  evidence: « ne guérit pas » se classe « interdit » avec une citation réglementaire à l'appui. Ni négation, ni frontière de mot, ni guillemets. Acceptable pour une pièce fabriquée de démonstration ; inacceptable pour le vérificateur réel de l'epic 4, qui devra traiter la négation et la reformulation.
+
+- source_spec: `epic 2 — fabrication`
+  summary: La spécification de la pièce fabriquée est écrite en double.
+  evidence: Le nom, les dépendances et les publications de `verificateur-allegations` existent à la fois dans le constructeur fabricant et dans les emplacements réservés du scénario, sans rien qui vérifie leur accord. Un renommage laisserait la pièce sans place. À dériver l'un de l'autre.
+
+- source_spec: `epic 2 — fabrication`
+  summary: Aucun contrôle de conformité entre la source affichée et le code exécuté pour la voie par évaluation.
+  evidence: La voie par composition dérive sa source du code par `toString`, donc aucune dérive n'est possible. La voie par évaluation affiche le corps qu'elle a évalué, ce qui est correct, mais rien ne le vérifie automatiquement.

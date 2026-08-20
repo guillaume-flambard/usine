@@ -108,3 +108,38 @@ describe('ce que les agents écrivent', () => {
     expect(maitre?.artefact?.corps).toContain('Secteur :')
   })
 })
+
+describe('la pièce fabriquée tourne vraiment pendant le run', () => {
+  it('est exécutée par la livraison sur un texte témoin, avec des verdicts sourcés', async () => {
+    const pilote = await run()
+    const livraison = pilote.store.etat.value.noeuds.find((n) => n.nom === 'livraison')
+
+    // Une pièce qui se contenterait d'enregistrer une fonction ne prouverait
+    // rien : la livraison la fait tourner avant de la monter.
+    expect(livraison?.artefact?.titre).toBe('Contrôle avant livraison')
+    expect(livraison?.artefact?.corps).toContain('interdit')
+    expect(livraison?.artefact?.corps).toContain('autorisé')
+    expect(livraison?.artefact?.corps).toContain('à vérifier')
+    expect(livraison?.artefact?.corps).toContain('1924/2006')
+  })
+
+  it('ne laisse aucun verdict tranché sans source', async () => {
+    const pilote = await run()
+    const corps = pilote.store.etat.value.noeuds.find((n) => n.nom === 'livraison')?.artefact?.corps
+    const lignes = (corps ?? '').split('\n').filter((l) => l.startsWith('— «'))
+    expect(lignes.length).toBeGreaterThan(0)
+    for (const ligne of lignes) {
+      const tranche = ligne.includes('interdit') || ligne.includes('autorisé')
+      // Tranché implique une source citée entre parenthèses.
+      if (tranche) expect(ligne, ligne).toMatch(/\(.+\)$/)
+    }
+  })
+
+  it('marque comme fabriqué exactement ce qui l a été', async () => {
+    const pilote = await run()
+    const fabriques = pilote.store.etat.value.noeuds
+      .filter((n) => n.fabrication !== undefined)
+      .map((n) => n.nom)
+    expect(fabriques).toEqual(['verificateur-allegations'])
+  })
+})

@@ -71,5 +71,22 @@ export default defineConfigWithVueTs(
     },
   },
 
+  // La fabrication par défaut ne doit jamais évaluer de code : sous une
+  // politique de sécurité stricte, `unsafe-eval` est refusé. Seule la voie
+  // par évaluation, cantonnée à un fichier, a le droit d'y toucher.
+  {
+    name: 'app/pas-devaluation-hors-fabrique',
+    files: ['src/**/*.{vue,ts,mts,tsx}'],
+    ignores: ['src/runtime/fabrique/index.ts'],
+    rules: {
+      // `no-restricted-syntax` est déjà employé par la règle d'isolement
+      // du moteur ; le redéclarer ici l'écraserait pour les mêmes fichiers.
+      // `no-new-func` couvre `new Function` comme `Function(...)`.
+      'no-eval': 'error',
+      'no-implied-eval': 'error',
+      'no-new-func': 'error',
+    },
+  },
+
   skipFormatting,
 )

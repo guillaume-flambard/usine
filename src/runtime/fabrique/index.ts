@@ -8,8 +8,10 @@
 // `unsafe-eval` : c'est un arbitrage à poser, jamais un effet de bord.
 
 import type { Composant, ContexteComposant } from '../contrat'
+import type { Primitive } from './primitives'
 import {
-  REGISTRE_PRIMITIVES,
+  chercherPrimitive,
+  sourceDe,
   type DescriptionPrimitive,
   type Passe,
   type Verdict,
@@ -29,7 +31,7 @@ export interface SpecificationComposant {
 }
 
 export interface EchecFabrication {
-  code: 'primitive-inconnue' | 'evaluation-refusee'
+  code: 'primitive-inconnue' | 'evaluation-refusee' | 'specification-invalide'
   message: string
 }
 
@@ -59,9 +61,12 @@ export function fabriqueParComposition(): Fabrique {
   return {
     voie: 'composition',
     compiler(specification) {
+      const invalide = verifierSpecification(specification)
+      if (invalide !== undefined) return { ok: false, echec: invalide }
+
       const etapes: DescriptionPrimitive[] = []
       for (const nom of specification.etapes) {
-        const primitive = REGISTRE_PRIMITIVES.get(nom)
+        const primitive = chercherPrimitive(nom)
         if (primitive === undefined) {
           return {
             ok: false,
@@ -83,7 +88,7 @@ export function fabriqueParComposition(): Fabrique {
         'verifier(texte) =',
         ...etapes.map((etape, index) => `  ${index + 1}. ${etape.nom}  // ${etape.resume}`),
         '',
-        ...etapes.flatMap((etape) => [`// ${etape.nom}`, etape.source, '']),
+        ...etapes.flatMap((etape) => [`// ${etape.nom}`, sourceDe(etape), '']),
       ].join('\n')
 
       const composant: Composant = {
@@ -92,10 +97,12 @@ export function fabriqueParComposition(): Fabrique {
         fournit: [...specification.fournit],
         presentation: { libelle: specification.libelle, role: specification.role },
         applique(contexte: ContexteComposant) {
-          const source = contexte.lire<{
-            regles: Passe['regles']
-          }>(specification.injecte[0] ?? '')
-          const regles = source?.regles ?? []
+          // Toutes les dépendances déclarées sont lues : une dépendance
+          // déclarée et jamais consommée serait une arête qui ne porte rien.
+          const lues = specification.injecte.map((nom) =>
+            contexte.lire<{ regles?: Passe['regles'] }>(nom),
+          )
+          const regles = lues.flatMap((valeur) => valeur?.regles ?? [])
 
           const verifier: Verificateur = (texte: string) => {
             const depart: Passe = { texte, allegations: [], verdicts: [], regles }
@@ -116,20 +123,49 @@ export function fabriqueParComposition(): Fabrique {
 }
 
 /**
- * La voie par évaluation. Réservée au mode LLM branché : elle exige
- * `unsafe-eval` et échoue proprement sous une politique stricte.
+ * La voie par évaluation. Elle construit **réellement** le corps du composant
+ * par évaluation de code — c'est ce qui permettra à un modèle de produire une
+ * spécification imprévue. Elle exige `unsafe-eval` et échoue proprement sous
+ * une politique stricte, d'où son cantonnement au mode LLM branché.
  */
 export function fabriqueParEvaluation(): Fabrique {
   return {
     voie: 'evaluation',
     compiler(specification) {
-      const source = `return {
-  nom: ${JSON.stringify(specification.nom)},
-  etapes: ${JSON.stringify(specification.etapes)},
-}`
+      const invalide = verifierSpecification(specification)
+      if (invalide !== undefined) return { ok: false, echec: invalide }
+
+      const etapes: DescriptionPrimitive[] = []
+      for (const nom of specification.etapes) {
+        const primitive = chercherPrimitive(nom)
+        if (primitive === undefined) {
+          return {
+            ok: false,
+            echec: {
+              code: 'primitive-inconnue',
+              message: `« ${nom} » n'est pas au registre des primitives.`,
+            },
+          }
+        }
+        etapes.push(primitive)
+      }
+
+      const corps = [
+        '// Construit par évaluation de code, à partir de la spécification.',
+        'return function verifier(texte, regles, etapes) {',
+        '  var passe = { texte: texte, allegations: [], verdicts: [], regles: regles }',
+        ...specification.etapes.map((nom, index) => `  passe = etapes[${index}](passe)  // ${nom}`),
+        '  return passe.verdicts',
+        '}',
+      ].join('\n')
+
+      let verifierCompile: (
+        texte: string,
+        regles: Passe['regles'],
+        etapes: readonly Primitive[],
+      ) => readonly Verdict[]
       try {
-        const construire = new Function(source) as () => unknown
-        construire()
+        verifierCompile = new Function(corps)() as typeof verifierCompile
       } catch (cause) {
         return {
           ok: false,
@@ -142,9 +178,48 @@ export function fabriqueParEvaluation(): Fabrique {
           },
         }
       }
-      // La composition reste le moteur : l'évaluation ne sert qu'à prouver
-      // qu'une spécification imprévue peut être acceptée.
-      return fabriqueParComposition().compiler(specification)
+
+      const composant: Composant = {
+        nom: specification.nom,
+        injecte: [...specification.injecte],
+        fournit: [...specification.fournit],
+        presentation: { libelle: specification.libelle, role: specification.role },
+        applique(contexte: ContexteComposant) {
+          const lues = specification.injecte.map((nom) =>
+            contexte.lire<{ regles?: Passe['regles'] }>(nom),
+          )
+          const regles = lues.flatMap((valeur) => valeur?.regles ?? [])
+          const appliquants = etapes.map((etape) => etape.appliquer)
+          const verifier: Verificateur = (texte) => verifierCompile(texte, regles, appliquants)
+          for (const nom of specification.fournit) contexte.fournir(nom, verifier)
+          contexte.emettre(`Évalué depuis ${etapes.length} primitives.`)
+          contexte.terminer()
+        },
+      }
+
+      return { ok: true, piece: { composant, source: corps, specification } }
     },
   }
+}
+
+/**
+ * Une spécification qu'on ne peut pas honorer doit être refusée à la
+ * compilation, pas découverte à l'activation.
+ */
+function verifierSpecification(
+  specification: SpecificationComposant,
+): EchecFabrication | undefined {
+  if (specification.etapes.length === 0) {
+    return { code: 'specification-invalide', message: "La spécification n'a aucune étape." }
+  }
+  if (specification.fournit.length === 0) {
+    return { code: 'specification-invalide', message: 'La spécification ne publie rien.' }
+  }
+  if (specification.injecte.length === 0) {
+    return {
+      code: 'specification-invalide',
+      message: "La spécification ne consomme rien : elle n'aurait aucune source de vérité.",
+    }
+  }
+  return undefined
 }

@@ -32,7 +32,7 @@ defineEmits<{
     tabindex="0"
     role="button"
     :aria-pressed="choisi"
-    :aria-label="`${noeud.nom} — ${noeud.presentation.role} — ${noeud.etat}`"
+    :aria-label="`${noeud.presentation.libelle ?? noeud.nom} — ${noeud.presentation.role} — ${noeud.etat}${fabrique ? ' — fabriqué pendant le run' : ''}`"
     @click="$emit('choisir', noeud.id)"
     @keydown.enter.prevent="$emit('choisir', noeud.id)"
     @keydown.space.prevent="$emit('choisir', noeud.id)"

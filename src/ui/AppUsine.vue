@@ -24,8 +24,10 @@ const debut = ref(0)
 const maintenant = ref(0)
 let horloge: ReturnType<typeof setInterval> | undefined
 
+// Le badge « fabriqué » vient de ce qui s'est réellement passé, jamais de la
+// déclaration : une place réservée sans fabrication ne doit pas le porter.
 const fabriques = computed(() =>
-  pilote.scenario().emplacementsReserves.map((entree) => entree.composant.nom),
+  etat.value.noeuds.filter((noeud) => noeud.fabrication !== undefined).map((noeud) => noeud.nom),
 )
 
 const millisecondes = computed(() => (debut.value === 0 ? 0 : maintenant.value - debut.value))
