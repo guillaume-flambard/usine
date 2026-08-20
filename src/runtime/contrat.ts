@@ -84,7 +84,12 @@ export interface ErreurComposant {
 }
 
 export type CodeErreur =
-  'nom-deja-fourni' | 'echec-activation' | 'dependance-inconnue' | 'echec-chargement'
+  | 'nom-deja-fourni'
+  | 'echec-activation'
+  | 'dependance-inconnue'
+  | 'echec-chargement'
+  /** Un abonné du flux a levé. Ce n'est pas une faute du composant. */
+  | 'incident-abonne'
 
 /** L'état de cycle de vie d'un composant, tel que le noyau le connaît. */
 export type EtatComposant = 'en-attente' | 'actif' | 'en-erreur' | 'libere'

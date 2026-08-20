@@ -26,10 +26,20 @@ export function creerStore(): StoreRun {
     interne.value = complet.vue
   }
 
+  let debrancher: Annulation | undefined
+
   return {
     etat: readonly(interne),
     brancher(noyau: Noyau): Annulation {
-      return noyau.abonner(appliquer)
+      // Un second branchement sans débranchement réduirait chaque événement
+      // deux fois : nœuds en double, journal en double.
+      debrancher?.()
+      const annuler = noyau.abonner(appliquer)
+      debrancher = () => {
+        annuler()
+        debrancher = undefined
+      }
+      return debrancher
     },
     reinitialiser() {
       complet = etatInitial()

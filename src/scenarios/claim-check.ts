@@ -33,6 +33,8 @@ const REGLES: readonly Regle[] = [
   },
 ]
 
+const SECTEUR = 'compléments alimentaires — Europe'
+
 const BRIEF =
   'Un outil de conformité des allégations santé pour marques de compléments alimentaires en Europe.'
 
@@ -42,7 +44,8 @@ export const claimCheck: Scenario = {
   brief: BRIEF,
   maitre: {
     cle: 'a-maitre',
-    composant: agentMaitre({ brief: BRIEF, secteur: 'compléments alimentaires — Europe' }),
+    composant: agentMaitre({ brief: BRIEF, secteur: SECTEUR }),
+    construire: (brief: string) => agentMaitre({ brief, secteur: SECTEUR }),
   },
   casting: [
     { cle: 'b-registre', composant: registreEu(REGLES) },

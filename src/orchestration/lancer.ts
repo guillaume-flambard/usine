@@ -7,7 +7,13 @@ import type { Noyau } from '../runtime/noyau'
 import type { EntreeCasting, Scenario } from '../scenarios/types'
 
 export interface DefautScenario {
-  code: 'nom-sans-proprietaire' | 'proprietaire-inconnu' | 'nom-non-declare' | 'cle-en-double'
+  code:
+    | 'nom-sans-proprietaire'
+    | 'proprietaire-inconnu'
+    | 'nom-non-declare'
+    | 'cle-en-double'
+    | 'dependance-sans-fournisseur'
+    | 'nom-reserve-en-double'
   message: string
 }
 
@@ -31,7 +37,16 @@ export function verifierScenario(scenario: Scenario): readonly DefautScenario[] 
   }
 
   const parCle = new Map(entrees.map((entree) => [entree.cle, entree]))
-  const reserves = new Map(scenario.nomsReserves.map((r) => [r.nom, r.proprietaire]))
+  const reserves = new Map<string, string>()
+  for (const { nom, proprietaire } of scenario.nomsReserves) {
+    if (reserves.has(nom)) {
+      defauts.push({
+        code: 'nom-reserve-en-double',
+        message: `« ${nom} » est réservé deux fois.`,
+      })
+    }
+    reserves.set(nom, proprietaire)
+  }
 
   for (const { nom, proprietaire } of scenario.nomsReserves) {
     const entree = parCle.get(proprietaire)
@@ -61,6 +76,19 @@ export function verifierScenario(scenario: Scenario): readonly DefautScenario[] 
     }
   }
 
+  // Une dépendance que personne ne publie condamne son consommateur à
+  // attendre indéfiniment, sans le moindre diagnostic à l'écran.
+  for (const entree of entrees) {
+    for (const nom of entree.composant.injecte ?? []) {
+      if (!reserves.has(nom)) {
+        defauts.push({
+          code: 'dependance-sans-fournisseur',
+          message: `« ${entree.cle} » attend « ${nom} », que personne ne publie.`,
+        })
+      }
+    }
+  }
+
   return defauts
 }
 
@@ -79,8 +107,11 @@ export interface Lancement {
  * emporterait pas. Le scénario reste une donnée ; on ne fait que refermer sa
  * déclaration sur son maître.
  */
-function orchestrateur(scenario: Scenario): Composant {
-  const maitre = scenario.maitre.composant
+function orchestrateur(scenario: Scenario, brief?: string): Composant {
+  const maitre =
+    brief === undefined || brief === scenario.brief
+      ? scenario.maitre.composant
+      : scenario.maitre.construire(brief)
   return {
     ...maitre,
     applique(contexte) {
@@ -97,7 +128,11 @@ function orchestrateur(scenario: Scenario): Composant {
  * de déclaration. Les composants s'activent d'eux-mêmes quand leurs
  * dépendances arrivent — l'ordre de chargement ne pilote pas l'activation.
  */
-export async function lancer(noyau: Noyau, scenario: Scenario): Promise<Lancement> {
+export async function lancer(
+  noyau: Noyau,
+  scenario: Scenario,
+  options: { brief?: string } = {},
+): Promise<Lancement> {
   const defauts = verifierScenario(scenario)
   if (defauts.length > 0) {
     throw new Error(
@@ -106,10 +141,16 @@ export async function lancer(noyau: Noyau, scenario: Scenario): Promise<Lancemen
     )
   }
 
-  const maitre = await noyau.charger(orchestrateur(scenario))
+  const maitre = await noyau.charger(orchestrateur(scenario, options.brief))
   if (maitre === undefined) throw new Error("L'agent maître n'a pas pu être chargé.")
   return { maitre }
 }
+
+/** L'ordre de déclaration de tout le scénario, maître et places réservées compris. */
+export const ordreDuScenario = (scenario: Scenario): readonly string[] =>
+  ordreDeclare([scenario.maitre, ...scenario.casting, ...scenario.emplacementsReserves]).map(
+    (entree) => entree.composant.nom,
+  )
 
 /** La topologie complète déclarée, emplacements réservés compris. */
 export const topologieDeclaree = (scenario: Scenario): readonly Composant[] =>

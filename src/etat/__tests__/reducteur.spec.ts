@@ -89,8 +89,9 @@ describe('réducteur', () => {
         cause: { genre: 'liberation' },
       }),
     ])
-    // Une désactivation après une erreur ne requalifie pas le nœud : le
-    // réducteur reflète le cycle, et le cycle a été mis en défaut.
+    // L'erreur est terminale : une désactivation ultérieure ne doit pas
+    // remettre le nœud en attente, sinon le graphe le montre sain.
+    expect(noeud(etat, 'fautif')?.etat).toBe('en-erreur')
     expect(noeud(etat, 'fautif')?.erreur?.code).toBe('echec-activation')
     expect(etat.vue.incidents).toHaveLength(1)
   })
@@ -154,6 +155,45 @@ describe('réducteur', () => {
     const etat = rejouer([cree('solo'), evt({ type: 'composant-active', id: id('fantome') })])
     expect(noeud(etat, 'solo')?.etat).toBe('inactif')
     expect(etat.vue.noeuds).toHaveLength(1)
+  })
+
+  it('remet le travail à faire quand un composant se réactive', () => {
+    const etat = rejouer([
+      cree('constructeur', ['registre']),
+      evt({ type: 'composant-active', id: id('constructeur') }),
+      evt({ type: 'travail-termine', id: id('constructeur') }),
+      evt({
+        type: 'composant-desactive',
+        id: id('constructeur'),
+        cause: { genre: 'dependance-partie', noms: ['registre'] },
+      }),
+      evt({ type: 'composant-active', id: id('constructeur') }),
+    ])
+    // Réactivé mais pas encore reterminé : l'afficher « terminé » serait un
+    // mensonge sur un travail passé.
+    expect(noeud(etat, 'constructeur')?.etat).toBe('en-cours')
+  })
+
+  it('retire le nœud quand son chargement a échoué : le moteur ne le tient plus', () => {
+    const etat = rejouer([
+      cree('mort-ne'),
+      evt({
+        type: 'composant-en-erreur',
+        erreur: {
+          code: 'echec-chargement',
+          message: 'rejet du moteur',
+          composant: id('mort-ne'),
+          nom: 'mort-ne',
+        },
+      }),
+    ])
+    expect(etat.vue.noeuds).toHaveLength(0)
+    expect(etat.vue.incidents).toHaveLength(1)
+  })
+
+  it("classe un incident d'abonné sous son propre code", () => {
+    const etat = rejouer([evt({ type: 'abonne-en-erreur', message: 'abonné fautif' })])
+    expect(etat.vue.incidents[0]?.erreur.code).toBe('incident-abonne')
   })
 
   it('est pur : la même suite réduite deux fois donne le même état', () => {

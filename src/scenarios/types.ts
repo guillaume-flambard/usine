@@ -29,8 +29,12 @@ export interface Scenario {
   titre: string
   /** Le besoin métier pré-rempli dans le champ de brief. */
   brief: string
-  /** L'agent qui ouvre le run. Les autres sont chargés par lui. */
-  maitre: EntreeCasting
+  /**
+   * L'agent qui ouvre le run. Les autres sont chargés par lui.
+   * `construire` reçoit le brief réellement saisi : sans ça, le champ de
+   * brief serait décoratif.
+   */
+  maitre: EntreeCasting & { construire(brief: string): Composant }
   /** Tout ce que le run met en scène, agents et outils confondus. */
   casting: readonly EntreeCasting[]
   /** Qui publie quoi. Un nom sans propriétaire déclaré est une erreur de scénario. */

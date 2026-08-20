@@ -83,12 +83,19 @@ export const architecte: Composant = {
   },
 }
 
+/** Le nom technique reste sans accent ; l'affichage, lui, est du français. */
+const LIBELLES_CONSTRUCTEUR: Record<string, string> = {
+  regles: 'règles',
+  interface: 'interface',
+  tests: 'tests',
+}
+
 export const constructeur = (quoi: string, technologie?: string): Composant => ({
   nom: `constructeur-${quoi}`,
   injecte: ['specification', 'registre'],
   fournit: [`sortie-${quoi}`],
   presentation: {
-    libelle: `Constr. · ${quoi}`,
+    libelle: `Constr. · ${LIBELLES_CONSTRUCTEUR[quoi] ?? quoi}`,
     role: `Fabrique ${quoi} depuis la spécification`,
     ...(technologie !== undefined ? { technologie } : {}),
   },

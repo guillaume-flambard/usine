@@ -31,6 +31,7 @@ defineEmits<{
     :transform="`translate(${boite.x} ${boite.y})`"
     tabindex="0"
     role="button"
+    :aria-pressed="choisi"
     :aria-label="`${noeud.nom} — ${noeud.presentation.role} — ${noeud.etat}`"
     @click="$emit('choisir', noeud.id)"
     @keydown.enter.prevent="$emit('choisir', noeud.id)"

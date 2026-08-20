@@ -67,6 +67,10 @@ export function reduire(etat: EtatComplet, evenement: EvenementRun): EtatComplet
     const avant = noeuds[index]
     const memoireAvant = interne.get(id)
     if (avant === undefined || memoireAvant === undefined) return
+    // L'erreur est terminale : ni une activation ni une désactivation
+    // ultérieure ne requalifie un composant tombé en défaut. Sans ça, un
+    // nœud en erreur redevient « en attente » et le graphe le montre sain.
+    if (memoireAvant.cycle === 'en-erreur') return
     const { noeud, memoire } = modifier(avant, memoireAvant)
     interne.set(id, memoire)
     const derive: NoeudVue = {
@@ -102,9 +106,12 @@ export function reduire(etat: EtatComplet, evenement: EvenementRun): EtatComplet
     }
 
     case 'composant-active':
+      // `termine` est remis à faux : un composant qui se réactive n'a pas
+      // encore refait son travail, et l'afficher « terminé » d'emblée serait
+      // un mensonge sur un état passé.
       majNoeud(evenement.id, (noeud, memoire) => ({
         noeud: { ...noeud, cause: undefined },
-        memoire: { ...memoire, cycle: 'actif' },
+        memoire: { ...memoire, cycle: 'actif', termine: false },
       }))
       break
 
@@ -125,6 +132,14 @@ export function reduire(etat: EtatComplet, evenement: EvenementRun): EtatComplet
     case 'composant-en-erreur': {
       incidents = [...incidents, { sequence: evenement.sequence, erreur: evenement.erreur }]
       const id = evenement.erreur.composant
+      // Un échec de chargement : le moteur a retiré l'entrée, le nœud ne
+      // doit pas rester affiché, sinon le graphe montre ce qui n'existe pas.
+      if (evenement.erreur.code === 'echec-chargement' && id !== undefined) {
+        interne.delete(id)
+        noeuds = noeuds.filter((n) => n.id !== id)
+        aretes = reconstruireAretes(noeuds, aretes)
+        break
+      }
       // Un refus de chargement n'a pas d'identifiant : il n'y a aucun nœud à
       // mettre en défaut, seulement un incident à consigner.
       if (id !== undefined) {
@@ -170,7 +185,7 @@ export function reduire(etat: EtatComplet, evenement: EvenementRun): EtatComplet
         ...incidents,
         {
           sequence: evenement.sequence,
-          erreur: { code: 'echec-activation', message: evenement.message, nom: 'abonné' },
+          erreur: { code: 'incident-abonne', message: evenement.message, nom: 'abonné' },
         },
       ]
       break

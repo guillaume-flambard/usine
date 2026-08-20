@@ -52,8 +52,8 @@ const LIBELLES: Record<NoeudVue['etat'], string> = {
     </dl>
     <template v-if="messages.length">
       <p class="eyebrow">Ce qu'il a dit</p>
-      <div class="fil">
-        <p v-for="message in messages" :key="message.sequence" class="fil-message">
+      <div class="panneau-fil">
+        <p v-for="message in messages" :key="message.sequence">
           {{ message.message }}
         </p>
       </div>
