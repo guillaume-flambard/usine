@@ -9,6 +9,11 @@ export type IdComposant = string & { readonly [marqueIdComposant]: true }
 
 /** Ce qu'un nœud du graphe montre de ce composant. */
 export interface Presentation {
+  /**
+   * Le nom court affiché dans le nœud. Le `nom` du composant est son
+   * identité technique et déborde souvent d'un cadre de 140 px.
+   */
+  libelle?: string
   /** Le rôle, en une ligne, tel qu'il s'affiche au survol. */
   role: string
   /**

@@ -32,7 +32,7 @@ export interface Specification {
 export const agentMaitre = (besoin: Besoin): Composant => ({
   nom: 'agent-maitre',
   fournit: ['besoin', 'memoire'],
-  presentation: { role: 'Ouvre le run et tient la mémoire' },
+  presentation: { libelle: 'Agent maître', role: 'Ouvre le run et tient la mémoire du secteur' },
   applique(contexte) {
     contexte.emettre(`Constitue sa mémoire sur le secteur : ${besoin.secteur}.`)
     contexte.fournir('besoin', besoin)
@@ -48,7 +48,7 @@ export const planificateur: Composant = {
   nom: 'planificateur',
   injecte: ['besoin'],
   fournit: ['histoires'],
-  presentation: { role: 'Découpe le besoin en histoires' },
+  presentation: { libelle: 'Planificateur', role: 'Découpe le besoin en histoires utilisateur' },
   applique(contexte) {
     const besoin = contexte.lire<Besoin>('besoin')
     const titres = [
@@ -66,7 +66,7 @@ export const architecte: Composant = {
   nom: 'architecte',
   injecte: ['histoires', 'memoire'],
   fournit: ['specification'],
-  presentation: { role: 'Choisit la composition' },
+  presentation: { libelle: 'Architecte', role: 'Choisit la composition et écrit la spécification' },
   applique(contexte) {
     const histoires = contexte.lire<Histoires>('histoires')
     const memoire = contexte.lire<Memoire>('memoire')
@@ -88,7 +88,8 @@ export const constructeur = (quoi: string, technologie?: string): Composant => (
   injecte: ['specification', 'registre'],
   fournit: [`sortie-${quoi}`],
   presentation: {
-    role: `Fabrique ${quoi}`,
+    libelle: `Constr. · ${quoi}`,
+    role: `Fabrique ${quoi} depuis la spécification`,
     ...(technologie !== undefined ? { technologie } : {}),
   },
   applique(contexte) {
@@ -106,7 +107,7 @@ export const sceptique: Composant = {
   nom: 'sceptique',
   injecte: ['sortie-regles', 'sortie-interface', 'sortie-tests', 'specification'],
   fournit: ['objection'],
-  presentation: { role: 'Attaque le résultat avant la porte' },
+  presentation: { libelle: 'Sceptique', role: 'Attaque le résultat avant la porte humaine' },
   applique(contexte) {
     const specification = contexte.lire<Specification>('specification')
     // Le sceptique lit ce que chaque constructeur a réellement produit : une
@@ -130,7 +131,7 @@ export const livraison: Composant = {
   nom: 'livraison',
   injecte: ['objection'],
   fournit: ['livrable'],
-  presentation: { role: 'Livre le produit dans la page' },
+  presentation: { libelle: 'Livraison', role: 'Monte le produit livré dans le graphe' },
   applique(contexte) {
     const objection = contexte.lire<{ texte: string }>('objection')
     contexte.emettre('Monte le produit livré dans le graphe.')

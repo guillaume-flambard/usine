@@ -10,7 +10,11 @@ export interface Regle {
 export const registreEu = (regles: readonly Regle[]): Composant => ({
   nom: 'outil-registre',
   fournit: ['registre'],
-  presentation: { role: 'Source de vérité réglementaire', technologie: 'registre EU' },
+  presentation: {
+    libelle: 'Outil · registre',
+    role: 'Source de vérité réglementaire',
+    technologie: 'registre EU',
+  },
   applique(contexte) {
     contexte.emettre(`Charge ${regles.length} règles d'allégation.`)
     contexte.fournir('registre', { regles })

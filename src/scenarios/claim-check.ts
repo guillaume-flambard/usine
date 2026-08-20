@@ -75,7 +75,10 @@ export const claimCheck: Scenario = {
       composant: {
         nom: 'verificateur-allegations',
         injecte: ['livrable', 'registre'],
-        presentation: { role: 'Le produit livré — fabriqué pendant le run' },
+        presentation: {
+          libelle: 'Vérificateur',
+          role: 'Le produit livré — fabriqué pendant le run',
+        },
         applique() {},
       },
     },
