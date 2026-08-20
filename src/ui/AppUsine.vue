@@ -99,8 +99,6 @@ function arreterHorloge() {
   if (debut.value !== 0) maintenant.value = Date.now()
 }
 
-// Le temps se fige à la fin du run : un compteur qui monte sur une usine à
-// l'arrêt est un faux signal.
 // Les quatre faits mesurés se déduisent de l'état, jamais d'un contenu.
 watch(
   () => etat.value.porte !== undefined,
@@ -116,6 +114,8 @@ watch(
   },
 )
 
+// Le temps se fige à la fin du run, et pendant la délibération : un compteur
+// qui monte sur une usine à l'arrêt est un faux signal.
 watch(
   () => phase.value,
   (valeur) => {
