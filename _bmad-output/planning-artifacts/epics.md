@@ -52,7 +52,7 @@ NFR-001 premier signe de vie sous 1,5 s · NFR-002 fluidité jusqu'à 40 nœuds 
 Pas de gabarit de départ : le dépôt est déjà scaffoldé via `create-vue` (Vue 3.5.41, Vite 8.2.2, TypeScript strict, pnpm, ESLint/oxlint, Prettier). `cordis@4.0.0-rc.8` est installé et vérifié.
 
 - **AD-2** exige une règle ESLint `no-restricted-imports` qui interdit `cordis` hors de `src/runtime/`. C'est une tâche d'outillage, pas une convention orale.
-- **AD-11, AD-21** interdisent d'ajouter une bibliothèque de graphe, de disposition ou de store : la disposition en couches et le rendu SVG sont du code du projet.
+- **AD-11** retient `@dagrejs/dagre` 3.1.1 (17,6 ko gzip) pour le calcul de coordonnées uniquement ; le rendu SVG reste du code du projet. `elkjs` (484 ko gzip), `@vue-flow/core` et `pinia` sont écartés.
 - **AD-16** exige que la CSP stricte soit servie **et** vérifiée par un test de non-régression en navigateur réel.
 - **AD-20** exige un numéro de séquence monotone attribué par le runtime sur chaque événement.
 - Tests : Vitest 4.1.11 en mode navigateur avec Playwright 1.62.1, comme le spike.
@@ -215,7 +215,11 @@ afin de comprendre en regardant ce que le système est en train de fabriquer.
 
 **Given** une même topologie chargée dans deux ordres d'activation différents
 **When** on compare les dispositions
-**Then** elles sont identiques : les couches viennent de la profondeur topologique, l'ordre interne de la clé de déclaration.
+**Then** elles sont identiques : la disposition est calculée une fois au démarrage sur la topologie déclarée, puis les nœuds sont révélés.
+
+**Given** un composant fabriqué à l'exécution qui apparaît
+**When** son nœud se révèle
+**Then** il occupe l'emplacement que le scénario lui avait réservé, et aucun nœud déjà posé ne bouge.
 
 **Given** un graphe de quarante nœuds
 **When** on l'affiche

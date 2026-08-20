@@ -121,11 +121,13 @@ Correspondance couche / répertoire : le paradigme est appliqué par l'arboresce
 - **Prevents:** des branchements conditionnels par scénario dans le moteur, qui ruineraient FR-050
 - **Rule:** un scénario déclare : brief par défaut, composants à charger, source de vérité, produit livré. Il n'importe ni `ui/`, ni `runtime/`. Ajouter un scénario ne modifie aucun fichier du moteur.
 
-### AD-11 — Disposition déterministe, sans dépendance
+### AD-11 — La disposition est calculée une fois, sur la topologie déclarée
 
-- **Binds:** F3
-- **Prevents:** le tremblement entre deux rendus, et l'ajout d'une bibliothèque de disposition qui pèserait plus que le moteur
-- **Rule:** la disposition est calculée en couches à partir de la profondeur topologique des coeffects, par du code du projet. À l'intérieur d'une couche, les nœuds sont ordonnés par leur **clé de déclaration dans le scénario**, jamais par ordre d'arrivée : deux runs de même topologie donnent la même disposition, même si les composants s'activent dans un ordre différent. Aucune dépendance de disposition ou de rendu de graphe.
+- **Binds:** F3, F9, F11
+- **Prevents:** que les nœuds déjà posés sautent quand un nouveau arrive, et que deux runs de même topologie ne se ressemblent pas
+- **Rule:** la disposition est calculée **une seule fois par run**, au démarrage, sur la **topologie complète déclarée par le scénario** — y compris les emplacements réservés aux composants qui seront fabriqués à l'exécution (AD-17 leur réserve déjà leur nom de coeffect ; le scénario leur réserve aussi leur place). Les nœuds sont ensuite **révélés**, jamais repositionnés. Les couches viennent de la profondeur topologique des coeffects, l'ordre interne de la clé de déclaration. Le calcul de coordonnées s'appuie sur `@dagrejs/dagre` ; le **rendu** reste du code du projet, en SVG.
+
+Un composant qui apparaîtrait hors de toute place réservée est une erreur de scénario, pas un cas à absorber par un recalcul.
 
 ### AD-12 — Le vérificateur est une fonction pure
 
@@ -224,7 +226,14 @@ Versions relevées sur le registre npm le 2026-08-20.
 | pnpm | 11.x |
 | nginx (image de service) | stable |
 
-Aucune bibliothèque de graphe, de disposition ou de store. C'est une décision (AD-11), pas un oubli : `@vue-flow/core`, `elkjs`, `dagre` et `pinia` ont été écartés — le design impose un rendu sur mesure, le graphe plafonne à quarante nœuds, et NFR-007 fixe le bundle sous 500 ko gzip quand le moteur lui-même en pèse 11,4.
+| @dagrejs/dagre | 3.1.1 |
+
+Une seule dépendance de disposition, et rien d'autre. Ce qui a été écarté, et pourquoi, mesuré le 2026-08-20 :
+
+- **`elkjs` 0.12.0 — rejeté.** 484 ko gzip à lui seul. NFR-007 fixe le bundle entier sous 500 ko. Le rapport est sans appel.
+- **`@vue-flow/core` — rejeté.** C'est une bibliothèque de **rendu** : elle apporte ses propres composants de nœud, son style et son modèle d'interaction. Le design system impose un rendu sur mesure ; on se battrait contre elle à chaque écran.
+- **`pinia` — rejeté.** L'état du run est un réducteur pur sur un flux d'événements (AD-4). Pinia ajoute des conventions et un inspecteur pour une trentaine de lignes de code qu'on écrit une fois.
+- **`@dagrejs/dagre` 3.1.1 — retenu.** 17,6 ko gzip pour l'affectation en couches, la minimisation des croisements et le placement de coordonnées. Écrire soi-même un Sugiyama correct coûte plus cher que 17,6 ko, et FR-022 (aucun chevauchement, aucune arête traversant un nœud) est précisément ce que cet algorithme résout. Le rendu, lui, reste à nous.
 
 ## Structural Seed
 
