@@ -291,13 +291,69 @@ export const sceptique: Composant = {
   },
 }
 
+/**
+ * La porte humaine. Elle ne décide rien : elle arrête le run et attend.
+ * Aucun délai ne la franchit — c'est ce qui fait qu'approuver veut dire
+ * quelque chose.
+ */
+export const porteHumaine: Composant = {
+  nom: 'porte-humaine',
+  injecte: ['sortie-produit', 'objection', 'verificateur'],
+  fournit: ['approbation'],
+  presentation: { libelle: 'Porte humaine', role: 'Attend votre décision avant la livraison' },
+  applique(contexte) {
+    const objection = contexte.lire<{ texte: string }>('objection')
+    const produit = contexte.lire<{ fabrique: boolean }>('sortie-produit')
+    const verifier = contexte.lire<(texte: string) => readonly Verdict[]>('verificateur')
+    const controle = verifier?.(TEXTE_DE_CONTROLE) ?? []
+
+    contexte.emettre('Le run attend votre décision.')
+    contexte.attendreDecision(
+      {
+        resume: [
+          produit?.fabrique === true
+            ? 'Une pièce a été fabriquée pendant le run et chargée à chaud.'
+            : "Aucune pièce n'a pu être fabriquée.",
+          `Elle classe ${controle.length} allégations sur le texte témoin.`,
+          'Approuver la livre dans la page ; écarter la retire et libère ce qui en dépend.',
+        ].join(' '),
+        objection: objection?.texte ?? 'Aucune objection relevée.',
+      },
+      (decision) => {
+        if (decision === 'ecarte') {
+          contexte.emettre('Décision : écartée. La livraison n’aura pas lieu.')
+          contexte.publierArtefact({
+            titre: 'Décision humaine',
+            corps:
+              'Écartée. Le produit n’a pas été livré et les composants concernés sont libérés.',
+            decouleDe: "l'objection du sceptique",
+          })
+          contexte.terminer()
+          return
+        }
+        contexte.emettre('Décision : approuvée. La livraison peut se faire.')
+        contexte.publierArtefact({
+          titre: 'Décision humaine',
+          corps: 'Approuvée. Le produit est livré dans la page.',
+          decouleDe: "l'objection du sceptique",
+        })
+        contexte.fournir('approbation', { approuve: true })
+        contexte.terminer()
+      },
+    )
+  },
+}
+
 export const livraison: Composant = {
   nom: 'livraison',
-  injecte: ['objection', 'verificateur'],
+  injecte: ['objection', 'verificateur', 'approbation'],
   fournit: ['livrable'],
   presentation: { libelle: 'Livraison', role: 'Contrôle et monte le produit livré' },
   applique(contexte) {
     const objection = contexte.lire<{ texte: string }>('objection')
+    // La livraison ne s'active que parce qu'une approbation existe : elle la
+    // lit pour que l'arête porte quelque chose, et pour le dire.
+    const approbation = contexte.lire<{ approuve: boolean }>('approbation')
     // La pièce fabriquée est réellement exécutée avant d'être livrée : une
     // livraison qui se contenterait d'enregistrer une fonction ne prouverait
     // rien du tout.
@@ -318,8 +374,9 @@ export const livraison: Composant = {
         ),
         '',
         `Objection retenue avant livraison : ${objection?.texte ?? 'aucune'}`,
+        `Décision humaine : ${approbation?.approuve === true ? 'approuvée' : 'inconnue'}.`,
       ].join('\n'),
-      decouleDe: "l'objection du sceptique",
+      decouleDe: 'la décision humaine',
     })
     contexte.fournir('livrable', {
       pret: true,

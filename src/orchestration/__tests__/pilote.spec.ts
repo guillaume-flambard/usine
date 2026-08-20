@@ -25,6 +25,12 @@ describe('pilote', () => {
     await pilote.demarrer(claimCheck.brief)
     await tick()
 
+    // Le run s'arrête tout seul sur la porte humaine : rien ne la franchit.
+    expect(pilote.phase()).toBe('Décision')
+    expect(pilote.fini()).toBe(false)
+    expect(pilote.approuver()).toBe(true)
+    await tick()
+
     expect(pilote.store.etat.value.noeuds).toHaveLength(NOEUDS_ATTENDUS)
     expect(pilote.store.etat.value.narration).toBeDefined()
     expect(pilote.phase()).toBe('Terminé')
@@ -94,6 +100,8 @@ describe('la disposition que l application utilise vraiment', () => {
   it('a une place pour chaque nœud qu un run fait apparaître', async () => {
     const pilote = creerPilote(claimCheck)
     await pilote.demarrer(claimCheck.brief)
+    await tick()
+    pilote.approuver()
     await tick()
 
     // Un composant vivant sans place déclarée serait invisible : le graphe

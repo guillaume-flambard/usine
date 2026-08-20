@@ -8,6 +8,7 @@ import { SCENARIOS, scenarioParDefaut, trouverScenario } from '../scenarios'
 import type { NoeudVue } from '../etat/modele'
 import GrapheVivant from './GrapheVivant.vue'
 import PanneauNoeud from './PanneauNoeud.vue'
+import PorteHumaine from './PorteHumaine.vue'
 
 const pilote = creerPilote(scenarioParDefaut())
 const etat = pilote.store.etat
@@ -82,6 +83,14 @@ async function relancer() {
   erreur.value = pilote.erreur()
   if (erreur.value !== undefined) arreterHorloge()
   demarrage.value = false
+}
+
+function approuver() {
+  pilote.approuver()
+}
+
+async function ecarter() {
+  await pilote.ecarter()
 }
 
 async function changerScenario(cle: string) {
@@ -214,6 +223,13 @@ onBeforeUnmount(() => {
           :choisi="choisi"
           :fabriques="fabriques"
           @choisir="choisi = choisi === $event ? undefined : $event"
+        />
+
+        <PorteHumaine
+          v-if="etat.porte"
+          :porte="etat.porte"
+          @approuver="approuver"
+          @ecarter="ecarter"
         />
 
         <PanneauNoeud

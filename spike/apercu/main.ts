@@ -14,6 +14,14 @@ void (async () => {
   await attendre(60)
   document.querySelector<HTMLButtonElement>('.bouton')?.click()
   await attendre(400)
+  if (params.get('approuver') !== null) {
+    document.querySelector<HTMLButtonElement>('.porte-actions .bouton:last-child')?.click()
+    await attendre(300)
+  }
+  if (params.get('ecarter') !== null) {
+    document.querySelector<HTMLButtonElement>('.porte-actions .bouton:first-child')?.click()
+    await attendre(300)
+  }
   if (params.get('choisir') !== null) {
     const cible = params.get('choisir') ?? ''
     const noeuds = [...document.querySelectorAll<SVGGElement>('.noeud')]

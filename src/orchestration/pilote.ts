@@ -12,7 +12,8 @@ import { lancer, ordreDuScenario, topologieDeclaree } from './lancer'
 export const disposerScenario = (scenario: Scenario): Disposition =>
   disposer(topologieDeclaree(scenario), { ordre: ordreDuScenario(scenario) })
 
-export type PhaseRun = 'Au repos' | 'Analyse' | 'Construction' | 'Terminé' | 'Incident' | 'Libéré'
+export type PhaseRun =
+  'Au repos' | 'Analyse' | 'Construction' | 'Décision' | 'Terminé' | 'Incident' | 'Libéré'
 
 export interface Pilote {
   readonly store: StoreRun
@@ -25,6 +26,13 @@ export interface Pilote {
   demarrer(brief: string): Promise<void>
   arreter(): Promise<void>
   changerScenario(scenario: Scenario): Promise<void>
+  /** Approuve la porte en attente. Rend `false` si aucune n'attend. */
+  approuver(): boolean
+  /**
+   * Écarte la porte en attente : la livraison n'aura pas lieu, et la pièce
+   * fabriquée est libérée pour que le graphe montre la rétractation.
+   */
+  ecarter(): Promise<boolean>
   /** Le noyau du run en cours, pour l'introspection. Absent au repos. */
   noyau(): Noyau | undefined
 }
@@ -43,6 +51,9 @@ export function creerPilote(scenarioInitial: Scenario): Pilote {
     if (noeuds.length === 0) return 'Au repos'
     if (noeuds.every((n) => n.etat === 'libere')) return 'Libéré'
     if (noeuds.some((n) => n.etat === 'en-erreur')) return 'Incident'
+    const porte = store.etat.value.porte
+    // Une porte en attente arrête le run : ce n'est ni une fin ni une panne.
+    if (porte !== undefined && porte.decision === undefined) return 'Décision'
     if (noeuds.every((n) => n.etat === 'termine')) return 'Terminé'
     if (noeuds.some((n) => n.nom.startsWith('constructeur-') && n.etat === 'en-cours'))
       return 'Construction'
@@ -82,6 +93,25 @@ export function creerPilote(scenarioInitial: Scenario): Pilote {
       } finally {
         demarrageEnCours = false
       }
+    },
+    approuver() {
+      const porte = store.etat.value.porte
+      if (porte === undefined || porte.decision !== undefined) return false
+      return noyauCourant?.decider(porte.id, 'approuve') ?? false
+    },
+    async ecarter() {
+      const porte = store.etat.value.porte
+      if (porte === undefined || porte.decision !== undefined) return false
+      const tranchee = noyauCourant?.decider(porte.id, 'ecarte') ?? false
+      if (!tranchee) return false
+      // Écarter doit se voir : les pièces fabriquées sont libérées, et le
+      // graphe montre la rétractation au lieu de se figer.
+      for (const noeud of store.etat.value.noeuds) {
+        if (noeud.fabrication !== undefined && noeud.etat !== 'libere') {
+          await noyauCourant?.liberer(noeud.id)
+        }
+      }
+      return true
     },
     async changerScenario(scenario: Scenario) {
       await arreter()

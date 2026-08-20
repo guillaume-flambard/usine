@@ -54,6 +54,7 @@ export function reduire(etat: EtatComplet, evenement: EvenementRun): EtatComplet
   let journal = etat.vue.journal
   let incidents = etat.vue.incidents
   let narration = etat.vue.narration
+  let porte = etat.vue.porte
 
   /** Remplace un nœud et redérive son état affiché. */
   const majNoeud = (
@@ -192,6 +193,16 @@ export function reduire(etat: EtatComplet, evenement: EvenementRun): EtatComplet
       }))
       break
 
+    case 'porte-atteinte':
+      porte = { id: evenement.id, objet: evenement.objet }
+      break
+
+    case 'decision-prise':
+      // La porte reste visible après la décision : c'est la trace de ce qui a
+      // été tranché, et par qui.
+      porte = porte === undefined ? porte : { ...porte, decision: evenement.decision }
+      break
+
     case 'valeur-transmise':
       aretes = aretes.map((arete) =>
         arete.de === evenement.de && arete.vers === evenement.vers && arete.nom === evenement.nom
@@ -216,6 +227,7 @@ export function reduire(etat: EtatComplet, evenement: EvenementRun): EtatComplet
       noeuds,
       aretes,
       ...(narration !== undefined ? { narration } : {}),
+      ...(porte !== undefined ? { porte } : {}),
       journal,
       incidents,
       agentsVivants: noeuds.filter(vivant).length,

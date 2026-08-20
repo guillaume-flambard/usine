@@ -37,6 +37,16 @@ export interface Artefact {
   decouleDe?: string
 }
 
+/** Ce sur quoi porte une décision humaine. */
+export interface ObjetDeDecision {
+  /** Ce qui a été produit et qu'on demande de valider. */
+  resume: string
+  /** L'objection relevée avant la porte. Sans elle, la décision ne porte sur rien. */
+  objection: string
+}
+
+export type Decision = 'approuve' | 'ecarte'
+
 /** L'origine d'une pièce fabriquée pendant le run, pour l'inspection. */
 export interface Fabrication {
   /** La spécification dont la pièce découle, rendue lisible. */
@@ -73,6 +83,11 @@ export interface ContexteComposant {
   terminer(): void
   /** Publie un artefact consultable, attribué à ce composant. */
   publierArtefact(artefact: Artefact): void
+  /**
+   * Arrête le run sur une décision humaine. Aucun délai ne la franchit :
+   * tant que personne n'a tranché, rien ne se poursuit.
+   */
+  attendreDecision(objet: ObjetDeDecision, surDecision: (decision: Decision) => void): void
   /**
    * Charge un composant enfant. Sa libération suit celle de ce composant.
    * Rend `undefined` quand le chargement est refusé — un nom de dépendance

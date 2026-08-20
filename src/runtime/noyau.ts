@@ -9,9 +9,11 @@ import type {
   CauseDesactivation,
   Composant,
   ContexteComposant,
+  Decision,
   Dependance,
   ErreurComposant,
   Fabrication,
+  ObjetDeDecision,
   EtatComposant,
   IdComposant,
   NoeudTopologie,
@@ -61,6 +63,13 @@ export interface Noyau {
   libererTout(): Promise<void>
   /** Photographie de la topologie vivante. */
   introspecter(): Topologie
+  /**
+   * Tranche une porte humaine en attente. Rend `false` si aucune porte
+   * n'attend sous cet identifiant — une décision ne se prend pas deux fois.
+   */
+  decider(id: IdComposant, decision: Decision): boolean
+  /** Les portes qui attendent une décision, à cet instant. */
+  portesEnAttente(): readonly IdComposant[]
   /** S'abonne au flux. Rend la fonction de désabonnement. */
   abonner(abonne: Abonne): Annulation
 }
@@ -81,6 +90,8 @@ export function creerNoyau(): Noyau {
   /** Le contexte Cordis de chaque composant, pour recharger un enfant au bon endroit. */
   const contextesParEntree = new Map<IdComposant, Context>()
   const remplacementsEnCours = new Set<IdComposant>()
+  /** Les décisions humaines en suspens. Rien ne les franchit tout seul. */
+  const portes = new Map<IdComposant, (decision: Decision) => void>()
   let sequence = 0
   let compteur = 0
 
@@ -250,6 +261,17 @@ export function creerNoyau(): Noyau {
           publierArtefact(artefact: Artefact) {
             if (!utilisable()) return
             emettre({ type: 'artefact-produit', id, artefact })
+          },
+          attendreDecision(objet: ObjetDeDecision, surDecision: (decision: Decision) => void) {
+            if (!utilisable()) return
+            portes.set(id, surDecision)
+            contexte.effect(
+              () => () => {
+                portes.delete(id)
+              },
+              'porte',
+            )
+            emettre({ type: 'porte-atteinte', id, objet })
           },
           charger(enfant: Composant, fabrication?: Fabrication) {
             if (!utilisable()) return Promise.resolve(undefined)
@@ -476,6 +498,15 @@ export function creerNoyau(): Noyau {
       }
       return { composants, dependances }
     },
+    decider(id: IdComposant, decision: Decision): boolean {
+      const surDecision = portes.get(id)
+      if (surDecision === undefined) return false
+      portes.delete(id)
+      emettre({ type: 'decision-prise', id, decision })
+      surDecision(decision)
+      return true
+    },
+    portesEnAttente: () => [...portes.keys()],
     abonner(abonne: Abonne): Annulation {
       abonnes.add(abonne)
       return () => {

@@ -9,6 +9,11 @@ import type { Scenario } from '../../scenarios/types'
 // constructeur produit fabrique pendant le run.
 const NOEUDS_ATTENDUS = claimCheck.casting.length + 2
 
+/** Franchit la porte humaine : sans ça le run reste arrêté, par construction. */
+async function approuver(noyau: ReturnType<typeof creerNoyau>) {
+  for (const id of noyau.portesEnAttente()) noyau.decider(id, 'approuve')
+}
+
 const tick = async () => {
   for (let index = 0; index < 5; index += 1) {
     await new Promise<void>((resolve) => setTimeout(resolve, 0))
@@ -85,6 +90,8 @@ describe('un run complet du scénario livré', () => {
 
     await lancer(noyau, claimCheck)
     await tick()
+    await approuver(noyau)
+    await tick()
 
     const etat = store.etat.value
     expect(etat.noeuds).toHaveLength(NOEUDS_ATTENDUS)
@@ -113,6 +120,8 @@ describe('un run complet du scénario livré', () => {
     store.brancher(noyau)
     await lancer(noyau, claimCheck)
     await tick()
+    await approuver(noyau)
+    await tick()
 
     const avecTechno = store.etat.value.noeuds.filter(
       (n) => n.presentation.technologie !== undefined,
@@ -129,6 +138,8 @@ describe('un run complet du scénario livré', () => {
     store.brancher(noyau)
     await lancer(noyau, claimCheck)
     await tick()
+    await approuver(noyau)
+    await tick()
 
     const aretes = store.etat.value.aretes
     expect(aretes.length).toBeGreaterThanOrEqual(10)
@@ -139,6 +150,10 @@ describe('un run complet du scénario livré', () => {
   it("libère tout le run quand on libère l'agent maître", async () => {
     const noyau = creerNoyau()
     const { maitre } = await lancer(noyau, claimCheck)
+    await tick()
+    await approuver(noyau)
+    await tick()
+    await approuver(noyau)
     await tick()
     expect(noyau.introspecter().composants).toHaveLength(NOEUDS_ATTENDUS)
 
@@ -155,6 +170,8 @@ describe('la discipline des dépendances', () => {
     const store = creerStore()
     store.brancher(noyau)
     await lancer(noyau, claimCheck)
+    await tick()
+    await approuver(noyau)
     await tick()
 
     // Une dépendance déclarée mais jamais consommée est une arête qui

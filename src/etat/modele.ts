@@ -4,6 +4,8 @@
 import type {
   Artefact,
   CauseDesactivation,
+  Decision,
+  ObjetDeDecision,
   ErreurComposant,
   Fabrication,
   IdComposant,
@@ -61,6 +63,14 @@ export interface IncidentJournal {
   erreur: ErreurComposant
 }
 
+/** La porte humaine, telle que l'interface doit la montrer. */
+export interface PorteVue {
+  id: IdComposant
+  objet: ObjetDeDecision
+  /** `undefined` tant que personne n'a tranché. */
+  decision?: Decision
+}
+
 export interface EtatRun {
   noeuds: readonly NoeudVue[]
   aretes: readonly AreteVue[]
@@ -68,6 +78,8 @@ export interface EtatRun {
   narration?: MessageJournal
   journal: readonly MessageJournal[]
   incidents: readonly IncidentJournal[]
+  /** Présente dès que le run atteint la porte, et conservée après la décision. */
+  porte?: PorteVue
   /** Nombre de nœuds ni libérés ni en erreur. */
   agentsVivants: number
   /** Dernière séquence réduite. Sert à repérer un flux qui saute. */

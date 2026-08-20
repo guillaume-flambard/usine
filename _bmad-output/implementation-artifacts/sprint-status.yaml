@@ -55,11 +55,11 @@ development_status:
   2-6-remplacer-et-retirer-une-version-fautive: review
   epic-2-retrospective: optional
 
-  epic-3: backlog
-  3-1-l-agent-sceptique: backlog
-  3-2-la-porte-humaine: backlog
-  3-3-approuver: backlog
-  3-4-écarter-et-montrer-la-rétractation: backlog
+  epic-3: in-progress
+  3-1-l-agent-sceptique: review
+  3-2-la-porte-humaine: review
+  3-3-approuver: review
+  3-4-écarter-et-montrer-la-rétractation: review
   epic-3-retrospective: optional
 
   epic-4: backlog

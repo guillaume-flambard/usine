@@ -9,6 +9,7 @@ import {
   constructeurFabricant,
   livraison,
   planificateur,
+  porteHumaine,
   sceptique,
 } from '../agents/deterministes'
 import { registreEu, type Regle } from '../outils/registre-eu'
@@ -57,6 +58,7 @@ export const claimCheck: Scenario = {
     { cle: 'g-constructeur-tests', composant: constructeur('tests') },
     { cle: 'g2-constructeur-produit', composant: constructeurFabricant },
     { cle: 'h-sceptique', composant: sceptique },
+    { cle: 'h2-porte', composant: porteHumaine },
     { cle: 'i-livraison', composant: livraison },
   ],
   nomsReserves: [
@@ -72,6 +74,7 @@ export const claimCheck: Scenario = {
     { nom: 'sortie-produit', proprietaire: 'g2-constructeur-produit' },
     { nom: 'verificateur', proprietaire: 'j-verificateur' },
     { nom: 'objection', proprietaire: 'h-sceptique' },
+    { nom: 'approbation', proprietaire: 'h2-porte' },
     { nom: 'livrable', proprietaire: 'i-livraison' },
   ],
   // Le vérificateur n'est pas chargé au démarrage : il sera fabriqué à

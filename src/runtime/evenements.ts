@@ -4,6 +4,8 @@
 import type {
   Artefact,
   CauseDesactivation,
+  Decision,
+  ObjetDeDecision,
   ErreurComposant,
   Fabrication,
   IdComposant,
@@ -77,6 +79,18 @@ export interface ComposantFabrique extends Base {
   fabrication: Fabrication
 }
 
+export interface PorteAtteinte extends Base {
+  type: 'porte-atteinte'
+  id: IdComposant
+  objet: ObjetDeDecision
+}
+
+export interface DecisionPrise extends Base {
+  type: 'decision-prise'
+  id: IdComposant
+  decision: Decision
+}
+
 /** Émis quand un abonné lève : le run continue, l'incident est visible. */
 export interface AbonneEnErreur extends Base {
   type: 'abonne-en-erreur'
@@ -94,6 +108,8 @@ export type EvenementRun =
   | ValeurTransmise
   | ArtefactProduit
   | ComposantFabrique
+  | PorteAtteinte
+  | DecisionPrise
   | AbonneEnErreur
 
 export type Abonne = (evenement: EvenementRun) => void

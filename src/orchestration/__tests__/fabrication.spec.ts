@@ -9,9 +9,12 @@ const tick = async () => {
   for (let i = 0; i < 8; i += 1) await new Promise<void>((r) => setTimeout(r, 0))
 }
 
+/** Un run mené jusqu'au bout : la porte humaine l'arrête, on approuve. */
 async function run() {
   const pilote = creerPilote(claimCheck)
   await pilote.demarrer(claimCheck.brief)
+  await tick()
+  pilote.approuver()
   await tick()
   return pilote
 }

@@ -13,6 +13,11 @@ import type { IdComposant } from '../../runtime/contrat'
 // constructeur produit fabrique pendant le run.
 const NOEUDS_ATTENDUS = claimCheck.casting.length + 2
 
+/** Franchit la porte humaine : sans ça le run reste arrêté, par construction. */
+async function approuver(noyau: ReturnType<typeof creerNoyau>) {
+  for (const id of noyau.portesEnAttente()) noyau.decider(id, 'approuve')
+}
+
 const tick = async () => {
   for (let index = 0; index < 6; index += 1) {
     await new Promise<void>((resolve) => setTimeout(resolve, 0))
@@ -24,6 +29,8 @@ async function runLance() {
   const store = creerStore()
   store.brancher(noyau)
   const lancement = await lancer(noyau, claimCheck)
+  await tick()
+  await approuver(noyau)
   await tick()
   return { noyau, store, lancement }
 }
@@ -106,6 +113,8 @@ describe('la réversibilité, observable', () => {
 
     // Le run peut repartir : aucun nom n'est resté réservé.
     const relance = await lancer(noyau, claimCheck)
+    await tick()
+    await approuver(noyau)
     await tick()
     expect(relance.maitre).toBeDefined()
     expect(noyau.introspecter().composants).toHaveLength(NOEUDS_ATTENDUS)

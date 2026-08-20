@@ -475,6 +475,58 @@ body,
   stroke-dasharray: none;
 }
 
+.porte {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  padding: 20px 24px;
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  z-index: 4;
+}
+.porte-corps {
+  flex: 1;
+  min-width: 0;
+}
+.porte-resume {
+  font-size: 14px;
+  line-height: 1.5;
+  padding-top: 8px;
+  max-width: 72ch;
+}
+.porte-objection {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin-top: 8px;
+  border-left: 2px solid var(--line);
+  padding-left: 12px;
+  max-width: 72ch;
+}
+.porte-actions {
+  display: flex;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+/* Poids strictement égal : aucun des deux n'est le chemin suggéré. */
+.porte-actions .bouton {
+  flex: 0 0 auto;
+  min-width: 132px;
+  text-align: center;
+}
+.porte-verdict {
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  flex: 0 0 auto;
+  padding-top: 12px;
+}
+
 .panneau {
   position: absolute;
   top: 0;
