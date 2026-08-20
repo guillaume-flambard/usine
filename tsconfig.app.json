@@ -1,0 +1,20 @@
+{
+  "extends": "@vue/tsconfig/tsconfig.dom.json",
+  "include": ["env.d.ts", "src/**/*", "src/**/*.vue"],
+  "exclude": ["src/**/__tests__/*"],
+  "compilerOptions": {
+    // Le moteur porté (src/usine/run.ts) indexe tableaux et maps partout (DOM impératif
+    // d'origine). On garde `strict` mais on coupe ce flag opt-in (hors `strict`, "may have
+    // false positives" d'après le scaffold) pour ne pas noyer le code sous les gardes d'index.
+    "noUncheckedIndexedAccess": false,
+
+    // Path mapping for cleaner imports.
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+
+    // `vue-tsc --build` produces a .tsbuildinfo file for incremental type-checking.
+    // Specified here to keep it out of the root directory.
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo"
+  }
+}
