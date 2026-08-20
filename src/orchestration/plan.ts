@@ -69,7 +69,7 @@ export interface ContraintesPlan {
 
 export const CONTRAINTES: ContraintesPlan = {
   fournisParLeMaitre: ['besoin', 'memoire', 'fabrique', 'raisonneur'],
-  requisParLaSuite: ['objection', 'verificateur'],
+  requisParLaSuite: ['objection', 'verificateur', 'sortie-produit'],
   maximumAgents: 12,
 }
 
@@ -212,6 +212,55 @@ function premierCycle(
   }
   return undefined
 }
+
+/**
+ * Les vagues de chargement : tous les agents d'une vague peuvent naître
+ * ensemble, la suivante attend que la précédente ait publié. C'est ce qui
+ * fait pousser le graphe au rythme du travail réel, sans le moindre
+ * minuteur d'animation.
+ */
+export function vaguesDeChargement(
+  plan: Plan,
+  contraintes: ContraintesPlan = CONTRAINTES,
+): readonly (readonly AgentPlanifie[])[] {
+  const duMaitre = new Set(contraintes.fournisParLeMaitre)
+  const publiePar = new Map<string, string>()
+  for (const agent of plan.agents) {
+    for (const nom of nomsPublies(agent)) {
+      if (!publiePar.has(nom)) publiePar.set(nom, agent.nom)
+    }
+  }
+
+  const restants = [...plan.agents]
+  const places = new Set<string>()
+  const vagues: AgentPlanifie[][] = []
+
+  while (restants.length > 0) {
+    const prets = restants.filter((agent) =>
+      agent.injecte.every((nom) => {
+        if (duMaitre.has(nom)) return true
+        const fournisseur = publiePar.get(nom)
+        return fournisseur === undefined || fournisseur === agent.nom || places.has(fournisseur)
+      }),
+    )
+    // Aucun candidat : le reste est pris dans un cycle, que `verifierPlan` a
+    // déjà refusé. On rend le reste d'un bloc plutôt que de boucler.
+    const vague = prets.length > 0 ? prets : [...restants]
+    for (const agent of vague) {
+      places.add(agent.nom)
+      restants.splice(restants.indexOf(agent), 1)
+    }
+    vagues.push(vague)
+  }
+
+  return vagues
+}
+
+/** Tout ce qu'un agent fait exister, son outil compris. */
+export const nomsPublies = (agent: AgentPlanifie): readonly string[] => [
+  ...agent.fournit,
+  ...(agent.outil !== undefined ? [agent.outil.fournit] : []),
+]
 
 /**
  * L'ordre dans lequel les agents peuvent être chargés : un agent après ce

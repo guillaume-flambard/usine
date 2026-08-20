@@ -70,6 +70,15 @@ export interface Noyau {
    */
   produit<T = unknown>(nom: string): T | undefined
   /**
+   * Attend qu'un nom soit publié. Rend `true` s'il l'a été, `false` si le
+   * délai est écoulé ou si le run a été libéré entre-temps.
+   *
+   * C'est ce qui permet à un agent qui charge d'autres agents d'avancer au
+   * rythme du travail réel plutôt que d'un minuteur : sans cela, un graphe
+   * construit à l'exécution apparaîtrait d'un bloc.
+   */
+  attendre(nom: string, delaiMs?: number): Promise<boolean>
+  /**
    * Tranche une porte humaine en attente. Rend `false` si aucune porte
    * n'attend sous cet identifiant — une décision ne se prend pas deux fois.
    */
@@ -93,6 +102,8 @@ export function creerNoyau(): Noyau {
    */
   const reserves = new Map<string, IdComposant>()
   const abonnes = new Set<Abonne>()
+  /** Ceux qui attendent qu'un nom soit publié. Vidé à la libération. */
+  const attentes = new Map<string, Set<(publie: boolean) => void>>()
   /** Le contexte Cordis de chaque composant, pour recharger un enfant au bon endroit. */
   const contextesParEntree = new Map<IdComposant, Context>()
   const remplacementsEnCours = new Set<IdComposant>()
@@ -228,6 +239,11 @@ export function creerNoyau(): Noyau {
               return
             }
             fournisseurs.set(nom, id)
+            const enAttente = attentes.get(nom)
+            if (enAttente !== undefined) {
+              attentes.delete(nom)
+              for (const reprendre of enAttente) reprendre(true)
+            }
             contexte.provide(nom, valeur)
             contexte.effect(
               () => () => {
@@ -492,6 +508,12 @@ export function creerNoyau(): Noyau {
       }
     },
     async libererTout() {
+      // Personne n'attendra plus rien : laisser une attente en vol
+      // maintiendrait vivante une boucle de chargement du run précédent.
+      for (const attendants of attentes.values()) {
+        for (const reprendre of attendants) reprendre(false)
+      }
+      attentes.clear()
       // Une passe ne suffit pas : un chargement encore en vol s'inscrit après
       // coup. On répète tant que la libération fait bouger quelque chose.
       let restants = entrees.size
@@ -506,6 +528,26 @@ export function creerNoyau(): Noyau {
     produit<T = unknown>(nom: string): T | undefined {
       // Non stricte : au repos ou entre deux runs, l'absence est normale.
       return racine.get(nom, false) as T | undefined
+    },
+    attendre(nom: string, delaiMs?: number): Promise<boolean> {
+      if (fournisseurs.has(nom)) return Promise.resolve(true)
+      return new Promise<boolean>((resoudre) => {
+        let fini = false
+        const terminer = (publie: boolean) => {
+          if (fini) return
+          fini = true
+          if (minuteur !== undefined) clearTimeout(minuteur)
+          attentes.get(nom)?.delete(terminer)
+          resoudre(publie)
+        }
+        // Sans borne, un agent tombé en panne figerait pour toujours celui
+        // qui charge la suite : le run s'arrêterait sans le moindre écran.
+        const minuteur =
+          delaiMs === undefined ? undefined : setTimeout(() => terminer(false), delaiMs)
+        const attendants = attentes.get(nom) ?? new Set<(publie: boolean) => void>()
+        attendants.add(terminer)
+        attentes.set(nom, attendants)
+      })
     },
     introspecter(): Topologie {
       const composants: NoeudTopologie[] = [...entrees.values()].map((entree) => ({
