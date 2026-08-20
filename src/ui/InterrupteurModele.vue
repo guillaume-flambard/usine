@@ -1,12 +1,22 @@
 <script setup lang="ts">
-// L'interrupteur. La clé vit en mémoire de module, jamais dans le stockage
-// du navigateur, et l'utilisateur est prévenu avant le premier appel de ce
-// qui part chez le fournisseur.
+// L'interrupteur. Deux sources possibles pour le modèle : celui du site, qui
+// passe par un relais gardant la clé côté serveur, ou la clé du visiteur, qui
+// vit en mémoire de module et jamais dans le stockage du navigateur. Dans les
+// deux cas, l'utilisateur est prévenu avant le premier appel de ce qui part
+// chez le fournisseur.
 import { ref } from 'vue'
 
-defineProps<{ mode: 'deterministe' | 'llm' }>()
+export type SourceModele = 'aucune' | 'relais' | 'cle'
+
+defineProps<{
+  mode: 'deterministe' | 'llm'
+  source: SourceModele
+  /** Le relais du site répond et porte une clé : sans ça, rien à proposer. */
+  relaisPret: boolean
+}>()
 const emit = defineEmits<{
   brancher: [cle: string, evaluation: boolean]
+  brancherRelais: []
   debrancher: []
 }>()
 
@@ -31,11 +41,22 @@ function basculer() {
   ouvert.value = !ouvert.value
 }
 
+function brancherRelais() {
+  emit('brancherRelais')
+  ouvert.value = false
+}
+
 function debrancher() {
   emit('debrancher')
   consenti.value = false
   evaluation.value = false
   ouvert.value = false
+}
+
+const libelle = (mode: 'deterministe' | 'llm', source: SourceModele): string => {
+  if (source === 'relais') return 'modèle du site — changer'
+  if (mode === 'llm') return 'modèle branché — débrancher'
+  return 'brancher un modèle'
 }
 </script>
 
@@ -47,18 +68,38 @@ function debrancher() {
       aria-controls="panneau-modele"
       @click="basculer"
     >
-      {{ mode === 'llm' ? 'modèle branché — débrancher' : 'brancher un modèle' }}
+      {{ libelle(mode, source) }}
     </button>
 
     <div v-if="ouvert" id="panneau-modele" class="modele-panneau">
-      <template v-if="mode === 'llm'">
+      <template v-if="source === 'relais'">
         <p class="modele-note">
-          Un modèle est branché sur l’architecte. Le prochain run le fera raisonner réellement.
+          Le modèle du site raisonne pour le planificateur, l’architecte et le sceptique. La clé
+          reste sur le serveur, le quota est partagé : au-delà, les agents retombent sur leur repli
+          écrit à la main.
+        </p>
+        <button class="bouton bouton-fantome" @click="debrancher">
+          Repasser en mode déterministe
+        </button>
+      </template>
+
+      <template v-else-if="source === 'cle'">
+        <p class="modele-note">
+          Un modèle est branché sur les agents qui raisonnent. Le prochain run le fera raisonner
+          réellement.
         </p>
         <button class="bouton bouton-fantome" @click="debrancher">Débrancher</button>
       </template>
 
       <template v-else>
+        <template v-if="relaisPret">
+          <p class="modele-note">
+            Le site porte son propre modèle : aucune clé à fournir, quota partagé entre visiteurs.
+          </p>
+          <button class="bouton" @click="brancherRelais">Utiliser le modèle du site</button>
+          <p class="eyebrow">ou votre propre clé</p>
+        </template>
+
         <label class="eyebrow" for="cle">Clé d’API Anthropic</label>
         <input
           id="cle"

@@ -15,7 +15,14 @@ RUN pnpm build
 
 FROM nginx:1.27-alpine AS service
 COPY --from=build /app/dist /usr/share/nginx/html
-COPY deploiement/nginx.conf /etc/nginx/conf.d/default.conf
+# Modèle et non configuration finale : l'entrypoint de l'image nginx substitue
+# les variables au démarrage. Le filtre limite la substitution aux variables
+# `RELAIS_` — sans lui, `$politique`, `$uri` et `$host` seraient vidés.
+COPY deploiement/nginx.conf /etc/nginx/templates/default.conf.template
+ENV NGINX_ENVSUBST_FILTER=^RELAIS_
+# Le nom du service de relais sur le réseau Docker. Pas de relais déployé :
+# /api rend 502, et le site reste en mode déterministe.
+ENV RELAIS_URL=http://relais:3000
 EXPOSE 80
 # 127.0.0.1 et non localhost : celui-ci résout en ::1, et nginx n'écoute
 # qu'en IPv4. Un conteneur marqué malsain n'est pas routé par Traefik.

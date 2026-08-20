@@ -62,12 +62,23 @@ describe('la politique de sécurité servie', () => {
     // nginx n'hérite pas les `add_header` dès qu'un bloc en déclare un :
     // les oublier servirait les fragments sans politique.
     const blocs = nginx.split('location ').slice(1)
-    expect(blocs).toHaveLength(2)
+    expect(blocs).toHaveLength(3)
     for (const bloc of blocs) {
       expect(bloc).toContain('add_header Content-Security-Policy $politique')
       expect(bloc).toContain('X-Content-Type-Options')
       expect(bloc).toContain('Referrer-Policy')
     }
+  })
+
+  it('garde le relais du modèle sur la même origine', () => {
+    // Une origine tierce imposerait d'ouvrir `connect-src` et de gérer CORS ;
+    // surtout, la clé du relais ne doit jamais avoir à voyager côté client.
+    const bloc = nginx.split('location ~ ^/api/')[1]?.split('location ')[0] ?? ''
+    expect(bloc).toContain('proxy_pass $relais')
+    // Résolution à la requête : un relais absent rend 502, il n'empêche pas
+    // nginx de démarrer.
+    expect(bloc).toContain('resolver')
+    expect(directive('connect-src')).toContain("'self'")
   })
 
   it("ne laisse pas l'index devenir immuable", () => {

@@ -19,7 +19,13 @@ export default mergeConfig(
           test: {
             name: 'noyau',
             environment: 'node',
-            include: ['src/**/*.{spec,test}.ts', 'src/**/__tests__/**/*.{spec,test}.ts'],
+            include: [
+              'src/**/*.{spec,test}.ts',
+              'src/**/__tests__/**/*.{spec,test}.ts',
+              // Le relais n'est pas dans l'application : il porte la clé, et
+              // il se teste avec le reste ou il ne se teste pas.
+              'services/**/*.{spec,test}.mjs',
+            ],
             exclude: [
               ...configDefaults.exclude,
               'e2e/**',

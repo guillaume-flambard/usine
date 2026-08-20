@@ -10,7 +10,8 @@ import GrapheVivant from './GrapheVivant.vue'
 import PanneauNoeud from './PanneauNoeud.vue'
 import PorteHumaine from './PorteHumaine.vue'
 import ProduitLivre from './ProduitLivre.vue'
-import InterrupteurModele from './InterrupteurModele.vue'
+import InterrupteurModele, { type SourceModele } from './InterrupteurModele.vue'
+import { raisonneurRelais, relaisDisponible } from '../runtime/raisonneur/relais'
 import {
   nouveauRun,
   payoffAffiche,
@@ -31,6 +32,20 @@ const erreur = ref<string | undefined>()
 const choisi = ref<string | undefined>()
 const aideMode = ref(false)
 const mode = ref<'deterministe' | 'llm'>(pilote.modeRaisonnement())
+const source = ref<SourceModele>('aucune')
+const relaisPret = ref(false)
+
+/**
+ * Le modèle du site. La clé n'est pas ici : elle vit sur le relais, et le
+ * navigateur ne voit qu'une route de même origine. Sans relais configuré, on
+ * reste en déterministe sans rien annoncer de faux.
+ */
+function brancherRelaisDuSite() {
+  pilote.brancher(raisonneurRelais())
+  source.value = 'relais'
+  mode.value = pilote.modeRaisonnement()
+  erreur.value = undefined
+}
 
 async function brancherModele(cle: string, evaluation: boolean) {
   try {
@@ -38,6 +53,7 @@ async function brancherModele(cle: string, evaluation: boolean) {
     // bundle du mode par défaut n'en porte pas une ligne.
     const { raisonneurClaude } = await import('../runtime/raisonneur/claude')
     pilote.brancher(raisonneurClaude({ cle }), { evaluation })
+    source.value = 'cle'
     erreur.value = undefined
   } catch (cause) {
     // Un fragment qui ne se charge pas doit se dire, pas laisser l'écran
@@ -51,6 +67,7 @@ async function brancherModele(cle: string, evaluation: boolean) {
 
 function debrancherModele() {
   pilote.brancher(undefined)
+  source.value = 'aucune'
   mode.value = pilote.modeRaisonnement()
 }
 const debut = ref(0)
@@ -173,7 +190,15 @@ function surEchappement(evenement: KeyboardEvent) {
   if (evenement.key === 'Escape') choisi.value = undefined
 }
 
-onMounted(() => window.addEventListener('keydown', surEchappement))
+onMounted(() => {
+  window.addEventListener('keydown', surEchappement)
+  // Sonde le relais une fois : s'il porte une clé, le visiteur voit de vrais
+  // raisonnements sans avoir rien à fournir.
+  void relaisDisponible().then((pret) => {
+    relaisPret.value = pret
+    if (pret && source.value === 'aucune') brancherRelaisDuSite()
+  })
+})
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', surEchappement)
@@ -193,7 +218,13 @@ onBeforeUnmount(() => {
 
       <div class="mode">
         <span class="mode-pastille" :data-branche="mode === 'llm'" aria-hidden="true"></span>
-        <span>{{ mode === 'llm' ? 'Mode LLM branché' : 'Mode déterministe' }}</span>
+        <span>{{
+          mode === 'llm'
+            ? source === 'relais'
+              ? 'Mode LLM — modèle du site'
+              : 'Mode LLM branché'
+            : 'Mode déterministe'
+        }}</span>
         <button
           class="mode-aide"
           :aria-expanded="aideMode"
@@ -205,9 +236,11 @@ onBeforeUnmount(() => {
       </div>
       <p v-if="aideMode" id="explication-mode" class="mode-explication">
         <template v-if="mode === 'llm'">
-          L’architecte raisonne réellement : sa décision de composition est rédigée par un modèle.
-          Le reste du run demeure déterministe, et un échec d’appel retombe sur la réponse écrite à
-          la main.
+          Le planificateur, l’architecte et le sceptique raisonnent réellement : leurs textes sont
+          rédigés par un modèle{{
+            source === 'relais' ? ' hébergé par le site, sans clé de votre part' : ''
+          }}. La composition, la fabrication et les verdicts restent déterministes, et un échec
+          d’appel retombe sur la réponse écrite à la main.
         </template>
         <template v-else>
           Les agents se composent, fabriquent et travaillent réellement ; leur jugement est écrit à
@@ -217,7 +250,10 @@ onBeforeUnmount(() => {
       <div class="mode-branchement">
         <InterrupteurModele
           :mode="mode"
+          :source="source"
+          :relais-pret="relaisPret"
           @brancher="brancherModele"
+          @brancher-relais="brancherRelaisDuSite"
           @debrancher="debrancherModele"
         />
       </div>

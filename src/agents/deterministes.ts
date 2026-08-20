@@ -79,26 +79,66 @@ export const agentMaitre = (
   },
 })
 
+const REPLI_PLANIFICATEUR = [
+  'Coller une copie marketing',
+  'Obtenir un verdict par allégation',
+  'Voir la source de chaque verdict',
+]
+
+/** Une réponse de modèle devient une liste : une ligne, une histoire. */
+const enHistoires = (texte: string): readonly string[] => {
+  const lignes = texte
+    .split('\n')
+    .map((ligne) => ligne.replace(/^\s*(?:[-—*•]|\d+[.)])\s*/, '').trim())
+    .filter((ligne) => ligne.length > 3 && ligne.length < 120)
+  return lignes.length >= 2 ? lignes.slice(0, 5) : REPLI_PLANIFICATEUR
+}
+
 export const planificateur: Composant = {
   nom: 'planificateur',
-  injecte: ['besoin'],
+  injecte: ['besoin', 'raisonneur'],
   fournit: ['histoires'],
   presentation: { libelle: 'Planificateur', role: 'Découpe le besoin en histoires utilisateur' },
   applique(contexte) {
     const besoin = contexte.lire<Besoin>('besoin')
-    const titres = [
-      'Coller une copie marketing',
-      'Obtenir un verdict par allégation',
-      'Voir la source de chaque verdict',
-    ]
-    contexte.emettre(`Découpe « ${besoin?.brief ?? '?'} » en ${titres.length} histoires.`)
-    contexte.fournir('histoires', { titres } satisfies Histoires)
-    contexte.publierArtefact({
-      titre: 'Découpage en histoires',
-      corps: titres.map((titre, index) => `${index + 1}. ${titre}`).join('\n'),
-      decouleDe: 'le besoin',
-    })
-    contexte.terminer()
+    const raisonneur = contexte.lire<Raisonneur>('raisonneur') ?? raisonneurDeterministe()
+
+    void raisonneur
+      .raisonner({
+        role: 'planificateur',
+        instruction:
+          'Découpe ce besoin en trois histoires utilisateur, une par ligne, sans numérotation ni commentaire.',
+        contexte: `Besoin : ${besoin?.brief ?? 'inconnu'}\nSecteur : ${besoin?.secteur ?? 'inconnu'}`,
+        repli: REPLI_PLANIFICATEUR.join('\n'),
+      })
+      .catch((cause): Raisonnement => ({
+        texte: REPLI_PLANIFICATEUR.join('\n'),
+        origine: 'deterministe',
+        echec: cause instanceof Error ? cause.message : String(cause),
+      }))
+      .then((raisonnement) => {
+        if (raisonnement.tokens !== undefined || raisonnement.echec !== undefined) {
+          contexte.compterTokens(
+            raisonnement.tokens?.entree ?? 0,
+            raisonnement.tokens?.sortie ?? 0,
+            raisonnement.echec,
+          )
+        }
+        const titres = enHistoires(raisonnement.texte)
+        contexte.emettre(`Découpe « ${besoin?.brief ?? '?'} » en ${titres.length} histoires.`)
+        contexte.fournir('histoires', { titres } satisfies Histoires)
+        contexte.publierArtefact({
+          titre: 'Découpage en histoires',
+          corps: [
+            ...titres.map((titre, index) => `${index + 1}. ${titre}`),
+            ...(raisonnement.echec !== undefined
+              ? ['', `Repli déterministe : ${raisonnement.echec}`]
+              : []),
+          ].join('\n'),
+          decouleDe: 'le besoin',
+        })
+        contexte.terminer()
+      })
   },
 }
 
@@ -335,40 +375,76 @@ const LIBELLES_STATUT: Record<string, string> = {
   'a-verifier': 'à vérifier',
 }
 
+const REPLI_SCEPTIQUE = (sorties: number, criteres: number) =>
+  `Les ${sorties} sorties couvrent ${criteres} critères ; une allégation reformulée visant le même effet ne sera pas détectée.`
+
 export const sceptique: Composant = {
   nom: 'sceptique',
-  injecte: ['sortie-regles', 'sortie-interface', 'sortie-tests', 'specification'],
+  injecte: [
+    'sortie-regles',
+    'sortie-interface',
+    'sortie-tests',
+    'sortie-produit',
+    'specification',
+    'raisonneur',
+  ],
   fournit: ['objection'],
   presentation: { libelle: 'Sceptique', role: 'Attaque le résultat avant la porte humaine' },
   applique(contexte) {
     const specification = contexte.lire<Specification>('specification')
     // Le sceptique lit ce que chaque constructeur a réellement produit : une
     // objection qui ne cite rien de précis ne vaut rien.
-    const sorties = (['regles', 'interface', 'tests'] as const)
+    const sorties = (['regles', 'interface', 'tests', 'produit'] as const)
       .map((quoi) => contexte.lire<Sortie>(`sortie-${quoi}`))
       .filter((sortie): sortie is Sortie => sortie !== undefined)
-    const objection = {
-      cible: 'specification',
-      texte: `Les ${sorties.length} sorties couvrent ${specification?.criteres.length ?? 0} critères ; une allégation reformulée visant le même effet ne sera pas détectée.`,
-    }
-    contexte.emettre(
-      'Relève une couverture plus étroite que le nom du produit ne le laisse croire.',
-    )
-    contexte.fournir('objection', objection)
-    contexte.publierArtefact({
-      titre: 'Objection',
-      corps: objection.texte,
-      decouleDe: "la décision de composition de l'architecte",
-    })
-    contexte.terminer()
+    const criteres = specification?.criteres ?? []
+    const raisonneur = contexte.lire<Raisonneur>('raisonneur') ?? raisonneurDeterministe()
+
+    void raisonneur
+      .raisonner({
+        role: 'sceptique',
+        instruction:
+          "Formule en deux phrases l'objection la plus sérieuse contre ce produit, en citant un élément précis de ce qui a été produit. Pas de préambule.",
+        contexte: [
+          `Produit visé : ${specification?.produit ?? 'inconnu'}`,
+          `Sorties produites : ${sorties.length}`,
+          'Critères couverts :',
+          ...criteres.map((critere) => `- ${critere}`),
+        ].join('\n'),
+        repli: REPLI_SCEPTIQUE(sorties.length, criteres.length),
+      })
+      .catch((cause): Raisonnement => ({
+        texte: REPLI_SCEPTIQUE(sorties.length, criteres.length),
+        origine: 'deterministe',
+        echec: cause instanceof Error ? cause.message : String(cause),
+      }))
+      .then((raisonnement) => {
+        if (raisonnement.tokens !== undefined || raisonnement.echec !== undefined) {
+          contexte.compterTokens(
+            raisonnement.tokens?.entree ?? 0,
+            raisonnement.tokens?.sortie ?? 0,
+            raisonnement.echec,
+          )
+        }
+        const texte =
+          raisonnement.texte.trim().length > 0
+            ? raisonnement.texte.trim()
+            : REPLI_SCEPTIQUE(sorties.length, criteres.length)
+        const objection = { cible: 'specification', texte }
+        contexte.emettre(
+          'Relève une couverture plus étroite que le nom du produit ne le laisse croire.',
+        )
+        contexte.fournir('objection', objection)
+        contexte.publierArtefact({
+          titre: 'Objection',
+          corps: texte,
+          decouleDe: "la décision de composition de l'architecte",
+        })
+        contexte.terminer()
+      })
   },
 }
 
-/**
- * La porte humaine. Elle ne décide rien : elle arrête le run et attend.
- * Aucun délai ne la franchit — c'est ce qui fait qu'approuver veut dire
- * quelque chose.
- */
 export const porteHumaine: Composant = {
   nom: 'porte-humaine',
   // La porte ne dépend PAS de la pièce fabriquée : sinon elle ne pourrait

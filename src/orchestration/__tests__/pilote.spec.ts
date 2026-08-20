@@ -158,10 +158,13 @@ describe('le mode de raisonnement', () => {
     pilote.approuver()
     await tick()
 
-    expect(pilote.store.etat.value.tokens).toEqual({ entree: 1200, sortie: 340 })
+    // Trois agents raisonnent : le planificateur, l'architecte, le sceptique.
+    expect(pilote.store.etat.value.tokens).toEqual({ entree: 3 * 1200, sortie: 3 * 340 })
     const architecte = pilote.store.etat.value.noeuds.find((n) => n.nom === 'architecte')
     expect(architecte?.branche).toBe(true)
     expect(architecte?.artefact?.corps).toContain('Rédigé par un modèle')
+    const branches = pilote.store.etat.value.noeuds.filter((n) => n.branche === true)
+    expect(branches.map((n) => n.nom).sort()).toEqual(['architecte', 'planificateur', 'sceptique'])
   })
 
   it('poursuit le run et le dit quand le modèle échoue', async () => {
