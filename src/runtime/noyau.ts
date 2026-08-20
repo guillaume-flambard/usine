@@ -5,12 +5,14 @@
 import { Context } from 'cordis'
 import type {
   Annulation,
+  CauseDesactivation,
   Composant,
   ContexteComposant,
   Dependance,
   ErreurComposant,
   EtatComposant,
   IdComposant,
+  NoeudTopologie,
   Topologie,
 } from './contrat'
 import type { Abonne, EvenementRun, SansSequence } from './evenements'
@@ -31,15 +33,19 @@ interface Entree {
   termine: boolean
   /** Le composant qui l'a chargé, quand il ne vient pas de la racine. */
   parent?: IdComposant
+  /** Passe à vrai dès qu'une libération est demandée, même avant que la fibre existe. */
+  liberationDemandee: boolean
+  /** La libération en cours, pour qu'un second appel n'en déclenche pas une autre. */
+  enCours?: Promise<void>
   liberer: () => Promise<void>
 }
 
 export interface Noyau {
-  /** Charge un composant. Rend son identifiant, ou `undefined` si le chargement a été refusé. */
+  /** Charge un composant. Rend son identifiant, ou `undefined` si le chargement a échoué ou été refusé. */
   charger(composant: Composant): Promise<IdComposant | undefined>
   /** Libère un composant et, en cascade, tout ce qu'il a chargé. */
   liberer(id: IdComposant): Promise<void>
-  /** Libère la totalité du run. */
+  /** Libère la totalité du run, chargements encore en vol compris. */
   libererTout(): Promise<void>
   /** Photographie de la topologie vivante. */
   introspecter(): Topologie
@@ -50,21 +56,8 @@ export interface Noyau {
 export function creerNoyau(): Noyau {
   const racine = new Context()
   const entrees = new Map<IdComposant, Entree>()
+  /** Qui publie effectivement quel nom. */
   const fournisseurs = new Map<string, IdComposant>()
-  const abonnes = new Set<Abonne>()
-  let sequence = 0
-  let compteur = 0
-
-  function emettre(evenement: SansSequence): void {
-    sequence += 1
-    const complet = { ...evenement, sequence } as EvenementRun
-    for (const abonne of abonnes) abonne(complet)
-  }
-
-  function signalerErreur(erreur: ErreurComposant): void {
-    emettre({ type: 'composant-en-erreur', erreur })
-  }
-
   /**
    * Un nom de dépendance est réservé dès le chargement, pas à la première
    * publication : c'est la déclaration qui fait le contrat, sinon deux
@@ -72,12 +65,63 @@ export function creerNoyau(): Noyau {
    * n'a encore publié.
    */
   const reserves = new Map<string, IdComposant>()
+  const abonnes = new Set<Abonne>()
+  let sequence = 0
+  let compteur = 0
+
+  /**
+   * `SansSequence` est distributif : le paramètre est l'union des variantes
+   * privées de `sequence`, donc chaque appel reste vérifié variante par
+   * variante. Seule la recomposition finale demande une assertion.
+   */
+  function emettre(evenement: SansSequence): void {
+    sequence += 1
+    diffuser({ ...evenement, sequence } as EvenementRun)
+  }
+
+  /**
+   * Un abonné qui lève ne doit ni interrompre les autres, ni être confondu
+   * avec une erreur du composant : son incident devient un événement à part.
+   */
+  function diffuser(evenement: EvenementRun): void {
+    const incidents: string[] = []
+    for (const abonne of abonnes) {
+      try {
+        abonne(evenement)
+      } catch (cause) {
+        incidents.push(cause instanceof Error ? cause.message : String(cause))
+      }
+    }
+    if (evenement.type === 'abonne-en-erreur') return
+    for (const message of incidents) {
+      sequence += 1
+      diffuser({ type: 'abonne-en-erreur', message, sequence })
+    }
+  }
+
+  function signalerErreur(erreur: ErreurComposant): void {
+    emettre({ type: 'composant-en-erreur', erreur })
+  }
 
   function nomsPris(composant: Composant): string | undefined {
     for (const nom of composant.fournit ?? []) {
       if (reserves.has(nom) || fournisseurs.has(nom)) return nom
     }
     return undefined
+  }
+
+  function relacherNoms(id: IdComposant, noms: readonly string[]): void {
+    for (const nom of noms) {
+      if (fournisseurs.get(nom) === id) fournisseurs.delete(nom)
+      if (reserves.get(nom) === id) reserves.delete(nom)
+    }
+  }
+
+  function causeDeDesactivation(injecte: readonly string[]): CauseDesactivation {
+    const manquants = injecte.filter((nom) => !fournisseurs.has(nom))
+    return manquants.length > 0
+      ? { genre: 'dependance-partie', noms: manquants }
+      : { genre: 'liberation' }
   }
 
   function construirePlugin(composant: Composant, id: IdComposant, entree: Entree): PluginCordis {
@@ -91,30 +135,49 @@ export function creerNoyau(): Noyau {
       apply(contexte: Context) {
         // Sentinelle : son inverse se joue à chaque désactivation, qu'elle vienne
         // du départ d'une dépendance ou d'une libération complète.
-        contexte.effect(() => {
-          return () => {
-            if (entree.etat === 'libere') return
+        contexte.effect(
+          () => () => {
+            // Ni une libération ni un échec ne se requalifient en attente.
+            if (entree.etat === 'libere' || entree.etat === 'en-erreur') return
             entree.etat = 'en-attente'
             emettre({
               type: 'composant-desactive',
               id,
               cause: causeDeDesactivation(injecte),
             })
-          }
-        }, 'sentinelle')
+          },
+          'sentinelle',
+        )
+
+        /** Vrai tant que le composant peut agir sur le moteur. */
+        const utilisable = () => entree.etat !== 'libere' && entree.etat !== 'en-erreur'
+
+        /** Marque l'activation comme ratée : le composant ne sera pas annoncé actif. */
+        function echouer(code: ErreurComposant['code'], message: string): void {
+          entree.etat = 'en-erreur'
+          signalerErreur({ code, message, composant: id, nom: composant.nom })
+        }
 
         const facade: ContexteComposant = {
           id,
           effet(installer: () => Annulation, libelle: string) {
+            if (!utilisable()) return
             contexte.effect(installer, libelle)
           },
           fournir(nom: string, valeur: unknown) {
+            if (!utilisable()) return
             if (!fournit.includes(nom)) {
-              signalerErreur({
-                code: 'dependance-inconnue',
-                message: `Le composant « ${composant.nom} » publie « ${nom} » sans l'avoir déclaré.`,
-                composant: id,
-              })
+              echouer(
+                'dependance-inconnue',
+                `Le composant « ${composant.nom} » publie « ${nom} » sans l'avoir déclaré.`,
+              )
+              return
+            }
+            if (fournisseurs.get(nom) === id) {
+              echouer(
+                'nom-deja-fourni',
+                `Le composant « ${composant.nom} » publie « ${nom} » deux fois.`,
+              )
               return
             }
             fournisseurs.set(nom, id)
@@ -127,61 +190,60 @@ export function creerNoyau(): Noyau {
             )
           },
           lire<T = unknown>(nom: string): T | undefined {
+            if (!utilisable()) return undefined
             if (!injecte.includes(nom)) {
-              signalerErreur({
-                code: 'dependance-inconnue',
-                message: `Le composant « ${composant.nom} » lit « ${nom} » sans l'avoir déclaré.`,
-                composant: id,
-              })
+              echouer(
+                'dependance-inconnue',
+                `Le composant « ${composant.nom} » lit « ${nom} » sans l'avoir déclaré.`,
+              )
               return undefined
             }
+            // Lecture non stricte : le composant n'est actif que si toutes ses
+            // dépendances sont fournies, la garde du moteur ferait doublon et
+            // lèverait au lieu de rendre.
             const valeur = contexte.get(nom, false) as T | undefined
             const source = fournisseurs.get(nom)
-            if (valeur !== undefined && source !== undefined) {
-              emettre({
-                type: 'valeur-transmise',
-                de: source,
-                vers: id,
-                nom,
-              })
+            // Émis même quand la valeur est `undefined` : une valeur publiée
+            // indéfinie reste un transit réel.
+            if (source !== undefined) {
+              emettre({ type: 'valeur-transmise', de: source, vers: id, nom })
             }
             return valeur
           },
           emettre(message: string) {
+            if (!utilisable()) return
             emettre({ type: 'message-emis', id, message })
           },
           terminer() {
+            if (!utilisable()) return
             entree.termine = true
             emettre({ type: 'travail-termine', id })
           },
           charger(enfant: Composant) {
+            if (!utilisable()) return Promise.resolve(undefined)
             return chargerDans(contexte, enfant, id)
           },
         }
 
         try {
           composant.applique(facade)
-          // L'activation n'est annoncée qu'une fois `applique` passé : un
-          // composant qui échoue ne doit jamais avoir été vu actif.
-          entree.etat = 'actif'
-          emettre({ type: 'composant-active', id })
         } catch (cause) {
-          entree.etat = 'en-erreur'
-          signalerErreur({
-            code: 'echec-activation',
-            message: cause instanceof Error ? cause.message : String(cause),
-            composant: id,
-          })
+          echouer('echec-activation', cause instanceof Error ? cause.message : String(cause))
         }
+
+        if (entree.etat === 'en-erreur') {
+          // Un composant qui a échoué ne garde pas les noms qu'il réservait :
+          // sinon aucun remplaçant ne pourrait jamais prendre sa place.
+          relacherNoms(id, fournit)
+          return
+        }
+
+        // L'activation n'est annoncée qu'une fois `applique` passé sans faute :
+        // un composant en échec ne doit jamais avoir été vu actif.
+        entree.etat = 'actif'
+        emettre({ type: 'composant-active', id })
       },
     }
-  }
-
-  function causeDeDesactivation(injecte: readonly string[]): string {
-    for (const nom of injecte) {
-      if (!fournisseurs.has(nom)) return nom
-    }
-    return 'liberation'
   }
 
   async function chargerDans(
@@ -194,13 +256,16 @@ export function creerNoyau(): Noyau {
       signalerErreur({
         code: 'nom-deja-fourni',
         message: `« ${conflit} » est déjà fourni par un autre composant.`,
+        nom: composant.nom,
       })
       return undefined
     }
 
     compteur += 1
     const id = `${composant.nom}#${compteur}` as IdComposant
-    for (const nom of composant.fournit ?? []) reserves.set(nom, id)
+    const fournit = [...(composant.fournit ?? [])]
+    for (const nom of fournit) reserves.set(nom, id)
+
     const entree: Entree = {
       id,
       nom: composant.nom,
@@ -208,7 +273,12 @@ export function creerNoyau(): Noyau {
       etat: 'en-attente',
       termine: false,
       ...(parent !== undefined ? { parent } : {}),
-      liberer: async () => {},
+      liberationDemandee: false,
+      // Tant que la fibre n'existe pas, une libération demandée est mémorisée
+      // et honorée dès que le chargement se termine.
+      liberer: async () => {
+        entree.liberationDemandee = true
+      },
     }
     entrees.set(id, entree)
 
@@ -216,27 +286,47 @@ export function creerNoyau(): Noyau {
       type: 'composant-cree',
       id,
       nom: composant.nom,
-      presentation: composant.presentation,
+      presentation: { ...composant.presentation },
       injecte: [...(composant.injecte ?? [])],
-      fournit: [...(composant.fournit ?? [])],
+      fournit,
     })
 
-    const fibre = await contexte.plugin(construirePlugin(composant, id, entree))
-    entree.liberer = async () => {
-      if (!entrees.has(id)) return
-      // Les enfants d'abord, en ordre inverse de chargement : la cascade est
-      // à nous, pas au moteur, pour qu'elle soit attendue et donc observable.
-      for (const enfant of [...entrees.values()].reverse()) {
-        if (enfant.parent === id) await enfant.liberer()
-      }
-      entree.etat = 'libere'
-      await fibre.dispose()
-      for (const nom of composant.fournit ?? []) {
-        if (fournisseurs.get(nom) === id) fournisseurs.delete(nom)
-        if (reserves.get(nom) === id) reserves.delete(nom)
-      }
+    let fibre: Awaited<ReturnType<Context['plugin']>>
+    try {
+      fibre = await contexte.plugin(construirePlugin(composant, id, entree))
+    } catch (cause) {
       entrees.delete(id)
-      emettre({ type: 'composant-libere', id })
+      relacherNoms(id, fournit)
+      signalerErreur({
+        code: 'echec-chargement',
+        message: cause instanceof Error ? cause.message : String(cause),
+        composant: id,
+        nom: composant.nom,
+      })
+      return undefined
+    }
+
+    entree.liberer = () => {
+      if (entree.enCours !== undefined) return entree.enCours
+      entree.enCours = (async () => {
+        if (!entrees.has(id)) return
+        // Les enfants d'abord, en ordre inverse de chargement : la cascade est
+        // à nous, pas au moteur, pour qu'elle soit attendue et donc observable.
+        for (const enfant of [...entrees.values()].reverse()) {
+          if (enfant.parent === id) await enfant.liberer()
+        }
+        entree.etat = 'libere'
+        await fibre.dispose()
+        relacherNoms(id, fournit)
+        entrees.delete(id)
+        emettre({ type: 'composant-libere', id })
+      })()
+      return entree.enCours
+    }
+
+    if (entree.liberationDemandee) {
+      await entree.liberer()
+      return undefined
     }
     return id
   }
@@ -251,12 +341,19 @@ export function creerNoyau(): Noyau {
       await entree.liberer()
     },
     async libererTout() {
-      for (const entree of [...entrees.values()].reverse()) {
-        await entree.liberer()
+      // Une passe ne suffit pas : un chargement encore en vol s'inscrit après
+      // coup. On répète tant que la libération fait bouger quelque chose.
+      let restants = entrees.size
+      for (let passe = 0; passe < 10 && entrees.size > 0; passe += 1) {
+        for (const entree of [...entrees.values()].reverse()) {
+          await entree.liberer()
+        }
+        if (entrees.size === restants) break
+        restants = entrees.size
       }
     },
     introspecter(): Topologie {
-      const composants = [...entrees.values()].map((entree) => ({
+      const composants: NoeudTopologie[] = [...entrees.values()].map((entree) => ({
         id: entree.id,
         nom: entree.nom,
         etat: entree.etat,
@@ -264,12 +361,17 @@ export function creerNoyau(): Noyau {
         injecte: [...(entree.composant.injecte ?? [])],
         fournit: [...(entree.composant.fournit ?? [])],
         termine: entree.termine,
+        ...(entree.parent !== undefined ? { parent: entree.parent } : {}),
       }))
       const dependances: Dependance[] = []
       for (const entree of entrees.values()) {
         for (const nom of entree.composant.injecte ?? []) {
           const source = fournisseurs.get(nom)
-          if (source !== undefined) dependances.push({ de: source, vers: entree.id, nom })
+          // Un composant qui publie et consomme le même nom ne se relie pas
+          // à lui-même : ce serait un cycle dans le graphe.
+          if (source !== undefined && source !== entree.id) {
+            dependances.push({ de: source, vers: entree.id, nom })
+          }
         }
       }
       return { composants, dependances }

@@ -1,7 +1,7 @@
 // Le canal unique. Tout ce que le reste de l'application apprend d'un run
 // passe par ici. Ajouter une information visible, c'est ajouter une variante.
 
-import type { ErreurComposant, IdComposant, Presentation } from './contrat'
+import type { CauseDesactivation, ErreurComposant, IdComposant, Presentation } from './contrat'
 
 interface Base {
   /** Strictement croissant, sans trou, attribué par le noyau. */
@@ -25,8 +25,7 @@ export interface ComposantActive extends Base {
 export interface ComposantDesactive extends Base {
   type: 'composant-desactive'
   id: IdComposant
-  /** Le nom de dépendance dont le départ a provoqué la désactivation. */
-  cause: string
+  cause: CauseDesactivation
 }
 
 export interface ComposantLibere extends Base {
@@ -57,6 +56,12 @@ export interface ValeurTransmise extends Base {
   nom: string
 }
 
+/** Émis quand un abonné lève : le run continue, l'incident est visible. */
+export interface AbonneEnErreur extends Base {
+  type: 'abonne-en-erreur'
+  message: string
+}
+
 export type EvenementRun =
   | ComposantCree
   | ComposantActive
@@ -66,6 +71,7 @@ export type EvenementRun =
   | MessageEmis
   | TravailTermine
   | ValeurTransmise
+  | AbonneEnErreur
 
 export type Abonne = (evenement: EvenementRun) => void
 

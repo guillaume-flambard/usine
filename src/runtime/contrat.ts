@@ -25,13 +25,17 @@ export type Annulation = () => void
 /**
  * Ce qu'un composant reçoit à son activation. Volontairement étroit :
  * c'est ce qui l'empêche d'atteindre le moteur directement.
+ *
+ * Toutes ces méthodes sont inertes une fois le composant désactivé ou
+ * libéré — un composant qui garde sa façade au-delà d'un `await` ne peut
+ * pas faire remonter une erreur du moteur.
  */
 export interface ContexteComposant {
   /** L'identifiant de ce composant. */
   readonly id: IdComposant
   /** Installe un effet et son inverse. L'inverse est joué à la libération. */
   effet(installer: () => Annulation, libelle: string): void
-  /** Publie une valeur sous un nom de dépendance que le scénario lui a réservé. */
+  /** Publie une valeur sous un nom de dépendance déclaré dans `fournit`. */
   fournir(nom: string, valeur: unknown): void
   /** Lit une dépendance déclarée dans `injecte`. */
   lire<T = unknown>(nom: string): T | undefined
@@ -47,7 +51,13 @@ export interface ContexteComposant {
   charger(composant: Composant): Promise<IdComposant | undefined>
 }
 
-/** Un agent ou un outil. Les deux ont exactement la même forme. */
+/**
+ * Un agent ou un outil. Les deux ont exactement la même forme.
+ *
+ * `applique` est **synchrone**. Un travail asynchrone se lance depuis un
+ * effet, avec son annulation : une promesse rejetée hors de `applique`
+ * échapperait au noyau et le composant serait annoncé actif à tort.
+ */
 export interface Composant {
   nom: string
   /** Noms de dépendances requises. Le composant reste inactif tant qu'il en manque une. */
@@ -62,13 +72,24 @@ export interface Composant {
 export interface ErreurComposant {
   code: CodeErreur
   message: string
+  /** Absent quand l'erreur précède l'allocation d'un identifiant. */
   composant?: IdComposant
+  /** Le nom du composant concerné, toujours renseigné. */
+  nom: string
 }
 
-export type CodeErreur = 'nom-deja-fourni' | 'echec-activation' | 'dependance-inconnue'
+export type CodeErreur =
+  'nom-deja-fourni' | 'echec-activation' | 'dependance-inconnue' | 'echec-chargement'
 
 /** L'état de cycle de vie d'un composant, tel que le noyau le connaît. */
 export type EtatComposant = 'en-attente' | 'actif' | 'en-erreur' | 'libere'
+
+/**
+ * Pourquoi un composant s'est désactivé. Discriminé plutôt que textuel :
+ * un nom de dépendance et une libération ne doivent pas pouvoir se confondre.
+ */
+export type CauseDesactivation =
+  { genre: 'dependance-partie'; noms: readonly string[] } | { genre: 'liberation' }
 
 /** Une arête du graphe : qui dépend de quoi, par quel nom. */
 export interface Dependance {
@@ -77,17 +98,22 @@ export interface Dependance {
   nom: string
 }
 
+/** Un composant tel que la topologie le décrit. */
+export interface NoeudTopologie {
+  id: IdComposant
+  nom: string
+  etat: EtatComposant
+  presentation: Presentation
+  injecte: readonly string[]
+  fournit: readonly string[]
+  /** Vrai quand le composant a signalé la fin de son travail. */
+  termine: boolean
+  /** Le composant qui l'a chargé, absent quand il vient de la racine. */
+  parent?: IdComposant
+}
+
 /** Photographie de la topologie à un instant donné. */
 export interface Topologie {
-  composants: readonly {
-    id: IdComposant
-    nom: string
-    etat: EtatComposant
-    presentation: Presentation
-    injecte: readonly string[]
-    fournit: readonly string[]
-    /** Vrai quand le composant a signalé la fin de son travail. */
-    termine: boolean
-  }[]
+  composants: readonly NoeudTopologie[]
   dependances: readonly Dependance[]
 }

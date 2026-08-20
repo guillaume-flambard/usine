@@ -82,6 +82,26 @@ context:
 - Étant donné n'importe quel instant d'un run, quand on appelle `introspecter`, alors l'ensemble rendu correspond exactement aux composants vivants du contexte.
 - Étant donné `pnpm test`, quand la suite s'exécute, alors les huit scénarios de la matrice passent.
 
+### Revue 2 — trois relecteurs indépendants en contexte vierge
+
+- **Un abonné qui levait était compté comme un échec du composant.** `emettre` appelait les abonnés en synchrone à l'intérieur du `try` entourant `applique` : un seul écouteur d'interface fautif faisait basculer le composant en erreur et privait les abonnés suivants de l'événement. Amendé : diffusion isolée par abonné, l'incident devient un événement `abonne-en-erreur`. État évité : l'interface corrompant l'état du moteur.
+- **`en-erreur` était écrasé par `en-attente`.** La sentinelle ne se gardait que du cas `libere`, si bien qu'un composant en échec qui perdait ensuite une dépendance émettait une désactivation sans avoir jamais été actif. Amendé : ni une libération ni un échec ne se requalifient.
+- **Une erreur `dependance-inconnue` n'empêchait pas l'activation.** Publier ou lire un nom non déclaré émettait l'erreur puis laissait le composant être annoncé actif — l'invariant « jamais actif après un échec » ne tenait que pour les exceptions. Amendé : toute erreur marque l'activation ratée.
+- **Un composant en échec gardait ses noms réservés.** Aucun remplaçant ne pouvait plus prendre sa place. Amendé : les noms sont relâchés dès que l'activation rate.
+- **Un chargement encore en vol échappait à `libererTout`.** `liberer` était initialisé à une fonction vide jusqu'à la résolution de `plugin()`. Amendé : la demande est mémorisée et honorée à la résolution ; `libererTout` repasse tant que la population bouge.
+- **Un rejet de `plugin()` laissait une entrée fantôme et des noms réservés à vie.** Amendé : capture, nettoyage, événement `echec-chargement`.
+- **La façade restait utilisable après libération** et laissait alors remonter une `CordisError` brute — exactement la fuite que le module existe pour empêcher. Amendé : toutes les méthodes deviennent inertes.
+- **`valeur-transmise` était supprimé quand la valeur était `undefined`.** Une valeur publiée indéfinie est un transit réel. Amendé.
+- **`cause` confondait un nom de dépendance et la chaîne `'liberation'`.** Amendé : type discriminé `CauseDesactivation`, et tous les noms manquants sont rapportés, pas seulement le premier.
+- **Une erreur de refus ne nommait pas le composant refusé.** Amendé : `ErreurComposant.nom` est toujours renseigné.
+- **Un composant publiant et consommant le même nom se reliait à lui-même.** Amendé : le cycle est écarté de la topologie.
+- **Deux libérations concurrentes émettaient deux `composant-libere`.** Amendé : la libération en cours est mémorisée.
+- **La règle d'isolement avait deux portes de sortie** : `import()` dynamique et fichiers `.js`/`.mjs`/`.cjs`/`.jsx`. Amendé : `no-restricted-syntax` sur l'import dynamique et `require`, extensions élargies, `@cordisjs/*` et `cosmokit` ajoutés.
+- **Les tests n'étaient pas type-vérifiés** et la moitié de la surface publique n'était pas couverte — `lire`, `emettre`, `terminer`, `dependance-inconnue`, le désabonnement, la charge de `introspecter`, la `cause`, `composant-libere`. Amendé : `tsconfig.vitest.json` référencé, `vitest.config.ts` fusionné avec la config Vite, et deux suites ajoutées. 12 tests devenus 34.
+- **La règle d'isolement elle-même n'était vérifiée par rien.** Amendé : `isolement.spec.ts` lance ESLint par programme. Vérifié par mutation — élargir `ignores` à `src/**` fait rougir 5 tests.
+
+À conserver : la cascade de libération tenue par le noyau, la réservation des noms à la déclaration, l'activation annoncée seulement après un `applique` réussi.
+
 ## Design Notes
 
 `FiberState` est un `const enum` : ne pas tenter `FiberState[valeur]`. Traduire par une table explicite, comme dans le spike.

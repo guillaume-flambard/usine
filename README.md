@@ -1,6 +1,13 @@
 # usine
 
-This template should help get you started developing with Vue 3 in Vite.
+**Memo Labs — L'usine agentique.** Un système agentique qui, à partir d'un brief
+métier, se compose lui-même : des agents et des outils se chargent, se câblent
+par leurs dépendances déclarées, fabriquent des composants à l'exécution, passent
+une porte humaine et livrent un produit fonctionnel — le tout visible en direct
+sous forme de graphe, sans clé d'API et sans token.
+
+Planification : `_bmad-output/planning-artifacts/` (PRD, architecture, UX, epics).
+Cadrage : `docs/`.
 
 ## Recommended IDE Setup
 
@@ -45,4 +52,10 @@ pnpm build
 
 ```sh
 pnpm lint
+```
+
+### Run Unit Tests with [Vitest](https://vitest.dev/)
+
+```sh
+pnpm test
 ```
