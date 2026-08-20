@@ -15,6 +15,7 @@
     "format": "prettier --write --experimental-cli src/"
   },
   "dependencies": {
+    "cordis": "4.0.0-rc.8",
     "vue": "^3.5.40"
   },
   "devDependencies": {
