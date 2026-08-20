@@ -71,14 +71,31 @@ export const ordreDeclare = (entrees: readonly EntreeCasting[]): readonly Entree
 export interface Lancement {
   /** L'agent maître, dont la libération défait tout le run. */
   maitre: IdComposant
-  /** Ce qui a été chargé, dans l'ordre de déclaration. */
-  charges: readonly IdComposant[]
 }
 
 /**
- * Charge le maître puis tout le casting, dans l'ordre de déclaration.
- * Les composants s'activent d'eux-mêmes quand leurs dépendances arrivent —
- * l'ordre de chargement ne pilote pas l'ordre d'activation.
+ * C'est **l'agent maître** qui charge le casting, pas l'orchestration : sinon
+ * les composants seraient des frères du maître et le libérer ne les
+ * emporterait pas. Le scénario reste une donnée ; on ne fait que refermer sa
+ * déclaration sur son maître.
+ */
+function orchestrateur(scenario: Scenario): Composant {
+  const maitre = scenario.maitre.composant
+  return {
+    ...maitre,
+    applique(contexte) {
+      maitre.applique(contexte)
+      for (const entree of ordreDeclare(scenario.casting)) {
+        void contexte.charger(entree.composant)
+      }
+    },
+  }
+}
+
+/**
+ * Charge l'agent maître, qui charge à son tour tout le casting dans l'ordre
+ * de déclaration. Les composants s'activent d'eux-mêmes quand leurs
+ * dépendances arrivent — l'ordre de chargement ne pilote pas l'activation.
  */
 export async function lancer(noyau: Noyau, scenario: Scenario): Promise<Lancement> {
   const defauts = verifierScenario(scenario)
@@ -89,15 +106,9 @@ export async function lancer(noyau: Noyau, scenario: Scenario): Promise<Lancemen
     )
   }
 
-  const maitre = await noyau.charger(scenario.maitre.composant)
+  const maitre = await noyau.charger(orchestrateur(scenario))
   if (maitre === undefined) throw new Error("L'agent maître n'a pas pu être chargé.")
-
-  const charges: IdComposant[] = [maitre]
-  for (const entree of ordreDeclare(scenario.casting)) {
-    const id = await noyau.charger(entree.composant)
-    if (id !== undefined) charges.push(id)
-  }
-  return { maitre, charges }
+  return { maitre }
 }
 
 /** La topologie complète déclarée, emplacements réservés compris. */

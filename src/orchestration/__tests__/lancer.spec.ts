@@ -79,7 +79,7 @@ describe('un run complet du scénario livré', () => {
     const store = creerStore()
     store.brancher(noyau)
 
-    const { maitre } = await lancer(noyau, claimCheck)
+    await lancer(noyau, claimCheck)
     await tick()
 
     const etat = store.etat.value
@@ -132,12 +132,12 @@ describe('un run complet du scénario livré', () => {
     const noyau = creerNoyau()
     const { maitre } = await lancer(noyau, claimCheck)
     await tick()
-    expect(noyau.introspecter().composants.length).toBeGreaterThan(1)
+    expect(noyau.introspecter().composants).toHaveLength(claimCheck.casting.length + 1)
 
-    await noyau.libererTout()
+    // Libérer le seul agent maître suffit : tout le reste tombe en cascade.
+    await noyau.liberer(maitre)
     await tick()
     expect(noyau.introspecter().composants).toHaveLength(0)
-    void maitre
   })
 })
 
