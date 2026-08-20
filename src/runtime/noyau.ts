@@ -92,6 +92,8 @@ export function creerNoyau(): Noyau {
   const remplacementsEnCours = new Set<IdComposant>()
   /** Les décisions humaines en suspens. Rien ne les franchit tout seul. */
   const portes = new Map<IdComposant, (decision: Decision) => void>()
+  /** Ce qui a déjà été tranché. Une décision ne se prend pas deux fois. */
+  const decisions = new Map<IdComposant, Decision>()
   let sequence = 0
   let compteur = 0
 
@@ -264,10 +266,21 @@ export function creerNoyau(): Noyau {
           },
           attendreDecision(objet: ObjetDeDecision, surDecision: (decision: Decision) => void) {
             if (!utilisable()) return
+            if (decisions.has(id)) {
+              // Une décision déjà prise ne se rejoue pas : une réactivation
+              // du composant ne doit pas redemander à trancher.
+              return
+            }
+            if (portes.has(id)) {
+              echouer('nom-deja-fourni', 'Une porte attend déjà pour ce composant.')
+              return
+            }
             portes.set(id, surDecision)
             contexte.effect(
               () => () => {
-                portes.delete(id)
+                // Une porte abandonnée doit se retirer visiblement, sinon
+                // l'interface garde des boutons qui ne font plus rien.
+                if (portes.delete(id)) emettre({ type: 'porte-retiree', id })
               },
               'porte',
             )
@@ -502,8 +515,20 @@ export function creerNoyau(): Noyau {
       const surDecision = portes.get(id)
       if (surDecision === undefined) return false
       portes.delete(id)
+      decisions.set(id, decision)
       emettre({ type: 'decision-prise', id, decision })
-      surDecision(decision)
+      try {
+        surDecision(decision)
+      } catch (cause) {
+        // Un composant qui lève en apprenant la décision ne doit pas faire
+        // remonter l'exception jusqu'au clic de l'utilisateur.
+        signalerErreur({
+          code: 'echec-activation',
+          message: cause instanceof Error ? cause.message : String(cause),
+          composant: id,
+          nom: entrees.get(id)?.nom ?? 'porte',
+        })
+      }
       return true
     },
     portesEnAttente: () => [...portes.keys()],

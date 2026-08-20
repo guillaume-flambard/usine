@@ -246,7 +246,10 @@ export const constructeurFabricant: Composant = {
           ].join('\n'),
           decouleDe: "la décision de composition de l'architecte",
         })
-        contexte.fournir('sortie-produit', { fabrique: true })
+        contexte.fournir('sortie-produit', {
+          fabrique: true,
+          primitives: aFabriquer.etapes.length,
+        })
         contexte.terminer()
       })
   },
@@ -298,24 +301,26 @@ export const sceptique: Composant = {
  */
 export const porteHumaine: Composant = {
   nom: 'porte-humaine',
-  injecte: ['sortie-produit', 'objection', 'verificateur'],
+  // La porte ne dépend PAS de la pièce fabriquée : sinon elle ne pourrait
+  // s'ouvrir que si la fabrication a réussi, c'est-à-dire jamais dans le cas
+  // où l'on aurait le plus besoin de trancher.
+  injecte: ['sortie-produit', 'objection'],
   fournit: ['approbation'],
   presentation: { libelle: 'Porte humaine', role: 'Attend votre décision avant la livraison' },
   applique(contexte) {
     const objection = contexte.lire<{ texte: string }>('objection')
-    const produit = contexte.lire<{ fabrique: boolean }>('sortie-produit')
-    const verifier = contexte.lire<(texte: string) => readonly Verdict[]>('verificateur')
-    const controle = verifier?.(TEXTE_DE_CONTROLE) ?? []
+    const produit = contexte.lire<{ fabrique: boolean; primitives?: number }>('sortie-produit')
 
     contexte.emettre('Le run attend votre décision.')
     contexte.attendreDecision(
       {
         resume: [
           produit?.fabrique === true
-            ? 'Une pièce a été fabriquée pendant le run et chargée à chaud.'
-            : "Aucune pièce n'a pu être fabriquée.",
-          `Elle classe ${controle.length} allégations sur le texte témoin.`,
-          'Approuver la livre dans la page ; écarter la retire et libère ce qui en dépend.',
+            ? `Une pièce a été fabriquée pendant le run et chargée à chaud, à partir de ${produit.primitives ?? 0} primitives.`
+            : "Aucune pièce n'a pu être fabriquée : il n'y a rien à livrer.",
+          produit?.fabrique === true
+            ? 'Approuver la livre dans la page ; écarter la retire et libère ce qui en dépend.'
+            : 'Approuver poursuivra sans produit ; écarter arrête là.',
         ].join(' '),
         objection: objection?.texte ?? 'Aucune objection relevée.',
       },

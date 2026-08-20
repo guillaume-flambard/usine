@@ -69,6 +69,10 @@ export interface PorteVue {
   objet: ObjetDeDecision
   /** `undefined` tant que personne n'a tranché. */
   decision?: Decision
+  /** Séquence à laquelle la porte s'est ouverte. */
+  ouverteA: number
+  /** Séquence à laquelle elle a été tranchée. */
+  decideeA?: number
 }
 
 export interface EtatRun {

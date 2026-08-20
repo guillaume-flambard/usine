@@ -46,3 +46,15 @@ où ils ont été trouvés. Append-only.
 - source_spec: `epic 2 — fabrication`
   summary: Aucun contrôle de conformité entre la source affichée et le code exécuté pour la voie par évaluation.
   evidence: La voie par composition dérive sa source du code par `toString`, donc aucune dérive n'est possible. La voie par évaluation affiche le corps qu'elle a évalué, ce qui est correct, mais rien ne le vérifie automatiquement.
+
+- source_spec: `epic 3 — porte humaine`
+  summary: Le modèle de lecture ne connaît qu'une porte à la fois, alors que le noyau en expose une liste.
+  evidence: `EtatRun.porte` est un champ unique, `portesEnAttente()` rend un tableau. Inatteignable avec le scénario livré, qui n'a qu'une porte ; à reprendre si un scénario en demande deux.
+
+- source_spec: `epic 3 — porte humaine`
+  summary: La parité visuelle des deux boutons repose sur une largeur minimale codée en dur.
+  evidence: `min-width: 132px` fait tenir « ÉCARTER » et « APPROUVER » à la même taille, à deux pixels près. Un changement de libellé ou un repli de police casserait la parité en silence, et rien ne la vérifie. À reprendre avec l'exécuteur de tests en navigateur de la story 6.4.
+
+- source_spec: `epic 3 — porte humaine`
+  summary: La porte ne permet pas d'ouvrir les artefacts sur lesquels porte l'objection.
+  evidence: L'objection cite des nombres réels (sorties, critères) mais n'offre aucun chemin vers le nœud du sceptique ni vers les artefacts amont. L'humain tranche sur une assertion qu'il ne peut pas vérifier sans fermer la porte et cliquer ailleurs.

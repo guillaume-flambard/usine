@@ -194,13 +194,27 @@ export function reduire(etat: EtatComplet, evenement: EvenementRun): EtatComplet
       break
 
     case 'porte-atteinte':
-      porte = { id: evenement.id, objet: evenement.objet }
+      // Une porte déjà tranchée ne se rouvre pas : sans ce garde, une
+      // réactivation du composant effacerait la décision enregistrée.
+      porte =
+        porte?.id === evenement.id && porte.decision !== undefined
+          ? porte
+          : { id: evenement.id, objet: evenement.objet, ouverteA: evenement.sequence }
+      break
+
+    case 'porte-retiree':
+      // La porte a disparu sans décision : on cesse de proposer des boutons
+      // qui ne feraient plus rien.
+      porte = porte?.id === evenement.id && porte.decision === undefined ? undefined : porte
       break
 
     case 'decision-prise':
       // La porte reste visible après la décision : c'est la trace de ce qui a
-      // été tranché, et par qui.
-      porte = porte === undefined ? porte : { ...porte, decision: evenement.decision }
+      // été tranché, et à quel moment du flux.
+      porte =
+        porte?.id === evenement.id
+          ? { ...porte, decision: evenement.decision, decideeA: evenement.sequence }
+          : porte
       break
 
     case 'valeur-transmise':

@@ -13,7 +13,14 @@ export const disposerScenario = (scenario: Scenario): Disposition =>
   disposer(topologieDeclaree(scenario), { ordre: ordreDuScenario(scenario) })
 
 export type PhaseRun =
-  'Au repos' | 'Analyse' | 'Construction' | 'Décision' | 'Terminé' | 'Incident' | 'Libéré'
+  | 'Au repos'
+  | 'Analyse'
+  | 'Construction'
+  | 'Décision'
+  | 'Écarté'
+  | 'Terminé'
+  | 'Incident'
+  | 'Libéré'
 
 export interface Pilote {
   readonly store: StoreRun
@@ -50,10 +57,16 @@ export function creerPilote(scenarioInitial: Scenario): Pilote {
     const noeuds = store.etat.value.noeuds
     if (noeuds.length === 0) return 'Au repos'
     if (noeuds.every((n) => n.etat === 'libere')) return 'Libéré'
-    if (noeuds.some((n) => n.etat === 'en-erreur')) return 'Incident'
     const porte = store.etat.value.porte
     // Une porte en attente arrête le run : ce n'est ni une fin ni une panne.
     if (porte !== undefined && porte.decision === undefined) return 'Décision'
+    // Un run écarté est arrêté, pas en cours : le dire « Analyse » laisserait
+    // croire qu'il travaille encore.
+    if (porte?.decision === 'ecarte') return 'Écarté'
+    // L'incident vient après la porte : tant qu'on attend une décision, dire
+    // « Incident » et déclarer le run fini laisserait des boutons actifs sur
+    // un run annoncé terminé.
+    if (noeuds.some((n) => n.etat === 'en-erreur')) return 'Incident'
     if (noeuds.every((n) => n.etat === 'termine')) return 'Terminé'
     if (noeuds.some((n) => n.nom.startsWith('constructeur-') && n.etat === 'en-cours'))
       return 'Construction'
@@ -72,7 +85,7 @@ export function creerPilote(scenarioInitial: Scenario): Pilote {
     disposition: () => dispositionCourante,
     scenario: () => scenarioCourant,
     phase,
-    fini: () => ['Terminé', 'Libéré', 'Incident'].includes(phase()),
+    fini: () => ['Terminé', 'Écarté', 'Libéré', 'Incident'].includes(phase()),
     erreur: () => derniereErreur,
     noyau: () => noyauCourant,
     arreter,
@@ -102,13 +115,21 @@ export function creerPilote(scenarioInitial: Scenario): Pilote {
     async ecarter() {
       const porte = store.etat.value.porte
       if (porte === undefined || porte.decision !== undefined) return false
-      const tranchee = noyauCourant?.decider(porte.id, 'ecarte') ?? false
-      if (!tranchee) return false
+      // Le noyau est capturé : si l'utilisateur relance pendant la
+      // rétractation, les identifiants restants viseraient le nouveau run.
+      const noyau = noyauCourant
+      if (noyau === undefined) return false
+      if (!noyau.decider(porte.id, 'ecarte')) return false
       // Écarter doit se voir : les pièces fabriquées sont libérées, et le
       // graphe montre la rétractation au lieu de se figer.
       for (const noeud of store.etat.value.noeuds) {
-        if (noeud.fabrication !== undefined && noeud.etat !== 'libere') {
-          await noyauCourant?.liberer(noeud.id)
+        if (noyauCourant !== noyau) return true
+        if (noeud.fabrication === undefined || noeud.etat === 'libere') continue
+        try {
+          await noyau.liberer(noeud.id)
+        } catch {
+          // Une libération qui échoue n'interrompt pas la rétractation des
+          // autres pièces.
         }
       }
       return true

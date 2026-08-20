@@ -85,6 +85,11 @@ export interface PorteAtteinte extends Base {
   objet: ObjetDeDecision
 }
 
+export interface PorteRetiree extends Base {
+  type: 'porte-retiree'
+  id: IdComposant
+}
+
 export interface DecisionPrise extends Base {
   type: 'decision-prise'
   id: IdComposant
@@ -109,6 +114,7 @@ export type EvenementRun =
   | ArtefactProduit
   | ComposantFabrique
   | PorteAtteinte
+  | PorteRetiree
   | DecisionPrise
   | AbonneEnErreur
 

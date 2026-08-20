@@ -477,6 +477,9 @@ body,
 
 .porte {
   position: absolute;
+  max-height: 60%;
+  overflow: auto;
+  flex-wrap: wrap;
   left: 0;
   right: 0;
   bottom: 0;
@@ -529,6 +532,9 @@ body,
 
 .panneau {
   position: absolute;
+  /* Au-dessus de la porte : inspecter un nœud ne doit pas se faire à
+     travers le bandeau de décision. */
+  z-index: 5;
   top: 0;
   right: 0;
   bottom: 0;
@@ -597,6 +603,16 @@ body,
 }
 
 @media (max-width: 900px) {
+  .porte {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .porte-actions {
+    width: 100%;
+  }
+  .porte-actions .bouton {
+    flex: 1;
+  }
   .app {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(0, 46%) minmax(0, 54%);

@@ -65,8 +65,10 @@ function arreterHorloge() {
 // l'arrêt est un faux signal.
 watch(
   () => phase.value,
-  () => {
-    if (pilote.fini()) arreterHorloge()
+  (valeur) => {
+    // La délibération humaine n'est pas du temps d'usine : l'horloge
+    // s'arrête aussi à la porte.
+    if (pilote.fini() || valeur === 'Décision') arreterHorloge()
   },
 )
 
@@ -86,7 +88,10 @@ async function relancer() {
 }
 
 function approuver() {
-  pilote.approuver()
+  if (!pilote.approuver()) return
+  // La décision relance le run : le temps repart d'où il s'était arrêté.
+  debut.value = Date.now() - millisecondes.value
+  horloge = setInterval(() => (maintenant.value = Date.now()), 500)
 }
 
 async function ecarter() {
