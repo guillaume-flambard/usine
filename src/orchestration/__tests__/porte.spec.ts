@@ -1,22 +1,16 @@
 // Epic 3 — la décision humaine. Le run s'arrête, montre sur quoi il demande
 // de trancher, et la décision a des conséquences visibles.
 import { describe, expect, it, vi } from 'vitest'
-import { creerPilote } from '../pilote'
-import { claimCheck } from '../../scenarios/claim-check'
 import { creerNoyau } from '../../runtime/noyau'
 import { porteHumaine } from '../../agents/deterministes'
 import type { Composant, IdComposant } from '../../runtime/contrat'
+import { jusqua, runJusquALaPorte } from './aide'
 
 const tick = async () => {
   for (let i = 0; i < 8; i += 1) await new Promise<void>((r) => setTimeout(r, 0))
 }
 
-async function jusquALaPorte() {
-  const pilote = creerPilote(claimCheck)
-  await pilote.demarrer(claimCheck.brief)
-  await tick()
-  return pilote
-}
+const jusquALaPorte = () => runJusquALaPorte()
 
 describe("la porte s'arrête et attend", () => {
   it('arrête le run sans que rien ne la franchisse', async () => {
@@ -37,7 +31,7 @@ describe("la porte s'arrête et attend", () => {
     expect(porte?.objet.resume).toContain('fabriquée pendant le run')
     expect(porte?.objet.resume).toContain('Approuver')
     // Une décision qui ne porterait sur rien ne vaudrait rien.
-    expect(porte?.objet.objection).toContain('reformulée')
+    expect((porte?.objet.objection ?? '').trim().length).toBeGreaterThan(20)
   })
 })
 
@@ -112,8 +106,7 @@ describe('écarter', () => {
 
   it('montre la rétractation au lieu de figer le graphe', async () => {
     const pilote = await jusquALaPorte()
-    const piece = () =>
-      pilote.store.etat.value.noeuds.find((n) => n.nom === 'verificateur-allegations')
+    const piece = () => pilote.store.etat.value.noeuds.find((n) => n.fabrication !== undefined)
     expect(piece()?.etat).toBe('termine')
 
     await pilote.ecarter()
@@ -150,7 +143,7 @@ describe("l'objection du sceptique", () => {
     // Une objection générique ne satisferait pas l'exigence : elle doit
     // s'appuyer sur ce qui a réellement été produit.
     expect(objection).toMatch(/\d+ sorties/)
-    expect(objection).toMatch(/\d+ critères/)
+    expect(objection).toMatch(/\d+ caractères lus/)
   })
 })
 

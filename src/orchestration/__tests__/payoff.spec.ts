@@ -2,21 +2,7 @@
 // s'affiche : c'est qu'il donne un verdict juste, sourcé, reproductible,
 // sur un texte que personne n'avait prévu.
 import { describe, expect, it } from 'vitest'
-import { creerPilote } from '../pilote'
-import { claimCheck } from '../../scenarios/claim-check'
-
-const tick = async () => {
-  for (let i = 0; i < 8; i += 1) await new Promise<void>((r) => setTimeout(r, 0))
-}
-
-async function runApprouve() {
-  const pilote = creerPilote(claimCheck)
-  await pilote.demarrer(claimCheck.brief)
-  await tick()
-  pilote.approuver()
-  await tick()
-  return pilote
-}
+import { jusqua, runApprouve, runJusquALaPorte } from './aide'
 
 const TEXTE =
   'Notre complément guérit les carences chroniques. Il contribue à réduire la fatigue. ' +
@@ -24,23 +10,18 @@ const TEXTE =
 
 describe('le produit livré', () => {
   it("n'est disponible qu'une fois la porte approuvée", async () => {
-    const pilote = creerPilote(claimCheck)
-    await pilote.demarrer(claimCheck.brief)
-    await tick()
+    const pilote = await runJusquALaPorte()
     // Le run est arrêté à la porte : rien n'est livré.
     expect(pilote.verificateur()).toBeUndefined()
 
     pilote.approuver()
-    await tick()
+    await jusqua(() => pilote.verificateur() !== undefined)
     expect(pilote.verificateur()).toBeDefined()
   })
 
   it("n'est plus disponible quand on écarte", async () => {
-    const pilote = creerPilote(claimCheck)
-    await pilote.demarrer(claimCheck.brief)
-    await tick()
+    const pilote = await runJusquALaPorte()
     await pilote.ecarter()
-    await tick()
     expect(pilote.verificateur()).toBeUndefined()
   })
 

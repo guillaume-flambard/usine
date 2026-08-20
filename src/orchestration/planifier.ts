@@ -30,6 +30,18 @@ const DECLENCHEURS = {
   juridique: ['juriste', 'juridique', 'avocat', 'conformite', 'audit', 'controle', 'legal'],
 } as const
 
+/**
+ * La chaîne minimale d'un verdict juste. Classer sans écarter les négations
+ * rend « il ne traite pas les maladies » interdit ; classer sans exiger une
+ * source rend un verdict que personne ne peut opposer.
+ */
+export const CHAINE_SURE: readonly string[] = [
+  'decouper-allegations',
+  'classer-par-regles',
+  'ecarter-les-negations',
+  'exiger-une-source',
+]
+
 const contient = (brief: string, mots: readonly string[]): boolean => {
   const normalise = ` ${normaliser(brief)} `
   return mots.some((mot) => normalise.includes(` ${mot} `) || normalise.includes(` ${mot}s `))
@@ -55,12 +67,11 @@ export function corpusDuBrief(brief: string): Corpus {
 export function planifierSansModele(brief: string): Plan {
   const corpus = corpusDuBrief(brief)
 
-  // La chaîne fabriquée. Découper puis classer est le minimum ; exiger une
-  // source est une promesse du produit, pas une option ; écarter les
-  // négations coûte en rappel et ne s'ajoute que si le brief le demande.
-  const etapes = ['decouper-allegations', 'classer-par-regles']
-  if (contient(brief, DECLENCHEURS.negations)) etapes.push('ecarter-les-negations')
-  etapes.push('exiger-une-source')
+  // La chaîne fabriquée. Elle ne varie pas avec le brief, et c'est voulu :
+  // « ne traite pas » classé interdit, ou un verdict tranché sans source,
+  // sont des erreurs — pas des options qu'un brief pourrait ne pas demander.
+  // Ce qui varie, c'est la composition du graphe, jamais la justesse.
+  const etapes = CHAINE_SURE
 
   const agents: AgentPlanifie[] = [
     {
@@ -131,7 +142,7 @@ export function planifierSansModele(brief: string): Plan {
     role: "Fabrique la pièce qui n'existait pas, et la charge dans le run",
     injecte: ['specification', 'registre', 'fabrique'],
     fournit: ['sortie-produit'],
-    outil: { fournit: 'verificateur', etapes },
+    outil: { fournit: 'verificateur', etapes: [...etapes] },
   })
   agents.push({
     nom: 'sceptique',

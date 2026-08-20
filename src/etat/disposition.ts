@@ -1,12 +1,22 @@
-// La disposition est calculée UNE FOIS, au démarrage, sur la topologie
-// complète déclarée par le scénario — emplacements réservés compris. Les
-// nœuds sont ensuite révélés, jamais repositionnés : sinon l'arrivée d'une
-// pièce fabriquée ferait sauter tout ce qui est déjà posé.
+// La disposition suit le graphe vivant. Elle ne peut plus être calculée une
+// fois pour toutes : le graphe n'existe pas avant le brief, et il pousse
+// pendant le run. Elle est donc recalculée à chaque changement de topologie
+// — et seulement là, jamais à chaque événement.
+//
+// Les nœuds glissent vers leur nouvelle place au lieu d'apparaître posés :
+// c'est la transition CSS du composant de nœud qui s'en charge.
 //
 // Seul le calcul de coordonnées est délégué. Le rendu reste à nous.
 
 import dagre from '@dagrejs/dagre'
-import type { Composant } from '../runtime/contrat'
+import type { AreteVue, NoeudVue } from './modele'
+
+/** Le minimum dont la disposition a besoin d'un composant. */
+export interface NoeudDisposable {
+  nom: string
+  injecte?: readonly string[]
+  fournit?: readonly string[]
+}
 
 export interface Boite {
   nom: string
@@ -47,7 +57,7 @@ export interface OptionsDisposition {
  * d'activation, parce que les nœuds sont insérés dans l'ordre de déclaration.
  */
 export function disposer(
-  composants: readonly Composant[],
+  composants: readonly NoeudDisposable[],
   options: OptionsDisposition,
 ): Disposition {
   const rang = new Map(options.ordre.map((nom, index) => [nom, index]))
@@ -116,6 +126,65 @@ export function disposer(
     largeur: meta.width ?? 0,
     hauteur: meta.height ?? 0,
   }
+}
+
+/**
+ * La signature de la topologie vivante. Deux états qui la partagent donnent
+ * la même disposition : c'est ce qui évite de relancer dagre à chaque
+ * message ou changement d'état d'un nœud.
+ */
+export const signatureTopologie = (
+  noeuds: readonly NoeudVue[],
+  aretes: readonly AreteVue[],
+): string =>
+  [
+    noeuds
+      .map((noeud) => noeud.nom)
+      .sort()
+      .join(','),
+    aretes
+      .map((arete) => `${arete.de}>${arete.nom}>${arete.vers}`)
+      .sort()
+      .join(','),
+  ].join('|')
+
+/**
+ * La disposition du graphe tel qu'il est à cet instant. Les arêtes viennent
+ * de ce qui est réellement câblé, pas d'une déclaration : un lien n'apparaît
+ * que si le noyau a établi la dépendance.
+ */
+export function disposerVivant(
+  noeuds: readonly NoeudVue[],
+  aretes: readonly AreteVue[],
+  options: Partial<OptionsDisposition> = {},
+): Disposition {
+  const nomParId = new Map(noeuds.map((noeud) => [noeud.id, noeud.nom]))
+  // L'ordre d'apparition fixe le rang à l'intérieur d'une couche : c'est le
+  // seul ordre qui existe encore, le casting déclaré ayant disparu.
+  const ordre = [...noeuds].sort((a, b) => a.apparuA - b.apparuA).map((noeud) => noeud.nom)
+
+  // Les dépendances vues par la disposition sont celles que le noyau a
+  // câblées ; `injecte` seul relierait des nœuds qui ne se parlent pas encore.
+  const injectePar = new Map<string, string[]>()
+  const fournitPar = new Map<string, string[]>()
+  for (const arete of aretes) {
+    const de = nomParId.get(arete.de)
+    const vers = nomParId.get(arete.vers)
+    if (de === undefined || vers === undefined) continue
+    injectePar.set(vers, [...(injectePar.get(vers) ?? []), arete.nom])
+    if (!(fournitPar.get(de) ?? []).includes(arete.nom)) {
+      fournitPar.set(de, [...(fournitPar.get(de) ?? []), arete.nom])
+    }
+  }
+
+  return disposer(
+    noeuds.map((noeud) => ({
+      nom: noeud.nom,
+      injecte: injectePar.get(noeud.nom) ?? [],
+      fournit: fournitPar.get(noeud.nom) ?? [],
+    })),
+    { ...options, ordre },
+  )
 }
 
 /** Une courbe lissée passant par les points rendus par la disposition. */

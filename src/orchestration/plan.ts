@@ -49,6 +49,7 @@ export interface DefautPlan {
     | 'dependance-sans-fournisseur'
     | 'cycle'
     | 'primitive-inconnue'
+    | 'chaine-non-sure'
     | 'agent-inutile'
     | 'promesse-non-tenue'
     | 'champ-manquant'
@@ -141,6 +142,19 @@ export function verifierPlan(
     if (agent.outil !== undefined) {
       if (agent.outil.etapes.length === 0) {
         ajouter('champ-manquant', `L'outil de « ${agent.nom} » n'enchaîne aucune primitive.`)
+      }
+      // Un classement sans garde-fou produit des verdicts faux et sourcés,
+      // ce qui est pire qu'une absence de verdict. Le plan décide de la
+      // composition ; il ne décide pas de la justesse.
+      if (agent.outil.etapes.includes('classer-par-regles')) {
+        for (const garde of ['ecarter-les-negations', 'exiger-une-source']) {
+          if (!agent.outil.etapes.includes(garde)) {
+            ajouter(
+              'chaine-non-sure',
+              `L'outil de « ${agent.nom} » classe sans « ${garde} » : ses verdicts seraient faux ou insourçables.`,
+            )
+          }
+        }
       }
       for (const etape of agent.outil.etapes) {
         if (!primitives.has(etape)) {

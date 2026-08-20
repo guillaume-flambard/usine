@@ -40,13 +40,26 @@ export const NOM_REGISTRE = 'registre'
 /** Le nom que la porte humaine lit pour savoir s'il y a quelque chose à livrer. */
 export const NOM_SORTIE_PRODUIT = 'sortie-produit'
 
-const repliDe = (agent: AgentPlanifie, entrees: readonly string[]): string =>
-  entrees.length === 0 ? `${agent.role}.` : `${agent.role}, à partir de : ${entrees.join(', ')}.`
+/**
+ * Le texte que l'agent publie quand aucun modèle ne raisonne. Il cite ce
+ * qu'il a réellement lu : une sortie qui ne s'appuie sur rien ne vaut rien,
+ * et c'est vrai du repli comme du reste.
+ */
+const repliDe = (agent: AgentPlanifie, lues: readonly { nom: string; texte: string }[]): string => {
+  const pleines = lues.filter((entree) => entree.texte.trim().length > 0)
+  if (pleines.length === 0) return `${agent.role}, sans entrée disponible.`
+  const caracteres = pleines.reduce((total, entree) => total + entree.texte.length, 0)
+  return `${agent.role} — appuyé sur ${pleines.length} sorties (${pleines
+    .map((entree) => entree.nom)
+    .join(', ')}), soit ${caracteres} caractères lus.`
+}
 
 /** Le texte réellement publié, quel que soit ce qui s'est passé en amont. */
 function texteDe(contexte: ContexteComposant, agent: AgentPlanifie, plan: Plan): Promise<string> {
-  const entrees = agent.injecte.filter((nom) => nom !== 'raisonneur' && nom !== 'fabrique')
-  const repli = repliDe(agent, entrees)
+  const lues = agent.injecte
+    .filter((nom) => nom !== 'raisonneur' && nom !== 'fabrique' && nom !== 'memoire')
+    .map((nom) => ({ nom, texte: contexte.lire<SortiePlanifiee>(nom)?.texte ?? '' }))
+  const repli = repliDe(agent, lues)
   const raisonneur = contexte.lire<Raisonneur>('raisonneur') ?? raisonneurDeterministe()
 
   return raisonneur
@@ -56,10 +69,9 @@ function texteDe(contexte: ContexteComposant, agent: AgentPlanifie, plan: Plan):
       contexte: [
         `Produit visé : ${plan.produit}`,
         `Corpus : ${plan.corpus}`,
-        ...entrees.map((nom) => {
-          const valeur = contexte.lire<SortiePlanifiee>(nom)
-          return `${nom} : ${valeur?.texte ?? '(rien)'}`
-        }),
+        ...lues.map(
+          (entree) => `${entree.nom} : ${entree.texte.length > 0 ? entree.texte : '(rien)'}`,
+        ),
       ].join('\n'),
       repli,
     })
@@ -216,9 +228,15 @@ export function agentDuPlan(agent: AgentPlanifie, { corpus, plan }: ContexteDuPl
   const publieLeRegistre = agent.fournit.includes(NOM_REGISTRE)
   const fabrique = agent.outil !== undefined
 
+  // Le coeffet dont l'agent a besoin pour exister est ajouté ici, pas laissé
+  // au plan : un plan qui oublie de déclarer « raisonneur » ferait tomber
+  // l'agent en défaut au premier mot qu'il essaie d'écrire.
+  const requis = publieLeRegistre ? [] : fabrique ? ['fabrique'] : ['raisonneur']
+  const injecte = [...new Set([...agent.injecte, ...requis])]
+
   return {
     nom: agent.nom,
-    injecte: agent.injecte,
+    injecte,
     fournit: agent.fournit,
     presentation: {
       libelle: agent.libelle,
@@ -271,7 +289,7 @@ export interface OptionsMaitre {
   delaiParVague?: number
 }
 
-const DELAI_PAR_VAGUE = 20_000
+const DELAI_PAR_VAGUE = 10_000
 
 /**
  * Le maître. Il ne connaît pas le graphe : il lit le brief, en tire un plan,
@@ -307,6 +325,9 @@ export function maitreDuPlan(options: OptionsMaitre): Composant {
         const vagues = vaguesDeChargement(plan)
 
         contexte.fournir('memoire', {
+          // Le plan voyage avec la mémoire : c'est par là que l'interface
+          // apprend quel produit ce run vise, sans le deviner.
+          plan,
           secteur: corpus.titre,
           decisions: [
             `Brief retenu : ${options.brief}`,

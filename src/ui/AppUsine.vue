@@ -4,7 +4,7 @@
 // c'est ce qui rend le câblage testable sans navigateur.
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { creerPilote } from '../orchestration/pilote'
-import { SCENARIOS, scenarioParDefaut, trouverScenario } from '../scenarios'
+import { CONTACT, EXEMPLES, briefParDefaut } from '../exemples'
 import type { NoeudVue } from '../etat/modele'
 import GrapheVivant from './GrapheVivant.vue'
 import PanneauNoeud from './PanneauNoeud.vue'
@@ -20,12 +20,13 @@ import {
   verificationSoumise,
 } from '../telemetrie'
 
-const pilote = creerPilote(scenarioParDefaut())
+const pilote = creerPilote()
 const etat = pilote.store.etat
 
-const cleScenario = ref(pilote.scenario().cle)
-const brief = ref(pilote.scenario().brief)
-const disposition = shallowRef(pilote.disposition())
+const brief = ref(briefParDefaut())
+// La disposition suit le graphe : elle n'est plus une photographie prise
+// avant le run, elle est recalculée quand l'usine fait naître un agent.
+const disposition = pilote.disposition
 const enCours = ref(false)
 const demarrage = ref(false)
 const erreur = ref<string | undefined>()
@@ -169,18 +170,17 @@ async function ecarter() {
   await pilote.ecarter()
 }
 
-async function changerScenario(cle: string) {
-  const trouve = trouverScenario(cle)
+async function changerExemple(cle: string) {
+  const trouve = EXEMPLES.find((exemple) => exemple.cle === cle)
   if (trouve === undefined) return
-  await pilote.changerScenario(trouve)
-  cleScenario.value = trouve.cle
+  await pilote.arreter()
   brief.value = trouve.brief
-  disposition.value = pilote.disposition()
   choisi.value = undefined
   erreur.value = undefined
   enCours.value = false
-  // Changer de niche clôt le run en cours, mesure comprise.
+  // Repartir d'un autre brief clôt le run en cours, mesure comprise.
   nouveauRun()
+  pilote.store.reinitialiser()
   arreterHorloge()
   debut.value = 0
   maintenant.value = 0
@@ -260,7 +260,7 @@ onBeforeUnmount(() => {
 
       <div class="pane">
         <h1 class="titre-cache">L'usine agentique — du besoin au produit</h1>
-        <label class="eyebrow" for="brief">Le besoin</label>
+        <label class="eyebrow" for="brief">Le besoin — l'usine n'existe pas encore</label>
         <textarea id="brief" v-model="brief" class="champ-brief"></textarea>
 
         <div class="rangee-actions">
@@ -269,13 +269,13 @@ onBeforeUnmount(() => {
             {{ enCours ? "Relancer l'usine" : "Lancer l'usine" }}
           </button>
           <select
-            v-if="SCENARIOS.length > 1"
             class="selecteur"
-            :value="cleScenario"
-            aria-label="Scénario"
-            @change="changerScenario(($event.target as HTMLSelectElement).value)"
+            value=""
+            aria-label="Partir d'un exemple"
+            @change="changerExemple(($event.target as HTMLSelectElement).value)"
           >
-            <option v-for="s in SCENARIOS" :key="s.cle" :value="s.cle">{{ s.titre }}</option>
+            <option value="" disabled>Partir d'un exemple…</option>
+            <option v-for="e in EXEMPLES" :key="e.cle" :value="e.cle">{{ e.titre }}</option>
           </select>
         </div>
 
@@ -356,9 +356,11 @@ onBeforeUnmount(() => {
         <ProduitLivre
           v-if="verificateur"
           :verifier="verificateur"
-          :contact="pilote.scenario().contact"
-          :titre="pilote.scenario().produit.titre"
-          :aide="pilote.scenario().produit.aide"
+          :contact="CONTACT"
+          :titre="pilote.plan()?.produit ?? 'Produit livré'"
+          :aide="
+            pilote.plan()?.aide ?? 'Collez un texte : chaque phrase reçoit un verdict et sa source.'
+          "
           @soumis="verificationSoumise"
         />
 

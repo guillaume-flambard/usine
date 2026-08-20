@@ -94,3 +94,16 @@ où ils ont été trouvés. Append-only.
 - source_spec: `epic 6 — mise en ligne`
   summary: Le clavier est vérifié par `focus()` programmatique, pas par une vraie tabulation.
   evidence: Un élément peut recevoir le focus par programme tout en étant inatteignable par Tab. La vérification devrait envoyer de vraies frappes et contrôler l'ordre de tabulation, ainsi que la visibilité de l'anneau de focus.
+
+## La pièce fabriquée ne revient pas après un échange de source à chaud
+
+Quand la source de vérité est libérée puis remplacée à chaud, les agents
+planifiés se désactivent puis se réactivent correctement. La pièce fabriquée,
+elle, reste en attente de dépendance : son retour supposerait que son parent
+la refabrique, et le nom qu'elle publie est encore réservé par la version
+désactivée.
+
+Conséquence : l'échange de source à chaud, qui n'est pas un geste de
+l'interface, laisse le produit livré indisponible jusqu'au run suivant.
+Couvert par un test qui dit exactement ce qui tient aujourd'hui
+(`invariants.spec.ts`), pas par un test qui ment.

@@ -42,19 +42,17 @@ describe('le plan déterministe', () => {
     expect(corpusDuBrief('bonjour').cle).toBe('allegations-sante')
   })
 
-  it('adapte la chaîne fabriquée à ce que le brief demande, sans jamais lâcher la source', () => {
-    const simple = planifierSansModele('Vérifier des allégations.')
-    const nuance = planifierSansModele(
-      'Vérifier des allégations, formulations négatives comprises.',
-    )
-    const outil = (plan: Plan) => plan.agents.find((a) => a.outil !== undefined)?.outil
+  it('ne fait jamais varier la justesse du verdict avec le brief', () => {
+    const outil = (brief: string) =>
+      planifierSansModele(brief).agents.find((a) => a.outil !== undefined)?.outil
 
-    expect(outil(simple)?.etapes).not.toContain('ecarter-les-negations')
-    expect(outil(nuance)?.etapes).toContain('ecarter-les-negations')
-    // « Pas de verdict sans source » est une promesse du produit, pas une option.
-    for (const plan of [simple, nuance]) {
-      expect(outil(plan)?.etapes).toContain('exiger-une-source')
-      expect(outil(plan)?.etapes.every((e) => nomsDePrimitives().includes(e))).toBe(true)
+    for (const brief of ['Vérifier des allégations.', 'Un écran, vite fait.', '']) {
+      // Écarter les négations et exiger une source ne sont pas des options :
+      // sans elles, « il ne traite pas les maladies » serait classé interdit,
+      // et un verdict tranché pourrait n'être adossé à rien.
+      expect(outil(brief)?.etapes, brief).toContain('ecarter-les-negations')
+      expect(outil(brief)?.etapes, brief).toContain('exiger-une-source')
+      expect(outil(brief)?.etapes.every((e) => nomsDePrimitives().includes(e))).toBe(true)
     }
   })
 
@@ -96,7 +94,15 @@ const PLAN_MINIMAL: Plan = {
       role: 'r',
       injecte: ['registre', 'fabrique'],
       fournit: ['sortie-produit'],
-      outil: { fournit: 'verificateur', etapes: ['decouper-allegations', 'classer-par-regles'] },
+      outil: {
+        fournit: 'verificateur',
+        etapes: [
+          'decouper-allegations',
+          'classer-par-regles',
+          'ecarter-les-negations',
+          'exiger-une-source',
+        ],
+      },
     },
     {
       nom: 'sceptique',
@@ -148,6 +154,22 @@ describe('la vérification du plan', () => {
         ),
       })),
     ).toContain('primitive-inconnue')
+  })
+
+  it("refuse une chaîne de classement sans garde-fou, même venue d'un modèle", () => {
+    expect(
+      avec((plan) => ({
+        ...plan,
+        agents: plan.agents.map((a) =>
+          a.outil
+            ? {
+                ...a,
+                outil: { ...a.outil, etapes: ['decouper-allegations', 'classer-par-regles'] },
+              }
+            : a,
+        ),
+      })),
+    ).toContain('chaine-non-sure')
   })
 
   it('refuse deux agents qui publient le même nom, et le vol des noms du maître', () => {

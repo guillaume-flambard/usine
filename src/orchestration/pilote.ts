@@ -1,23 +1,23 @@
 // Le pilote : tout ce qui fait vivre un run — le noyau, le store, la
-// disposition, l'horloge — hors de tout composant Vue. C'est ce qui rend le
-// câblage de l'application vérifiable sans navigateur.
+// disposition — hors de tout composant Vue. C'est ce qui rend le câblage de
+// l'application vérifiable sans navigateur.
+//
+// Il n'y a plus de scénario à choisir. Il y a un brief, et ce que l'usine
+// en fait.
 
-import { disposer, type Disposition } from '../etat/disposition'
+import { computed, shallowRef, type Ref } from 'vue'
+import { disposerVivant, signatureTopologie, type Disposition } from '../etat/disposition'
 import { creerStore, type StoreRun } from '../etat/store'
 import { creerNoyau, type Noyau } from '../runtime/noyau'
 import type { Verdict } from '../runtime/fabrique/primitives'
 import { fabriqueParComposition, fabriqueParEvaluation, type Fabrique } from '../runtime/fabrique'
 import { raisonneurDeterministe, type Raisonneur } from '../runtime/raisonneur'
-import type { Scenario } from '../scenarios/types'
-import { lancer, ordreDuScenario, topologieDeclaree } from './lancer'
-
-/** La disposition d'un scénario : calculée une fois, sur la topologie déclarée. */
-export const disposerScenario = (scenario: Scenario): Disposition =>
-  disposer(topologieDeclaree(scenario), { ordre: ordreDuScenario(scenario) })
+import type { Plan } from './plan'
+import { lancerUsine } from './usine'
 
 export type PhaseRun =
   | 'Au repos'
-  | 'Analyse'
+  | 'Planification'
   | 'Construction'
   | 'Décision'
   | 'Écarté'
@@ -36,8 +36,10 @@ export interface OptionsBranchement {
 
 export interface Pilote {
   readonly store: StoreRun
-  disposition(): Disposition
-  scenario(): Scenario
+  /** La disposition du graphe tel qu'il est. Recalculée quand il pousse. */
+  readonly disposition: Ref<Disposition>
+  /** Le plan que le run s'est donné. Absent tant qu'il n'a pas planifié. */
+  plan(): Plan | undefined
   phase(): PhaseRun
   /** Vrai quand plus rien ne bougera sans une action humaine. */
   fini(): boolean
@@ -53,7 +55,6 @@ export interface Pilote {
   /** La voie de fabrication en vigueur au prochain run. */
   voieDeFabrication(): 'composition' | 'evaluation'
   arreter(): Promise<void>
-  changerScenario(scenario: Scenario): Promise<void>
   /** Approuve la porte en attente. Rend `false` si aucune n'attend. */
   approuver(): boolean
   /**
@@ -71,16 +72,39 @@ export interface Pilote {
   noyau(): Noyau | undefined
 }
 
-export function creerPilote(scenarioInitial: Scenario): Pilote {
+const DISPOSITION_VIDE: Disposition = {
+  boites: new Map(),
+  liens: [],
+  largeur: 0,
+  hauteur: 0,
+}
+
+export function creerPilote(): Pilote {
   const store = creerStore()
-  let scenarioCourant = scenarioInitial
-  let dispositionCourante = disposerScenario(scenarioInitial)
   let noyauCourant: Noyau | undefined
   let debrancher: (() => void) | undefined
   let derniereErreur: string | undefined
   let demarrageEnCours = false
   let raisonneurCourant: Raisonneur = raisonneurDeterministe()
   let fabriqueCourante: Fabrique = fabriqueParComposition()
+
+  // La disposition ne se recalcule que quand la topologie change : un
+  // message ou un changement d'état n'a aucune raison de déplacer un nœud.
+  const derniere = shallowRef<{ signature: string; disposition: Disposition }>({
+    signature: '',
+    disposition: DISPOSITION_VIDE,
+  })
+  const disposition = computed(() => {
+    const { noeuds, aretes } = store.etat.value
+    if (noeuds.length === 0) return DISPOSITION_VIDE
+    const signature = signatureTopologie(noeuds, aretes)
+    if (signature !== derniere.value.signature) {
+      derniere.value = { signature, disposition: disposerVivant(noeuds, aretes) }
+    }
+    return derniere.value.disposition
+  })
+
+  const plan = (): Plan | undefined => noyauCourant?.produit<{ plan?: Plan }>('memoire')?.plan
 
   const phase = (): PhaseRun => {
     const noeuds = store.etat.value.noeuds
@@ -89,17 +113,18 @@ export function creerPilote(scenarioInitial: Scenario): Pilote {
     const porte = store.etat.value.porte
     // Une porte en attente arrête le run : ce n'est ni une fin ni une panne.
     if (porte !== undefined && porte.decision === undefined) return 'Décision'
-    // Un run écarté est arrêté, pas en cours : le dire « Analyse » laisserait
-    // croire qu'il travaille encore.
+    // Un run écarté est arrêté, pas en cours : le dire « Construction »
+    // laisserait croire qu'il travaille encore.
     if (porte?.decision === 'ecarte') return 'Écarté'
     // L'incident vient après la porte : tant qu'on attend une décision, dire
     // « Incident » et déclarer le run fini laisserait des boutons actifs sur
     // un run annoncé terminé.
     if (noeuds.some((n) => n.etat === 'en-erreur')) return 'Incident'
     if (noeuds.every((n) => n.etat === 'termine')) return 'Terminé'
-    if (noeuds.some((n) => n.nom.startsWith('constructeur-') && n.etat === 'en-cours'))
-      return 'Construction'
-    return 'Analyse'
+    // Tant que le maître est seul, l'usine lit le brief : elle ne construit
+    // rien encore, et le dire serait faux.
+    if (noeuds.some((n) => n.nom !== 'agent-maitre' && n.etat === 'en-cours')) return 'Construction'
+    return 'Planification'
   }
 
   async function arreter() {
@@ -111,8 +136,8 @@ export function creerPilote(scenarioInitial: Scenario): Pilote {
 
   return {
     store,
-    disposition: () => dispositionCourante,
-    scenario: () => scenarioCourant,
+    disposition,
+    plan,
     phase,
     fini: () => ['Terminé', 'Écarté', 'Libéré', 'Incident'].includes(phase()),
     erreur: () => derniereErreur,
@@ -142,7 +167,7 @@ export function creerPilote(scenarioInitial: Scenario): Pilote {
         derniereErreur = undefined
         noyauCourant = creerNoyau()
         debrancher = store.brancher(noyauCourant)
-        await lancer(noyauCourant, scenarioCourant, {
+        await lancerUsine(noyauCourant, {
           brief,
           raisonneur: raisonneurCourant,
           fabrique: fabriqueCourante,
@@ -192,12 +217,5 @@ export function creerPilote(scenarioInitial: Scenario): Pilote {
     },
     modeRaisonnement: () => raisonneurCourant.origine,
     voieDeFabrication: () => fabriqueCourante.voie,
-    async changerScenario(scenario: Scenario) {
-      await arreter()
-      scenarioCourant = scenario
-      dispositionCourante = disposerScenario(scenario)
-      store.reinitialiser()
-      derniereErreur = undefined
-    },
   }
 }
