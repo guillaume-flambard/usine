@@ -70,7 +70,7 @@ function effacer() {
           </p>
           <p class="verdict-texte">« {{ verdict.texte }} »</p>
           <p v-if="verdict.source" class="verdict-source">{{ verdict.source }}</p>
-          <p v-else class="verdict-source">Aucune règle du registre ne couvre cette formulation.</p>
+          <p v-else class="verdict-source">{{ RAISONS[verdict.raison ?? 'aucune-regle'] }}</p>
         </li>
       </ul>
 
