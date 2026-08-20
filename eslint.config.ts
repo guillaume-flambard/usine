@@ -15,12 +15,39 @@ export default defineConfigWithVueTs(
     files: ['**/*.{vue,ts,mts,tsx}'],
   },
 
-  globalIgnores(['**/dist/**', '**/dist-ssr/**', '**/coverage/**']),
+  globalIgnores(['**/dist/**', '**/dist-*/**', '**/dist-ssr/**', '**/coverage/**']),
 
   ...pluginVue.configs['flat/essential'],
   vueTsConfigs.recommended,
 
   ...pluginOxlint.buildFromOxlintConfigFile('.oxlintrc.json'),
+
+  // Isolement du noyau de composition : `cordis` ne s'importe que sous
+  // `src/runtime/`. Le reste de l'application passe par son API publique.
+  // C'est une règle, pas une convention : sans elle le paradigme s'érode
+  // composant par composant.
+  {
+    name: 'app/isolement-du-runtime',
+    files: ['**/*.{vue,ts,mts,tsx}'],
+    // `spike/` est un banc de preuve hors application : il a le droit de
+    // parler au moteur directement, c'est même sa raison d'être.
+    ignores: ['src/runtime/**', 'spike/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'cordis',
+              message:
+                "Seul src/runtime/ importe cordis. Passez par l'API publique du noyau (src/runtime/noyau.ts).",
+            },
+          ],
+          patterns: ['cordis/*'],
+        },
+      ],
+    },
+  },
 
   skipFormatting,
 )

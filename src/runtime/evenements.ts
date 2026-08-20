@@ -1,0 +1,78 @@
+// Le canal unique. Tout ce que le reste de l'application apprend d'un run
+// passe par ici. Ajouter une information visible, c'est ajouter une variante.
+
+import type { ErreurComposant, IdComposant, Presentation } from './contrat'
+
+interface Base {
+  /** Strictement croissant, sans trou, attribué par le noyau. */
+  sequence: number
+}
+
+export interface ComposantCree extends Base {
+  type: 'composant-cree'
+  id: IdComposant
+  nom: string
+  presentation: Presentation
+  injecte: readonly string[]
+  fournit: readonly string[]
+}
+
+export interface ComposantActive extends Base {
+  type: 'composant-active'
+  id: IdComposant
+}
+
+export interface ComposantDesactive extends Base {
+  type: 'composant-desactive'
+  id: IdComposant
+  /** Le nom de dépendance dont le départ a provoqué la désactivation. */
+  cause: string
+}
+
+export interface ComposantLibere extends Base {
+  type: 'composant-libere'
+  id: IdComposant
+}
+
+export interface ComposantEnErreur extends Base {
+  type: 'composant-en-erreur'
+  erreur: ErreurComposant
+}
+
+export interface MessageEmis extends Base {
+  type: 'message-emis'
+  id: IdComposant
+  message: string
+}
+
+export interface TravailTermine extends Base {
+  type: 'travail-termine'
+  id: IdComposant
+}
+
+export interface ValeurTransmise extends Base {
+  type: 'valeur-transmise'
+  de: IdComposant
+  vers: IdComposant
+  nom: string
+}
+
+export type EvenementRun =
+  | ComposantCree
+  | ComposantActive
+  | ComposantDesactive
+  | ComposantLibere
+  | ComposantEnErreur
+  | MessageEmis
+  | TravailTermine
+  | ValeurTransmise
+
+export type Abonne = (evenement: EvenementRun) => void
+
+/**
+ * Un événement avant que le noyau lui attribue sa séquence.
+ * Distributif : sans ça, `Omit` s'appliquerait à l'union entière et
+ * ne garderait que les clés communes — les variantes cesseraient
+ * d'être vérifiées.
+ */
+export type SansSequence<T = EvenementRun> = T extends EvenementRun ? Omit<T, 'sequence'> : never
