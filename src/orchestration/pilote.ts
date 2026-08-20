@@ -99,7 +99,15 @@ export function creerPilote(scenarioInitial: Scenario): Pilote {
       // Seulement après une approbation : le produit n'est livré qu'une fois
       // la porte franchie, et écarter le retire.
       if (store.etat.value.porte?.decision !== 'approuve') return undefined
-      return noyauCourant?.produit<(texte: string) => readonly Verdict[]>('verificateur')
+      // Ni depuis un run tombé en panne ou libéré : servir le produit d'un
+      // run que le graphe montre en échec serait incohérent.
+      if (phase() === 'Incident' || phase() === 'Libéré') return undefined
+      const publie = noyauCourant?.produit<unknown>('verificateur')
+      // `produit` rend ce qui a été publié sous ce nom, quel qu'il soit :
+      // sans cette garde, un clic finirait en TypeError dans la page.
+      return typeof publie === 'function'
+        ? (publie as (texte: string) => readonly Verdict[])
+        : undefined
     },
     arreter,
     async demarrer(brief: string) {

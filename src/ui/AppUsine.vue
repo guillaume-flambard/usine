@@ -237,14 +237,20 @@ onBeforeUnmount(() => {
           @choisir="choisi = choisi === $event ? undefined : $event"
         />
 
+        <!-- Les deux occupent le même bas d'écran : le produit livré prend
+             la place de la porte une fois la décision rendue. -->
         <PorteHumaine
-          v-if="etat.porte"
+          v-if="etat.porte && !verificateur"
           :porte="etat.porte"
           @approuver="approuver"
           @ecarter="ecarter"
         />
 
-        <ProduitLivre v-if="verificateur" :verifier="verificateur" />
+        <ProduitLivre
+          v-if="verificateur"
+          :verifier="verificateur"
+          :contact="pilote.scenario().contact"
+        />
 
         <PanneauNoeud
           v-if="noeudChoisi"

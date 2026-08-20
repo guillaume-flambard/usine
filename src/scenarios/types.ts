@@ -29,6 +29,8 @@ export interface Scenario {
   titre: string
   /** Le besoin métier pré-rempli dans le champ de brief. */
   brief: string
+  /** Où écrire pour aller plus loin, une fois le produit essayé. */
+  contact: string
   /**
    * L'agent qui ouvre le run. Les autres sont chargés par lui.
    * `construire` reçoit le brief réellement saisi : sans ça, le champ de

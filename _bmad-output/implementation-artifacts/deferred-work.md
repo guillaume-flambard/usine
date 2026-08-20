@@ -58,3 +58,11 @@ où ils ont été trouvés. Append-only.
 - source_spec: `epic 3 — porte humaine`
   summary: La porte ne permet pas d'ouvrir les artefacts sur lesquels porte l'objection.
   evidence: L'objection cite des nombres réels (sorties, critères) mais n'offre aucun chemin vers le nœud du sceptique ni vers les artefacts amont. L'humain tranche sur une assertion qu'il ne peut pas vérifier sans fermer la porte et cliquer ailleurs.
+
+- source_spec: `epic 4 — produit livré`
+  summary: Le vérificateur tourne sur le fil principal, borné à 20 000 caractères par le champ de saisie.
+  evidence: Un catalogue entier collé bloquerait l'interface. La borne évite le gel mais ne traite pas le cas d'usage de Sophie (UJ-3), qui veut passer son catalogue. Un traitement par lot relève d'une version serveur, explicitement hors v1.
+
+- source_spec: `epic 4 — produit livré`
+  summary: Aucun test de composant sur le bloc de payoff.
+  evidence: Le branchement, les verdicts et les raisons sont couverts au niveau du pilote et des primitives, mais le rendu — bouton désactivé, raccourci clavier, message d'absence d'allégation, annonce aux lecteurs d'écran — n'est vérifié que par lecture. Story 6.4.

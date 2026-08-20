@@ -17,7 +17,9 @@ export interface Verdict {
    * alors qu'une règle a bien correspondu serait faux : la formulation
    * négative est une raison distincte, et l'utilisateur doit la connaître.
    */
-  raison?: 'aucune-regle' | 'formulation-negative' | 'source-absente'
+  raison?: 'aucune-regle' | 'regle-ambigue' | 'formulation-negative' | 'source-absente'
+  /** Le motif de règle qui a correspondu. Interne à la chaîne de primitives. */
+  motif?: string
 }
 
 /** Ce qu'une primitive reçoit et ce qu'elle rend, d'une étape à l'autre. */
@@ -45,17 +47,89 @@ export interface DescriptionPrimitive {
  */
 export const sourceDe = (primitive: DescriptionPrimitive): string => primitive.appliquer.toString()
 
+/**
+ * Normalise avant comparaison : apostrophe typographique, accents, espaces.
+ * Une copie marketing tapée au clavier emploie l'apostrophe droite et laisse
+ * tomber les accents ; sans normalisation, trois des règles autorisées du
+ * registre ne correspondent jamais à ce qu'un humain écrit.
+ */
+export const normaliser = (texte: string): string =>
+  texte
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[\u2019\u02BC]/g, "'")
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    .trim()
+
+/**
+ * Un motif ne correspond que sur des frontières de mot. Sans ça, « traite »
+ * se déclenche sur « extraite » et « soigne » sur « soigneusement » : un
+ * verdict faux mais accompagné d'une citation réglementaire, ce qui détruit
+ * la confiance plus sûrement qu'une absence de verdict.
+ */
+const echapper = (motif: string) => motif.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+export const motifCorrespond = (texte: string, motif: string): boolean => {
+  const normalise = normaliser(motif)
+  if (normalise.length === 0) return false
+  return new RegExp(`(^|[^\\p{L}\\p{N}])${echapper(normalise)}([^\\p{L}\\p{N}]|$)`, 'u').test(
+    normaliser(texte),
+  )
+}
+
+/**
+ * Les négations françaises courantes. Jusqu'à trois mots peuvent s'intercaler
+ * entre « ne » et son second terme : « ne vous guérit pas », « ne guérit
+ * absolument pas ».
+ *
+ * « sans » n'y figure pas : « sans sucre » est une mention de composition,
+ * pas la négation d'une allégation de santé.
+ */
+const NEGATIONS = [
+  /(^|\s)n(?:e|['\u2019])\s*(?:[\p{L}\u2019'-]+\s+){0,3}?(pas|plus|jamais|rien|point|nullement|guere|aucune?|ni)(\s|$|[.,;!?])/iu,
+  /(^|\s)non\s+[\p{L}\u2019'-]+/iu,
+]
+
+/**
+ * Une négation ne vaut que pour la proposition où elle se trouve.
+ * « Il ne remplace pas un médicament mais il guérit l'arthrose » contient une
+ * violation, et la rabattre sur « à vérifier » ferait taire l'outil là où il
+ * doit parler.
+ */
+const propositions = (texte: string): readonly string[] =>
+  texte.split(/,| mais | et | tandis que | alors que /i).filter((part) => part.trim().length > 0)
+
+const estNiee = (texte: string, motif: string): boolean => {
+  const porteuses = propositions(texte).filter((proposition) => motifCorrespond(proposition, motif))
+  const aExaminer = porteuses.length > 0 ? porteuses : [texte]
+  return aExaminer.every((proposition) => NEGATIONS.some((n) => n.test(normaliser(proposition))))
+}
+
+/**
+ * Découpe en phrases sans casser les abréviations ni les décimales :
+ * « Vitamine D3 500 U.I. » ne doit pas produire trois allégations.
+ */
 const decouper: DescriptionPrimitive = {
   nom: 'decouper-allegations',
   resume: 'Découpe le texte en allégations, une par phrase.',
   appliquer: (passe) => ({
     ...passe,
     allegations: passe.texte
-      .split(/[.;!?\n]+/)
+      // On ne coupe qu'après une ponctuation suivie d'une majuscule : « 500
+      // U.I. contribue » reste une seule allégation, « carences. Il » non.
+      .split(/(?<=[.;!?])\s+(?=[\p{Lu}])|\n+/u)
       .map((t) => t.trim())
       .filter((t) => t.length > 0)
       .map((texte) => ({ texte })),
   }),
+}
+
+/** Le rang de gravité : une interdiction ne doit jamais être masquée. */
+const RANG: Record<Verdict['statut'], number> = {
+  interdit: 0,
+  'a-verifier': 1,
+  autorise: 2,
 }
 
 const classer: DescriptionPrimitive = {
@@ -64,37 +138,37 @@ const classer: DescriptionPrimitive = {
   appliquer: (passe) => ({
     ...passe,
     verdicts: passe.allegations.map((allegation) => {
-      // Un motif vide correspondrait à toutes les allégations et leur
-      // collerait un verdict tranché : on l'écarte.
-      const regle = passe.regles.find(
-        (r) =>
-          r.motif.trim().length > 0 &&
-          allegation.texte.toLowerCase().includes(r.motif.toLowerCase()),
-      )
-      return regle === undefined
-        ? {
-            texte: allegation.texte,
-            statut: 'a-verifier' as const,
-            raison: 'aucune-regle' as const,
-          }
-        : { texte: allegation.texte, statut: regle.statut, source: regle.source }
+      // Toutes les règles qui correspondent, pas la première trouvée : sinon
+      // l'ordre du tableau déciderait, et une allégation interdite pourrait
+      // être masquée par une allégation autorisée de la même phrase.
+      const trouvees = passe.regles
+        .filter((regle) => motifCorrespond(allegation.texte, regle.motif))
+        .sort((a, b) => RANG[a.statut] - RANG[b.statut] || b.motif.length - a.motif.length)
+      const regle = trouvees[0]
+      if (regle === undefined) {
+        return {
+          texte: allegation.texte,
+          statut: 'a-verifier' as const,
+          raison: 'aucune-regle' as const,
+        }
+      }
+      if (regle.statut === 'a-verifier') {
+        return {
+          texte: allegation.texte,
+          statut: 'a-verifier' as const,
+          source: regle.source,
+          raison: 'regle-ambigue' as const,
+        }
+      }
+      return {
+        texte: allegation.texte,
+        statut: regle.statut,
+        source: regle.source,
+        motif: regle.motif,
+      }
     }),
   }),
 }
-
-/**
- * Une allégation niée ne dit pas ce que dit l'allégation. « Ne guérit pas »
- * n'est pas « guérit » — et le classer « interdit » avec une citation
- * réglementaire à l'appui serait exactement le genre de verdict faux mais
- * bien sourcé qui détruit la confiance du métier.
- */
-const NEGATIONS = [
-  // `\w` ne couvre pas les lettres accentuées en JavaScript : « ne guérit
-  // pas » passait au travers. On travaille en propriétés Unicode.
-  /(^|\s)ne\s+[\p{L}’'-]+\s+(pas|plus|jamais|aucun|aucune)(\s|$|[.,;!?])/iu,
-  /(^|\s)n['’]\s*[\p{L}’'-]+\s+(pas|plus|jamais|aucun|aucune)(\s|$|[.,;!?])/iu,
-  /(^|\s)sans\s+[\p{L}’'-]+/iu,
-]
 
 const ecarterLesNegations: DescriptionPrimitive = {
   nom: 'ecarter-les-negations',
@@ -102,7 +176,9 @@ const ecarterLesNegations: DescriptionPrimitive = {
   appliquer: (passe) => ({
     ...passe,
     verdicts: passe.verdicts.map((verdict) =>
-      NEGATIONS.some((motif) => motif.test(verdict.texte)) && verdict.statut !== 'a-verifier'
+      verdict.statut !== 'a-verifier' &&
+      verdict.motif !== undefined &&
+      estNiee(verdict.texte, verdict.motif)
         ? {
             texte: verdict.texte,
             statut: 'a-verifier' as const,

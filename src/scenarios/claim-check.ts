@@ -95,6 +95,7 @@ export const claimCheck: Scenario = {
   cle: 'claim-check',
   titre: 'ClaimCheck',
   brief: BRIEF,
+  contact: 'g.flambard@gmail.com',
   maitre: {
     cle: 'a-maitre',
     composant: agentMaitre({ brief: BRIEF, secteur: SECTEUR }),

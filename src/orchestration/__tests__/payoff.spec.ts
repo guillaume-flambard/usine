@@ -75,22 +75,30 @@ describe('le produit livré', () => {
     }
   })
 
-  it('est déterministe : le même texte donne le même résultat', async () => {
-    const pilote = await runApprouve()
-    const verifier = pilote.verificateur()
-    expect(verifier?.(TEXTE)).toEqual(verifier?.(TEXTE))
+  it('est déterministe : deux pièces fabriquées séparément classent pareil', async () => {
+    // Appeler deux fois la même fonction ne prouverait qu'une absence d'état
+    // caché. Ce qui compte, c'est que deux runs indépendants fabriquent une
+    // pièce qui rend le même verdict.
+    const premier = await runApprouve()
+    const second = await runApprouve()
+    expect(premier.verificateur()?.(TEXTE)).toEqual(second.verificateur()?.(TEXTE))
   })
 
-  it('rend son verdict en moins de 300 ms sur 2000 caractères', async () => {
+  it('rend son verdict en moins de 300 ms sur 2000 caractères, au pire cas', async () => {
     const pilote = await runApprouve()
     const verifier = pilote.verificateur()
-    const long = `${TEXTE} `.repeat(Math.ceil(2000 / (TEXTE.length + 1))).slice(0, 2000)
+    // Le pire cas n'est pas un texte qui déclenche vite : c'est un texte fait
+    // de nombreuses allégations courtes qui ne correspondent à rien, donc
+    // chacune balaie les quinze règles jusqu'au bout.
+    const pire = 'Une phrase neutre et courte. '.repeat(72).slice(0, 2000)
+    expect(pire.length).toBe(2000)
 
     const depart = performance.now()
-    const verdicts = verifier?.(long) ?? []
+    const verdicts = verifier?.(pire) ?? []
     const duree = performance.now() - depart
 
-    expect(verdicts.length).toBeGreaterThan(10)
+    expect(verdicts.length).toBeGreaterThan(50)
+    expect(verdicts.every((v) => v.statut === 'a-verifier')).toBe(true)
     expect(duree).toBeLessThan(300)
   })
 
