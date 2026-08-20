@@ -64,6 +64,12 @@ export interface Noyau {
   /** Photographie de la topologie vivante. */
   introspecter(): Topologie
   /**
+   * Lit une sortie publiée par le run, pour que l'application puisse
+   * consommer ce qui a été produit. C'est une lecture, jamais une écriture :
+   * l'interface ne participe pas à la composition.
+   */
+  produit<T = unknown>(nom: string): T | undefined
+  /**
    * Tranche une porte humaine en attente. Rend `false` si aucune porte
    * n'attend sous cet identifiant — une décision ne se prend pas deux fois.
    */
@@ -486,6 +492,10 @@ export function creerNoyau(): Noyau {
         if (entrees.size === restants) break
         restants = entrees.size
       }
+    },
+    produit<T = unknown>(nom: string): T | undefined {
+      // Non stricte : au repos ou entre deux runs, l'absence est normale.
+      return racine.get(nom, false) as T | undefined
     },
     introspecter(): Topologie {
       const composants: NoeudTopologie[] = [...entrees.values()].map((entree) => ({

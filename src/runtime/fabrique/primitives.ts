@@ -12,6 +12,12 @@ export interface Verdict {
   statut: 'autorise' | 'interdit' | 'a-verifier'
   /** Toujours renseignée pour un verdict tranché ; absente sinon. */
   source?: string
+  /**
+   * Pourquoi le verdict n'est pas tranché. Dire « aucune règle ne couvre »
+   * alors qu'une règle a bien correspondu serait faux : la formulation
+   * négative est une raison distincte, et l'utilisateur doit la connaître.
+   */
+  raison?: 'aucune-regle' | 'formulation-negative' | 'source-absente'
 }
 
 /** Ce qu'une primitive reçoit et ce qu'elle rend, d'une étape à l'autre. */
@@ -66,9 +72,44 @@ const classer: DescriptionPrimitive = {
           allegation.texte.toLowerCase().includes(r.motif.toLowerCase()),
       )
       return regle === undefined
-        ? { texte: allegation.texte, statut: 'a-verifier' as const }
+        ? {
+            texte: allegation.texte,
+            statut: 'a-verifier' as const,
+            raison: 'aucune-regle' as const,
+          }
         : { texte: allegation.texte, statut: regle.statut, source: regle.source }
     }),
+  }),
+}
+
+/**
+ * Une allégation niée ne dit pas ce que dit l'allégation. « Ne guérit pas »
+ * n'est pas « guérit » — et le classer « interdit » avec une citation
+ * réglementaire à l'appui serait exactement le genre de verdict faux mais
+ * bien sourcé qui détruit la confiance du métier.
+ */
+const NEGATIONS = [
+  // `\w` ne couvre pas les lettres accentuées en JavaScript : « ne guérit
+  // pas » passait au travers. On travaille en propriétés Unicode.
+  /(^|\s)ne\s+[\p{L}’'-]+\s+(pas|plus|jamais|aucun|aucune)(\s|$|[.,;!?])/iu,
+  /(^|\s)n['’]\s*[\p{L}’'-]+\s+(pas|plus|jamais|aucun|aucune)(\s|$|[.,;!?])/iu,
+  /(^|\s)sans\s+[\p{L}’'-]+/iu,
+]
+
+const ecarterLesNegations: DescriptionPrimitive = {
+  nom: 'ecarter-les-negations',
+  resume: 'Retire du classement les allégations formulées à la forme négative.',
+  appliquer: (passe) => ({
+    ...passe,
+    verdicts: passe.verdicts.map((verdict) =>
+      NEGATIONS.some((motif) => motif.test(verdict.texte)) && verdict.statut !== 'a-verifier'
+        ? {
+            texte: verdict.texte,
+            statut: 'a-verifier' as const,
+            raison: 'formulation-negative' as const,
+          }
+        : verdict,
+    ),
   }),
 }
 
@@ -79,13 +120,15 @@ const exigerSource: DescriptionPrimitive = {
     ...passe,
     verdicts: passe.verdicts.map((verdict) =>
       verdict.statut !== 'a-verifier' && (verdict.source ?? '').trim().length === 0
-        ? { texte: verdict.texte, statut: 'a-verifier' as const }
+        ? { texte: verdict.texte, statut: 'a-verifier' as const, raison: 'source-absente' as const }
         : verdict,
     ),
   }),
 }
 
-const PRIMITIVES = [decouper, classer, exigerSource].map((primitive) => Object.freeze(primitive))
+const PRIMITIVES = [decouper, classer, ecarterLesNegations, exigerSource].map((primitive) =>
+  Object.freeze(primitive),
+)
 
 /**
  * Le registre est fermé : `chercherPrimitive` est la seule voie d'accès, et

@@ -16,13 +16,7 @@ import { registreEu, type Regle } from '../outils/registre-eu'
 import type { Scenario } from './types'
 
 const REGLES: readonly Regle[] = [
-  {
-    motif: 'renforce les défenses naturelles',
-    statut: 'a-verifier',
-    source: 'Règlement (CE) 1924/2006, art. 10',
-  },
-  { motif: 'guérit', statut: 'interdit', source: 'Règlement (CE) 1924/2006, art. 7' },
-  { motif: 'soigne', statut: 'interdit', source: 'Règlement (CE) 1924/2006, art. 7' },
+  // Allégations de santé autorisées — Règlement (UE) 432/2012, annexe.
   {
     motif: 'contribue au fonctionnement normal du système immunitaire',
     statut: 'autorise',
@@ -32,6 +26,63 @@ const REGLES: readonly Regle[] = [
     motif: 'contribue à réduire la fatigue',
     statut: 'autorise',
     source: 'Règlement (UE) 432/2012, annexe',
+  },
+  {
+    motif: 'contribue au maintien d’une ossature normale',
+    statut: 'autorise',
+    source: 'Règlement (UE) 432/2012, annexe',
+  },
+  {
+    motif: 'contribue à une fonction musculaire normale',
+    statut: 'autorise',
+    source: 'Règlement (UE) 432/2012, annexe',
+  },
+  {
+    motif: 'contribue au maintien d’une vision normale',
+    statut: 'autorise',
+    source: 'Règlement (UE) 432/2012, annexe',
+  },
+
+  // Allégations thérapeutiques — interdites aux denrées alimentaires.
+  { motif: 'guérit', statut: 'interdit', source: 'Règlement (CE) 1924/2006, art. 7' },
+  { motif: 'soigne', statut: 'interdit', source: 'Règlement (CE) 1924/2006, art. 7' },
+  { motif: 'traite', statut: 'interdit', source: 'Règlement (CE) 1924/2006, art. 7' },
+  {
+    motif: 'prévient la maladie',
+    statut: 'interdit',
+    source: 'Règlement (CE) 1924/2006, art. 7',
+  },
+  {
+    motif: 'remplace un traitement',
+    statut: 'interdit',
+    source: 'Règlement (CE) 1924/2006, art. 7',
+  },
+  {
+    motif: 'fait perdre du poids',
+    statut: 'interdit',
+    source: 'Règlement (CE) 1924/2006, art. 12',
+  },
+  {
+    motif: 'recommandé par les médecins',
+    statut: 'interdit',
+    source: 'Règlement (CE) 1924/2006, art. 12',
+  },
+
+  // Formulations qui demandent une vérification au cas par cas.
+  {
+    motif: 'renforce les défenses naturelles',
+    statut: 'a-verifier',
+    source: 'Règlement (CE) 1924/2006, art. 10',
+  },
+  {
+    motif: 'détoxifie',
+    statut: 'a-verifier',
+    source: 'Règlement (CE) 1924/2006, art. 10',
+  },
+  {
+    motif: 'anti-âge',
+    statut: 'a-verifier',
+    source: 'Règlement (CE) 1924/2006, art. 10',
   },
 ]
 

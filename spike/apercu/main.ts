@@ -22,6 +22,19 @@ void (async () => {
     document.querySelector<HTMLButtonElement>('.porte-actions .bouton:first-child')?.click()
     await attendre(300)
   }
+  if (params.get('payoff') !== null) {
+    const champ = document.querySelector<HTMLTextAreaElement>('#copie')
+    if (champ) {
+      champ.value =
+        'Notre complément guérit les carences chroniques. Il contribue à réduire la fatigue. ' +
+        'Il ne traite pas les maladies. Il rend la peau lumineuse.'
+      champ.dispatchEvent(new Event('input', { bubbles: true }))
+      await attendre(60)
+      const boutons = [...document.querySelectorAll<HTMLButtonElement>('.produit .bouton')]
+      boutons[0]?.click()
+      await attendre(200)
+    }
+  }
   if (params.get('choisir') !== null) {
     const cible = params.get('choisir') ?? ''
     const noeuds = [...document.querySelectorAll<SVGGElement>('.noeud')]

@@ -14,7 +14,12 @@ const SPEC: SpecificationComposant = {
   role: 'Classe chaque allégation et cite sa source',
   injecte: ['registre'],
   fournit: ['verificateur'],
-  etapes: ['decouper-allegations', 'classer-par-regles', 'exiger-une-source'],
+  etapes: [
+    'decouper-allegations',
+    'classer-par-regles',
+    'ecarter-les-negations',
+    'exiger-une-source',
+  ],
 }
 
 const REGLES = [
@@ -92,6 +97,30 @@ describe('fabrication par composition', () => {
     expect(topologie.dependances.some((d) => d.nom === 'registre')).toBe(true)
   })
 
+  it('ne classe pas « interdit » une allégation à la forme négative', async () => {
+    const noyau = creerNoyau()
+    let verifier: ((texte: string) => readonly { statut: string; source?: string }[]) | undefined
+    await noyau.charger(outilRegistre)
+    const resultat = fabriqueParComposition().compiler(SPEC)
+    if (!resultat.ok) throw new Error('compilation échouée')
+    await noyau.charger(resultat.piece.composant)
+    await noyau.charger({
+      nom: 'lecteur',
+      injecte: ['verificateur'],
+      presentation: { libelle: 'Lecteur', role: 'Récupère la fonction' },
+      applique(contexte) {
+        verifier = contexte.lire('verificateur')
+      },
+    })
+    await tick()
+
+    // Un verdict faux mais bien sourcé détruit la confiance plus vite qu'une
+    // absence de verdict.
+    const verdicts = verifier?.('Ce produit ne guérit pas les rhumes.')
+    expect(verdicts?.[0]?.statut).toBe('a-verifier')
+    expect(verdicts?.[0]?.source).toBeUndefined()
+  })
+
   it('classe un texte réel, avec sa source, et retombe sur « à vérifier »', async () => {
     const noyau = creerNoyau()
     let verifier: ((texte: string) => readonly { statut: string; source?: string }[]) | undefined
@@ -125,6 +154,7 @@ describe('fabrication par composition', () => {
     expect(nomsDePrimitives()).toEqual([
       'decouper-allegations',
       'classer-par-regles',
+      'ecarter-les-negations',
       'exiger-une-source',
     ])
   })

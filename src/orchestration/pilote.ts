@@ -5,6 +5,7 @@
 import { disposer, type Disposition } from '../etat/disposition'
 import { creerStore, type StoreRun } from '../etat/store'
 import { creerNoyau, type Noyau } from '../runtime/noyau'
+import type { Verdict } from '../runtime/fabrique/primitives'
 import type { Scenario } from '../scenarios/types'
 import { lancer, ordreDuScenario, topologieDeclaree } from './lancer'
 
@@ -40,6 +41,12 @@ export interface Pilote {
    * fabriquée est libérée pour que le graphe montre la rétractation.
    */
   ecarter(): Promise<boolean>
+  /**
+   * Le produit livré, quand le run est allé jusqu'au bout. C'est la
+   * fonction que la pièce fabriquée publie — l'application la consomme,
+   * elle ne participe pas à la composition.
+   */
+  verificateur(): ((texte: string) => readonly Verdict[]) | undefined
   /** Le noyau du run en cours, pour l'introspection. Absent au repos. */
   noyau(): Noyau | undefined
 }
@@ -88,6 +95,12 @@ export function creerPilote(scenarioInitial: Scenario): Pilote {
     fini: () => ['Terminé', 'Écarté', 'Libéré', 'Incident'].includes(phase()),
     erreur: () => derniereErreur,
     noyau: () => noyauCourant,
+    verificateur() {
+      // Seulement après une approbation : le produit n'est livré qu'une fois
+      // la porte franchie, et écarter le retire.
+      if (store.etat.value.porte?.decision !== 'approuve') return undefined
+      return noyauCourant?.produit<(texte: string) => readonly Verdict[]>('verificateur')
+    },
     arreter,
     async demarrer(brief: string) {
       // Deux démarrages entrelacés partageraient le même noyau.

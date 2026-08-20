@@ -9,6 +9,7 @@ import type { NoeudVue } from '../etat/modele'
 import GrapheVivant from './GrapheVivant.vue'
 import PanneauNoeud from './PanneauNoeud.vue'
 import PorteHumaine from './PorteHumaine.vue'
+import ProduitLivre from './ProduitLivre.vue'
 
 const pilote = creerPilote(scenarioParDefaut())
 const etat = pilote.store.etat
@@ -43,6 +44,12 @@ const duree = computed(() =>
 const phase = computed(() => {
   void etat.value.derniereSequence
   return pilote.phase()
+})
+
+/** Le produit livré, dès que la porte est franchie. */
+const verificateur = computed(() => {
+  void etat.value.derniereSequence
+  return pilote.verificateur()
 })
 
 const noeudChoisi = computed<NoeudVue | undefined>(
@@ -236,6 +243,8 @@ onBeforeUnmount(() => {
           @approuver="approuver"
           @ecarter="ecarter"
         />
+
+        <ProduitLivre v-if="verificateur" :verifier="verificateur" />
 
         <PanneauNoeud
           v-if="noeudChoisi"

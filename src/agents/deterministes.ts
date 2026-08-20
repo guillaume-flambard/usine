@@ -187,7 +187,12 @@ export const constructeurFabricant: Composant = {
       role: 'Classe chaque allégation et cite sa source',
       injecte: ['registre'],
       fournit: ['verificateur'],
-      etapes: ['decouper-allegations', 'classer-par-regles', 'exiger-une-source'],
+      etapes: [
+        'decouper-allegations',
+        'classer-par-regles',
+        'ecarter-les-negations',
+        'exiger-une-source',
+      ],
     }
 
     const resultat = fabrique.compiler(aFabriquer)

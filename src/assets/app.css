@@ -530,6 +530,105 @@ body,
   padding-top: 12px;
 }
 
+.produit {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 68%;
+  overflow: auto;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 4;
+}
+.produit-aide {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+  max-width: 72ch;
+}
+.produit-champ {
+  max-width: 78ch;
+}
+.produit-vide {
+  font-size: 13px;
+  color: var(--muted);
+}
+.produit-suite {
+  font-size: 13px;
+  color: var(--muted);
+  padding-top: 4px;
+}
+.produit-suite a {
+  color: var(--accent);
+}
+
+.verdicts {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 78ch;
+}
+.verdicts li {
+  border-left: 2px solid var(--line);
+  padding-left: 12px;
+}
+.verdict-statut {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+/* Le statut porte une forme en plus de sa couleur : carré plein pour
+   interdit, carré creux pour autorisé, barre pour à vérifier. */
+.verdict-marque {
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--muted);
+}
+.verdicts li[data-statut='interdit'] {
+  border-left-color: var(--etat-erreur);
+}
+.verdicts li[data-statut='interdit'] .verdict-statut {
+  color: var(--etat-erreur);
+}
+.verdicts li[data-statut='interdit'] .verdict-marque {
+  background: var(--etat-erreur);
+  border-color: var(--etat-erreur);
+}
+.verdicts li[data-statut='autorise'] {
+  border-left-color: var(--ink);
+}
+.verdicts li[data-statut='autorise'] .verdict-statut {
+  color: var(--ink);
+}
+.verdicts li[data-statut='autorise'] .verdict-marque {
+  border-color: var(--ink);
+}
+.verdicts li[data-statut='a-verifier'] .verdict-marque {
+  height: 2px;
+  border: none;
+  background: var(--muted);
+}
+.verdict-texte {
+  font-size: 14px;
+  line-height: 1.5;
+  padding-top: 4px;
+}
+.verdict-source {
+  font-size: 12px;
+  color: var(--muted);
+  padding-top: 2px;
+}
+
 .panneau {
   position: absolute;
   /* Au-dessus de la porte : inspecter un nœud ne doit pas se faire à
