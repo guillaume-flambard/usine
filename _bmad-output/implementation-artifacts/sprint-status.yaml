@@ -38,7 +38,7 @@ development_status:
   epic-1: in-progress
   1-1-le-noyau-de-composition-isolé: review
   1-2-le-store-et-les-états-dérivés: review
-  1-3-le-scénario-comme-donnée-et-le-casting-du-run: backlog
+  1-3-le-scénario-comme-donnée-et-le-casting-du-run: review
   1-4-le-graphe-qui-pousse: backlog
   1-5-le-brief-et-le-lancement: backlog
   1-6-la-narration-et-les-compteurs: backlog
