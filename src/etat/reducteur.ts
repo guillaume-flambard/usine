@@ -45,6 +45,7 @@ function geler(vue: EtatRun): EtatRun {
   Object.freeze(vue.aretes)
   Object.freeze(vue.journal)
   Object.freeze(vue.incidents)
+  Object.freeze(vue.tokens)
   return Object.freeze(vue)
 }
 

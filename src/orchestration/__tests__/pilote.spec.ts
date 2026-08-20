@@ -248,3 +248,58 @@ describe('la voie de fabrication', () => {
     expect(pilote.verificateur()?.('Ce produit guérit les carences.')[0]?.statut).toBe('interdit')
   })
 })
+
+describe('la robustesse du branchement', () => {
+  it('ne fige pas le run quand le port rejette', async () => {
+    const pilote = creerPilote(claimCheck)
+    pilote.brancher({
+      origine: 'llm',
+      raisonner: async () => {
+        throw new Error('boum')
+      },
+    })
+
+    await pilote.demarrer(claimCheck.brief)
+    await tick()
+    pilote.approuver()
+    await tick()
+
+    // Un port qui lève ne doit pas laisser tout l'aval en attente
+    // indéfiniment, avec un graphe qui n'affiche rien d'anormal.
+    expect(pilote.phase()).toBe('Terminé')
+    const architecte = pilote.store.etat.value.noeuds.find((n) => n.nom === 'architecte')
+    expect(architecte?.etat).toBe('termine')
+    expect(architecte?.repli).toContain('boum')
+    expect(architecte?.artefact?.corps).toContain('Repli déterministe : boum')
+  })
+
+  it('dit dans la mémoire de run quel mode a réellement servi', async () => {
+    const pilote = creerPilote(claimCheck)
+    pilote.brancher({
+      origine: 'llm',
+      raisonner: async (d: { repli: string }) => ({ texte: d.repli, origine: 'llm' as const }),
+    })
+    await pilote.demarrer(claimCheck.brief)
+    await tick()
+
+    const memoire = pilote.store.etat.value.noeuds.find((n) => n.nom === 'agent-maitre')
+    expect(memoire?.artefact?.corps).toContain('Mode LLM branché')
+    expect(memoire?.artefact?.corps).not.toContain('Mode déterministe')
+  })
+
+  it('dit dans la mémoire de run quelle voie de fabrication a servi', async () => {
+    const pilote = creerPilote(claimCheck)
+    pilote.brancher(
+      {
+        origine: 'llm',
+        raisonner: async (d: { repli: string }) => ({ texte: d.repli, origine: 'llm' as const }),
+      },
+      { evaluation: true },
+    )
+    await pilote.demarrer(claimCheck.brief)
+    await tick()
+
+    const memoire = pilote.store.etat.value.noeuds.find((n) => n.nom === 'agent-maitre')
+    expect(memoire?.artefact?.corps).toContain('évaluation de code')
+  })
+})

@@ -66,3 +66,15 @@ où ils ont été trouvés. Append-only.
 - source_spec: `epic 4 — produit livré`
   summary: Aucun test de composant sur le bloc de payoff.
   evidence: Le branchement, les verdicts et les raisons sont couverts au niveau du pilote et des primitives, mais le rendu — bouton désactivé, raccourci clavier, message d'absence d'allégation, annonce aux lecteurs d'écran — n'est vérifié que par lecture. Story 6.4.
+
+- source_spec: `epic 5 — mode LLM`
+  summary: Un seul agent raisonne réellement.
+  evidence: Seul l'architecte consomme le port. Le planificateur et le sceptique gagneraient à raisonner aussi, mais chaque agent branché multiplie le coût et la latence d'un run. À rouvrir quand le mode servira en entretien plutôt qu'en démonstration.
+
+- source_spec: `epic 5 — mode LLM`
+  summary: Rebrancher un modèle pendant un run n'a pas d'effet sur ce run.
+  evidence: Le raisonneur est fixé au lancement. L'interface annonce le mode du prochain run, ce qui peut se lire comme le mode courant. À clarifier à l'écran, ou à interdire pendant un run.
+
+- source_spec: `epic 5 — mode LLM`
+  summary: L'architecte n'est pas réentrant vis-à-vis du raisonnement.
+  evidence: Si le composant se désactive puis se réactive pendant qu'un appel est en vol, deux rappels peuvent publier la spécification, dont le second sera refusé. Inatteignable dans le scénario livré, où rien ne retire les dépendances de l'architecte en cours de route.

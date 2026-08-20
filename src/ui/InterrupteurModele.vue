@@ -24,6 +24,13 @@ function brancher() {
   ouvert.value = false
 }
 
+function basculer() {
+  // La clé ne doit pas survivre à la fermeture du panneau : elle réapparaîtrait
+  // à la réouverture, ce que l'écran promet le contraire.
+  if (ouvert.value) cle.value = ''
+  ouvert.value = !ouvert.value
+}
+
 function debrancher() {
   emit('debrancher')
   consenti.value = false
@@ -38,7 +45,7 @@ function debrancher() {
       class="mode-aide"
       :aria-expanded="ouvert"
       aria-controls="panneau-modele"
-      @click="ouvert = !ouvert"
+      @click="basculer"
     >
       {{ mode === 'llm' ? 'modèle branché — débrancher' : 'brancher un modèle' }}
     </button>
@@ -71,6 +78,13 @@ function debrancher() {
           <span>
             J’ai compris que le contenu du run — brief, spécifications, artefacts — sera envoyé à
             Anthropic pour être traité.
+          </span>
+        </label>
+        <label class="modele-consentement">
+          <input v-model="evaluation" type="checkbox" />
+          <span>
+            Autoriser en plus la fabrication par évaluation de code. Elle exige une politique de
+            sécurité permissive : c’est un arbitrage à part, pas une conséquence du branchement.
           </span>
         </label>
         <button class="bouton" :disabled="cle.trim().length === 0 || !consenti" @click="brancher">

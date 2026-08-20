@@ -26,10 +26,19 @@ const aideMode = ref(false)
 const mode = ref<'deterministe' | 'llm'>(pilote.modeRaisonnement())
 
 async function brancherModele(cle: string, evaluation: boolean) {
-  // Import dynamique : sans branchement, le SDK n'est jamais chargé et le
-  // bundle du mode par défaut n'en porte pas une ligne.
-  const { raisonneurClaude } = await import('../runtime/raisonneur/claude')
-  pilote.brancher(raisonneurClaude({ cle }), { evaluation })
+  try {
+    // Import dynamique : sans branchement, le SDK n'est jamais chargé et le
+    // bundle du mode par défaut n'en porte pas une ligne.
+    const { raisonneurClaude } = await import('../runtime/raisonneur/claude')
+    pilote.brancher(raisonneurClaude({ cle }), { evaluation })
+    erreur.value = undefined
+  } catch (cause) {
+    // Un fragment qui ne se charge pas doit se dire, pas laisser l'écran
+    // annoncer un mode qui n'est pas le sien.
+    erreur.value = `Le modèle n'a pas pu être branché : ${
+      cause instanceof Error ? cause.message : String(cause)
+    }`
+  }
   mode.value = pilote.modeRaisonnement()
 }
 
@@ -248,8 +257,10 @@ onBeforeUnmount(() => {
           <p class="compteur-cle">Tokens</p>
           <p class="compteur-valeur">{{ etat.tokens.entree + etat.tokens.sortie }}</p>
           <p class="compteur-note">
+            <!-- Le libellé suit ce qui a réellement été dépensé, pas le mode
+                 courant : débrancher après un run n'efface pas la dépense. -->
             {{
-              mode === 'llm'
+              etat.tokens.entree + etat.tokens.sortie > 0
                 ? `${etat.tokens.entree} entrée · ${etat.tokens.sortie} sortie`
                 : 'aucun, mode déterministe'
             }}

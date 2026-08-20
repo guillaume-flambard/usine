@@ -92,6 +92,41 @@ body,
   color: var(--muted);
 }
 
+/* Interrupteur de modèle */
+.mode-branchement {
+  padding: 0 24px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.modele-panneau {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 10px;
+}
+.modele-champ {
+  min-height: 0;
+  max-width: none;
+}
+.modele-note {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.modele-consentement {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+/* La pastille du mode ne repose pas sur la seule couleur : creuse en
+   déterministe, pleine quand un modèle est branché. */
+.mode-pastille[data-branche='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
 .pane {
   padding: 24px;
   display: flex;

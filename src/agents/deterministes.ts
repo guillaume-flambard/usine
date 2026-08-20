@@ -4,7 +4,7 @@
 
 import type { Composant } from '../runtime/contrat'
 import type { Verdict } from '../runtime/fabrique/primitives'
-import { raisonneurDeterministe, type Raisonneur } from '../runtime/raisonneur'
+import { raisonneurDeterministe, type Raisonneur, type Raisonnement } from '../runtime/raisonneur'
 import {
   fabriqueParComposition,
   type Fabrique,
@@ -49,7 +49,9 @@ export const agentMaitre = (
       secteur: besoin.secteur,
       decisions: [
         `Brief retenu : ${besoin.brief}`,
-        'Mode déterministe : les agents composent et fabriquent réellement.',
+        raisonnerAvec !== undefined && raisonnerAvec.origine === 'llm'
+          ? 'Mode LLM branché : le jugement de l’architecte est rédigé par un modèle.'
+          : 'Mode déterministe : les agents composent et fabriquent réellement.',
         (fabriquerAvec ?? fabriqueParComposition()).voie === 'evaluation'
           ? 'La fabrication passe par évaluation de code, sur consentement explicite.'
           : 'La fabrication passe par composition de primitives, sans évaluation de code.',
@@ -100,6 +102,15 @@ export const planificateur: Composant = {
   },
 }
 
+/** La réponse écrite à la main. Un seul endroit, pour un seul repli. */
+const REPLI_ARCHITECTE = [
+  'Trois constructeurs en parallèle : les règles, l’interface et les tests ne partagent',
+  'aucune donnée, donc rien ne les oblige à s’attendre. Le moteur de vérification est',
+  'fabriqué à l’exécution pour que la pièce livrée découle de la spécification et non',
+  'd’un catalogue. Risque principal : la couverture du registre reste plus étroite que',
+  'le nom du produit ne le laisse croire.',
+].join(' ')
+
 export const architecte: Composant = {
   nom: 'architecte',
   injecte: ['histoires', 'memoire', 'raisonneur'],
@@ -130,19 +141,22 @@ export const architecte: Composant = {
           'Critères :',
           ...(specification.criteres ?? []).map((critere) => `- ${critere}`),
         ].join('\n'),
-        repli: [
-          'Trois constructeurs en parallèle : les règles, l’interface et les tests ne partagent',
-          'aucune donnée, donc rien ne les oblige à s’attendre. Le moteur de vérification est',
-          'fabriqué à l’exécution pour que la pièce livrée découle de la spécification et non',
-          'd’un catalogue. Risque principal : la couverture du registre reste plus étroite que',
-          'le nom du produit ne le laisse croire.',
-        ].join(' '),
+        repli: REPLI_ARCHITECTE,
       })
+      // Un port qui rejette figerait tout l'aval sans le moindre incident :
+      // le repli est rattrapé ici, pas seulement dans l'adaptateur livré.
+      .catch((cause): Raisonnement => ({
+        texte: REPLI_ARCHITECTE,
+        origine: 'deterministe',
+        echec: cause instanceof Error ? cause.message : String(cause),
+      }))
       .then((raisonnement) => {
-        if (raisonnement.tokens !== undefined) {
+        // Un échec sans tokens doit quand même se voir : c'est ce qui marque
+        // le nœud comme retombé sur son repli.
+        if (raisonnement.tokens !== undefined || raisonnement.echec !== undefined) {
           contexte.compterTokens(
-            raisonnement.tokens.entree,
-            raisonnement.tokens.sortie,
+            raisonnement.tokens?.entree ?? 0,
+            raisonnement.tokens?.sortie ?? 0,
             raisonnement.echec,
           )
         }
@@ -153,7 +167,7 @@ export const architecte: Composant = {
         contexte.publierArtefact({
           titre: 'Décision de composition',
           corps: [
-            raisonnement.texte,
+            raisonnement.texte.trim().length > 0 ? raisonnement.texte : REPLI_ARCHITECTE,
             '',
             `Produit visé : ${specification.produit}`,
             `Constructeurs en parallèle : ${specification.constructeurs.join(', ')}`,
