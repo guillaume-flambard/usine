@@ -3,6 +3,25 @@
 Build statique servi par nginx. Aucun service, aucune base, aucun secret côté
 serveur : l'application tourne entièrement dans l'onglet du visiteur.
 
+## Comment l'usine est déployée aujourd'hui
+
+En ligne sur **https://usine.memolabs.dev**, servie par Coolify (projet Memo
+Labs) derrière Traefik, certificat Let's Encrypt.
+
+L'application y est déclarée en type **image Docker** et non en build pack
+`dockerfile`, parce que le dépôt `guillaume-flambard/usine` n'existe pas
+encore sur GitHub. L'image est donc construite **sur le serveur**, depuis
+`/opt/usine`, et poussée dans un registre local (`127.0.0.1:5000`) que Coolify
+tire ensuite.
+
+Pour redéployer après un changement : `./deploiement/redeployer.sh`
+
+**À convertir dès que le dépôt existe** : créer `guillaume-flambard/usine`,
+pousser, puis dans Coolify passer l'application en build pack `dockerfile`
+avec cette source. Le `git push` déclenchera alors le déploiement, comme pour
+les quatorze autres applications, et le registre local comme ce script
+deviendront inutiles.
+
 ## Construire et servir
 
 ```sh
