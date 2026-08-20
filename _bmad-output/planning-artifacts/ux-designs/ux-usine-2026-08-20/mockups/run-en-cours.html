@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>L'usine agentique — run en cours</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<style>
+/* Gouverné par : DESIGN.md (Colors, Typography, Layout & Spacing, Shapes, Components)
+   et EXPERIENCE.md (Information Architecture, Component Patterns, State Patterns).
+   Deux états rendus : le run en cours, puis la porte humaine.
+   Polices système en repli : Oswald n'est pas chargé hors ligne. */
+:root{
+  --bg:#faf9f7; --surface:#fff; --ink:#16130f; --muted:#6b6055; --line:#e7e2da;
+  --accent:#ad4c16; --accent-soft:#e58a4a; --grid:rgba(22,19,15,.042);
+  --err:#8c2f10; --released:#b9b1a7;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:'Oswald',Haettenschweiler,'Arial Narrow',system-ui,sans-serif;font-weight:300;padding:28px}
+.frame{max-width:1320px;margin:0 auto 40px;border:1px solid var(--line);background:var(--bg);position:relative}
+.frame::before{content:'';position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:72px 72px}
+.cap{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin:0 0 8px 2px}
+.app{display:grid;grid-template-columns:392px 1fr;height:660px;position:relative;z-index:1}
+.left{border-right:1px solid var(--line);display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;gap:10px;padding:14px 24px;border-bottom:1px solid var(--line)}
+.sq{width:14px;height:14px;background:var(--accent)}
+.bname{font-size:13px;font-weight:500;letter-spacing:.14em;text-transform:uppercase}
+.blab{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-left:auto}
+.mode{display:flex;align-items:center;gap:8px;padding:10px 24px;border-bottom:1px solid var(--line);
+  font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.dot{width:8px;height:8px;border:1px solid var(--muted)}
+.pane{padding:24px;display:flex;flex-direction:column;gap:16px;flex:1;min-height:0}
+label.eb{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent)}
+.field{border:1px solid var(--line);background:var(--surface);padding:12px 14px;font-size:15px;line-height:1.45;color:var(--ink);font-family:inherit;font-weight:300}
+.btn{background:var(--ink);color:var(--bg);border:none;padding:13px 18px;font-family:inherit;font-size:12px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;cursor:pointer;text-align:left}
+.narr{font-size:22px;font-weight:300;line-height:1.35;padding:18px 0;border-top:1px solid var(--line)}
+.thread{border-top:1px solid var(--line);padding-top:12px;overflow:auto;flex:1;min-height:0;display:flex;flex-direction:column;gap:9px}
+.msg{font-size:13px;line-height:1.45;color:var(--muted)}
+.msg b{color:var(--ink);font-weight:500;letter-spacing:.03em}
+.msg span{float:right;font-size:11px;color:var(--released)}
+.right{display:flex;flex-direction:column;min-width:0}
+.meters{display:flex;gap:0;border-bottom:1px solid var(--line)}
+.meter{padding:14px 24px;border-right:1px solid var(--line);min-width:112px}
+.meter .k{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.meter .v{font-size:32px;font-weight:400;line-height:1.05;letter-spacing:-.01em}
+svg{flex:1;width:100%;display:block}
+.nl{font-size:13px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;fill:var(--ink)}
+.nt{font-size:11px;font-weight:300;fill:var(--muted)}
+.gate{border-top:1px solid var(--line);background:var(--surface);padding:20px 24px;display:flex;gap:24px;align-items:flex-start}
+.gate .body{flex:1}
+.gate h3{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);font-weight:400;margin-bottom:8px}
+.gate p{font-size:14px;line-height:1.5;color:var(--ink);max-width:72ch}
+.gate .obj{font-size:13px;line-height:1.5;color:var(--muted);margin-top:8px;border-left:2px solid var(--line);padding-left:12px}
+.ghost{background:none;border:1px solid var(--line);color:var(--muted);padding:13px 18px;font-family:inherit;font-size:12px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;cursor:pointer}
+.ghost:hover{border-color:var(--ink);color:var(--ink)}
+.gate .acts{display:flex;gap:10px}
+</style>
+</head>
+<body>
+
+<p class="cap">Écran 1 — le run en cours, à 38 secondes</p>
+<div class="frame"><div class="app">
+  <div class="left">
+    <div class="brand"><span class="sq"></span><span class="bname">Memo Labs</span><span class="blab">Lab · usine agentique</span></div>
+    <div class="mode"><span class="dot"></span> Mode déterministe</div>
+    <div class="pane">
+      <label class="eb" for="b">Le besoin</label>
+      <div class="field" id="b">Un outil de conformité des allégations santé pour marques de compléments EU.</div>
+      <button class="btn">▶ Relancer l'usine</button>
+      <div class="narr">Le constructeur de règles compile le vérificateur d'allégations.</div>
+      <div class="thread">
+        <p class="msg"><b>Constructeur · règles</b><span>00:38</span><br>Compile le vérificateur depuis la spécification de l'architecte.</p>
+        <p class="msg"><b>Constructeur · interface</b><span>00:36</span><br>Fabrique le composant d'affichage des verdicts.</p>
+        <p class="msg"><b>Architecte</b><span>00:29</span><br>Choisit une composition à trois constructeurs, un outil de registre, un moteur de vérification.</p>
+        <p class="msg"><b>Planificateur</b><span>00:11</span><br>Découpe le besoin en quatre histoires et une spécification avec critères d'acceptation.</p>
+        <p class="msg"><b>Agent maître</b><span>00:02</span><br>Constitue sa mémoire de run sur le secteur des compléments alimentaires.</p>
+      </div>
+    </div>
+  </div>
+  <div class="right">
+    <div class="meters">
+      <div class="meter"><div class="k">Agents</div><div class="v">7</div></div>
+      <div class="meter"><div class="k">Phase</div><div class="v" style="font-size:20px;padding-top:9px">Construction</div></div>
+      <div class="meter"><div class="k">Tokens</div><div class="v">0</div></div>
+      <div class="meter" style="border-right:none"><div class="k">Temps</div><div class="v">38s</div></div>
+    </div>
+    <svg viewBox="0 0 880 470" role="img" aria-label="Graphe du run : sept composants vivants, trois constructeurs en parallèle">
+      <g fill="none" stroke="#e7e2da" stroke-width="1">
+        <path d="M158 235 C 178 235, 178 235, 198 235"/>
+        <path d="M338 235 C 358 235, 358 235, 378 235"/>
+        <path d="M518 235 C 545 235, 545 95, 578 95"/>
+        <path d="M518 235 C 545 235, 545 235, 578 235"/>
+      </g>
+      <g fill="none" stroke="#ad4c16" stroke-width="1.6">
+        <path d="M518 235 C 545 235, 545 375, 578 375"/>
+      </g>
+      <g fill="none" stroke="#e7e2da" stroke-width="1" stroke-dasharray="3 3">
+        <path d="M718 95 C 745 95, 745 235, 778 235"/>
+        <path d="M718 375 C 745 375, 745 235, 778 235"/>
+      </g>
+
+      <!-- terminé : trait plein encre + coche -->
+      <g><rect x="18" y="207" width="140" height="56" fill="#fff" stroke="#16130f" stroke-width="1.4"/>
+        <text class="nl" x="32" y="230">Brief</text><text class="nt" x="32" y="248">besoin du client</text>
+        <path d="M138 222 l4 4 l7 -8" fill="none" stroke="#16130f" stroke-width="1.4"/></g>
+      <g><rect x="198" y="207" width="140" height="56" fill="#fff" stroke="#16130f" stroke-width="1.4"/>
+        <text class="nl" x="212" y="230">Planificateur</text><text class="nt" x="212" y="248">brief → histoires</text>
+        <path d="M318 222 l4 4 l7 -8" fill="none" stroke="#16130f" stroke-width="1.4"/></g>
+      <g><rect x="378" y="207" width="140" height="56" fill="#fff" stroke="#16130f" stroke-width="1.4"/>
+        <text class="nl" x="392" y="230">Architecte</text><text class="nt" x="392" y="248">spécs → composition</text>
+        <path d="M498 222 l4 4 l7 -8" fill="none" stroke="#16130f" stroke-width="1.4"/></g>
+
+      <!-- terminé -->
+      <g><rect x="578" y="67" width="140" height="56" fill="#fff" stroke="#16130f" stroke-width="1.4"/>
+        <text class="nl" x="592" y="90">Constr. · interface</text><text class="nt" x="592" y="108">composant Vue</text>
+        <path d="M698 82 l4 4 l7 -8" fill="none" stroke="#16130f" stroke-width="1.4"/></g>
+      <!-- inactif : trait fin, label muted -->
+      <g><rect x="578" y="207" width="140" height="56" fill="#fff" stroke="#e7e2da"/>
+        <text class="nl" x="592" y="230" fill="#6b6055">Constr. · tests</text><text class="nt" x="592" y="248">assertions</text></g>
+      <!-- en cours : trait épaissi terracotta + activité -->
+      <g><rect x="578" y="347" width="140" height="56" fill="#fff" stroke="#ad4c16" stroke-width="2"/>
+        <text class="nl" x="592" y="370" fill="#ad4c16">Constr. · règles</text><text class="nt" x="592" y="388">moteur de vérif</text>
+        <g stroke="#ad4c16" stroke-width="2"><line x1="694" y1="366" x2="694" y2="374"/><line x1="700" y1="363" x2="700" y2="377"/><line x1="706" y1="368" x2="706" y2="372"/></g></g>
+      <!-- fabriqué pendant le run : filet doublé + pastille -->
+      <g><rect x="778" y="207" width="140" height="56" fill="#fff" stroke="#e7e2da"/>
+        <rect x="782" y="211" width="132" height="48" fill="none" stroke="#e7e2da"/>
+        <rect x="898" y="215" width="8" height="8" fill="#ad4c16"/>
+        <text class="nl" x="792" y="230" fill="#6b6055">Vérificateur</text><text class="nt" x="792" y="248">fabriqué · attend</text></g>
+      <text class="nt" x="778" y="284" fill="#b9b1a7">attend : règles, interface</text>
+    </svg>
+  </div>
+</div></div>
+
+<p class="cap">Écran 2 — la porte humaine, deux boutons de poids égal</p>
+<div class="frame"><div class="app" style="height:360px;grid-template-columns:392px 1fr">
+  <div class="left">
+    <div class="brand"><span class="sq"></span><span class="bname">Memo Labs</span><span class="blab">Lab · usine agentique</span></div>
+    <div class="mode"><span class="dot"></span> Mode déterministe</div>
+    <div class="pane">
+      <div class="narr" style="border-top:none;padding-top:4px">Le sceptique a terminé son attaque. La décision vous revient.</div>
+      <div class="thread" style="border-top:1px solid var(--line)">
+        <p class="msg"><b>Sceptique</b><span>01:04</span><br>Attaque la spécification du vérificateur produite par l'architecte.</p>
+        <p class="msg"><b>Constructeur · tests</b><span>00:57</span><br>Douze assertions passent sur le composant fabriqué.</p>
+      </div>
+    </div>
+  </div>
+  <div class="right">
+    <div class="meters">
+      <div class="meter"><div class="k">Agents</div><div class="v">9</div></div>
+      <div class="meter"><div class="k">Phase</div><div class="v" style="font-size:20px;padding-top:9px">Porte</div></div>
+      <div class="meter"><div class="k">Tokens</div><div class="v">0</div></div>
+      <div class="meter" style="border-right:none"><div class="k">Temps</div><div class="v">64s</div></div>
+    </div>
+    <div style="flex:1"></div>
+    <div class="gate">
+      <div class="body">
+        <h3>Décision requise</h3>
+        <p>Le vérificateur d'allégations a été fabriqué pendant le run et ses douze assertions passent. Approuver le livre dans la page ; écarter le retire et libère les composants qui en dépendent.</p>
+        <p class="obj"><b>Sceptique —</b> la spécification ne couvre que les allégations santé listées au registre. Une formulation reformulée qui vise la même allégation ne sera pas détectée. Le statut « à vérifier » absorbe le cas, mais la couverture réelle est plus étroite que le nom du produit ne le laisse croire.</p>
+      </div>
+      <div class="acts">
+        <button class="ghost">Écarter</button>
+        <button class="ghost">Approuver</button>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+</body>
+</html>
