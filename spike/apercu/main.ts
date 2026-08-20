@@ -26,8 +26,11 @@ void (async () => {
     const champ = document.querySelector<HTMLTextAreaElement>('#copie')
     if (champ) {
       champ.value =
-        'Notre complément guérit les carences chroniques. Il contribue à réduire la fatigue. ' +
-        'Il ne traite pas les maladies. Il rend la peau lumineuse.'
+        'Notre complément guérit les carences chroniques. ' +
+        'Il contribue au maintien d\'une ossature normale. ' +
+        'Il ne guérit absolument pas les rhumes. ' +
+        'Fabriqué soigneusement en France. ' +
+        'Il détoxifie l\'organisme.'
       champ.dispatchEvent(new Event('input', { bubbles: true }))
       await attendre(60)
       const boutons = [...document.querySelectorAll<HTMLButtonElement>('.produit .bouton')]
