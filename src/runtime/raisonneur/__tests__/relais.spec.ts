@@ -37,7 +37,9 @@ describe('le raisonneur qui passe par le relais', () => {
   })
 
   it("n'envoie ni clé ni repli au serveur", async () => {
-    const appeler = vi.fn(async () => reponse({ texte: 'ok' }))
+    const appeler = vi.fn(async (_url: RequestInfo | URL, _options?: RequestInit) =>
+      reponse({ texte: 'ok' }),
+    )
     await raisonneurRelais({ fetchDeSubstitution: appeler }).raisonner(DEMANDE)
 
     const [url, options] = appeler.mock.calls[0] as [string, RequestInit]

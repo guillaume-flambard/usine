@@ -44,20 +44,34 @@ Ce qu'il fait, et rien d'autre :
 
 ### Le déployer
 
-Seconde application Coolify, dans le même projet et **sur le même réseau
-Docker** que l'usine :
+Seconde application Coolify, dans le même projet que l'usine.
 
-- source : le dossier `services/relais` (build pack `dockerfile`)
-- nom du service : `relais` — c'est le nom que `RELAIS_URL` vise par défaut
+**Coolify ne donne pas d'alias DNS stable à ses conteneurs** : leur nom porte
+un horodatage et change à chaque déploiement. Viser `http://relais:3000` sur le
+réseau interne ne tient donc pas. Le relais reçoit un domaine, et c'est nginx —
+pas le navigateur — qui l'appelle :
+
+- source : l'image `127.0.0.1:5000/usine-relais:latest`, construite par
+  `./deploiement/redeployer.sh` comme celle de l'usine
+- domaine : `https://relais.usine.memolabs.dev`, port interne `3000`
 - variable d'environnement `OPENROUTER_API_KEY` — **collée dans Coolify, jamais
   dans le dépôt, jamais dans une conversation**
 - variables facultatives : `MODELE` (défaut `anthropic/claude-3.5-haiku`),
   `ORIGINE` (défaut `https://usine.memolabs.dev`)
-- pas de domaine public : il n'est joint que par nginx, par le réseau interne
 
-Côté usine, `RELAIS_URL` est substituée au démarrage du conteneur
-(`NGINX_ENVSUBST_FILTER=^RELAIS_`). Un autre nom de service se règle sans
+Puis, sur l'application **usine**, la variable `RELAIS_URL` :
+
+```
+RELAIS_URL=https://relais.usine.memolabs.dev
+```
+
+Elle est substituée au démarrage du conteneur
+(`NGINX_ENVSUBST_FILTER=^RELAIS_`) : changer de relais ne demande pas de
 reconstruire l'image.
+
+Le relais est public, mais il ne sert que trois rôles, borne tout ce qui
+rentre, plafonne le débit par adresse (Traefik renseigne `X-Forwarded-For`) et
+la dépense par jour. La clé, elle, ne sort jamais de son conteneur.
 
 Sans relais déployé, `/api` rend 502, la sonde échoue, et le site reste en mode
 déterministe — ce qu'il annonce à l'écran. Aucune page cassée.

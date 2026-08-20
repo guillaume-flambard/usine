@@ -13,6 +13,7 @@ set -euo pipefail
 
 HOTE="${1:-memo-labs}"
 IMAGE="127.0.0.1:5000/usine-agentique:latest"
+IMAGE_RELAIS="127.0.0.1:5000/usine-relais:latest"
 
 echo "→ vérification locale avant envoi"
 pnpm lint
@@ -31,12 +32,18 @@ ssh "$HOTE" "rm -rf /opt/usine && mkdir -p /opt/usine && cd /opt/usine \
   && tar xzf /tmp/usine.tgz && rm -f /tmp/usine.tgz \
   && find . -name '._*' -delete \
   && docker build -q -t $IMAGE . >/dev/null \
-  && docker push -q $IMAGE >/dev/null"
+  && docker push -q $IMAGE >/dev/null \
+  && docker build -q -t $IMAGE_RELAIS services/relais >/dev/null \
+  && docker push -q $IMAGE_RELAIS >/dev/null"
 
+# Les deux applications se déploient de la même façon ; le relais n'existe
+# dans Coolify que si la clé y a été collée.
 echo "→ déploiement Coolify"
 ssh "$HOTE" "docker exec coolify php artisan tinker --execute='
-\$a = \App\Models\Application::where(\"name\",\"usine\")->first();
-queue_application_deployment(application: \$a, deployment_uuid: strtolower(\Illuminate\Support\Str::random(24)), no_questions_asked: true);
+foreach ([\"usine\", \"usine-relais\"] as \$nom) {
+  \$a = \App\Models\Application::where(\"name\", \$nom)->first();
+  if (\$a) queue_application_deployment(application: \$a, deployment_uuid: strtolower(\Illuminate\Support\Str::random(24)), no_questions_asked: true);
+}
 ' >/dev/null 2>&1"
 
 echo "→ vérification"
