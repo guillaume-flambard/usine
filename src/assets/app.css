@@ -353,6 +353,10 @@ body,
   display: flex;
 }
 
+.zone[data-panneau='true'] {
+  --reserve-bas: 34%;
+}
+
 .compteurs {
   display: flex;
   border-bottom: 1px solid var(--line);
@@ -385,6 +389,9 @@ body,
 .canvas {
   flex: 1;
   min-height: 0;
+  /* Réservé au panneau du bas quand il y en a un : sans ça, le graphe passe
+     dessous et se fait couper. */
+  padding-bottom: var(--reserve-bas, 0);
   /* Le graphe tient dans son cadre : c'est le `viewBox` qui s'en charge, et
      rien n'a plus à défiler. */
   overflow: hidden;

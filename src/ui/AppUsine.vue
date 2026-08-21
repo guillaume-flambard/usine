@@ -370,7 +370,9 @@ onBeforeUnmount(() => {
 
       <!-- Le panneau se superpose au graphe, jamais aux compteurs : ils
            restent lisibles pendant qu'on inspecte un nœud. -->
-      <div class="zone">
+      <!-- Un panneau ouvert mange le bas de l'écran : le graphe se replie
+           au-dessus au lieu d'être coupé par lui. -->
+      <div class="zone" :data-panneau="Boolean(produit || (etat.porte && !produit))">
         <GrapheVivant
           :etat="etat"
           :disposition="disposition"
