@@ -41,20 +41,20 @@ Le sens de la dépendance ne s'inverse jamais. L'interface pose des **intentions
 ```mermaid
 graph LR
   ui["ui/ — composants Vue"]
-  etat["etat/ — store et réducteur"]
+  state["state/ — store et réducteur"]
   runtime["runtime/ — noyau Cordis"]
-  agents["agents/ — composants"]
-  scenarios["corpus/ + exemples — données pures"]
-  produits["produits/ — moteurs de payoff"]
-  telemetrie["telemetrie/"]
+  agents["agents/ — la boucle et son vocabulaire"]
+  data["corpus/ + examples/ — données pures"]
+  orchestration["orchestration/ — lancement et câblage"]
+  telemetry["telemetry/"]
 
-  ui -->|lit| etat
-  ui -->|intentions| runtime
-  etat -->|réduit les événements| runtime
+  ui -->|lit| state
+  ui -->|intentions| orchestration
+  orchestration -->|charge le maître| runtime
+  state -->|réduit les événements| runtime
   runtime -->|charge| agents
-  runtime -->|lit| scenarios
-  agents -->|utilisent| produits
-  ui -->|compte| telemetrie
+  agents -->|puisent dans| data
+  ui -->|compte| telemetry
 ```
 
 Correspondance couche / répertoire : le paradigme est appliqué par l'arborescence, et l'arborescence est appliquée par le lint (AD-2).
@@ -83,7 +83,7 @@ Correspondance couche / répertoire : le paradigme est appliqué par l'arboresce
 
 - **Binds:** F3, F4, F8, F10
 - **Prevents:** deux propriétaires d'une même donnée, et des mutations depuis un composant d'affichage
-- **Rule:** `etat/` expose un état en lecture seule et une seule fonction d'écriture, le réducteur `(etat, RunEvent) => etat`. Aucun composant Vue ne mute l'état. Le réducteur est pur et testable hors navigateur.
+- **Rule:** `state/` expose un état en lecture seule et une seule fonction d'écriture, le réducteur `(state, RunEvent) => state`. Aucun composant Vue ne mute l'état. Le réducteur est pur et testable hors navigateur.
 
 ### AD-5 — Le graphe est une projection, jamais une source
 
@@ -109,7 +109,7 @@ Correspondance couche / répertoire : le paradigme est appliqué par l'arboresce
 
 - **Binds:** F11
 - **Prevents:** qu'un outil « fabriqué » ne soit en réalité qu'une combinaison choisie dans un catalogue écrit d'avance
-- **Rule:** l'outil d'un agent est du **code que le modèle écrit**, évalué (`new Function`) et chargé à chaud comme n'importe quel composant. L'évaluation est cantonnée à **un seul fichier** (`agents/libre.ts`), et une règle ESLint la refuse partout ailleurs — vérifiée par un test qui exécute le linter. Ce qui protège n'est pas l'interdiction d'évaluer : c'est que le code est **affiché avant de tourner**, que la **porte humaine** reste devant la livraison, et que la page ne porte ni secret ni donnée de visiteur.
+- **Rule:** l'outil d'un agent est du **code que le modèle écrit**, évalué (`new Function`) et chargé à chaud comme n'importe quel composant. L'évaluation est cantonnée à **un seul fichier** (`agents/free-agent.ts`), et une règle ESLint la refuse partout ailleurs — vérifiée par un test qui exécute le linter. Ce qui protège n'est pas l'interdiction d'évaluer : c'est que le code est **affiché avant de tourner**, que la **porte humaine** reste devant la livraison, et que la page ne porte ni secret ni donnée de visiteur.
 
 ### AD-9 — Le LLM est un adaptateur derrière le port `Raisonneur`
 
@@ -123,7 +123,7 @@ Correspondance couche / répertoire : le paradigme est appliqué par l'arboresce
 
 - **Binds:** F9, F1, F6
 - **Prevents:** qu'un graphe connu d'avance se fasse passer pour une composition, et des branchements conditionnels par niche dans le moteur
-- **Rule:** aucun fichier ne déclare quels agents existent. Un **plan** est produit à l'exécution à partir du brief (AD-23) et le maître le charge (AD-24). Ce qui reste déclaré est de la **donnée métier** : les corpus de règles (`src/corpus/`), que l'usine choisit et n'invente pas, et des briefs d'exemple (`src/exemples.ts`) qui ne décrivent aucun graphe. Ajouter une niche, c'est ajouter un corpus — aucun fichier de moteur, aucune topologie.
+- **Rule:** aucun fichier ne déclare quels agents existent. Un **plan** est produit à l'exécution à partir du brief (AD-23) et le maître le charge (AD-24). Ce qui reste déclaré est de la **donnée métier** : les corpus de règles (`src/corpus/`), que l'usine choisit et n'invente pas, et des briefs d'exemple (`src/examples/`) qui ne décrivent aucun graphe. Ajouter une niche, c'est ajouter un corpus — aucun fichier de moteur, aucune topologie.
 
 ### AD-23 — Un agent n'a pas de comportement, il a une boucle d'actions
 
@@ -201,13 +201,13 @@ Correspondance couche / répertoire : le paradigme est appliqué par l'arboresce
 
 - **Binds:** F10
 - **Prevents:** que deux constructeurs émettent plusieurs artefacts et que l'interface doive deviner lequel afficher quand on clique sur un nœud
-- **Rule:** un composant émet autant de versions qu'il veut ; le réducteur ne conserve que la dernière, indexée par `IdComposant`. « L'artefact d'un nœud » est donc toujours défini et unique. Un artefact partagé par plusieurs composants n'existe pas : il appartient à celui qui l'a émis, et les autres le citent par l'identifiant de son auteur.
+- **Rule:** un composant émet autant de versions qu'il veut ; le réducteur ne conserve que la dernière, indexée par `ComponentId`. « L'artefact d'un nœud » est donc toujours défini et unique. Un artefact partagé par plusieurs composants n'existe pas : il appartient à celui qui l'a émis, et les autres le citent par l'identifiant de son auteur.
 
 ### AD-19 — L'état affiché d'un nœud est dérivé, jamais déclaré
 
 - **Binds:** F3, F2
 - **Prevents:** que chaque agent invente sa propre notion de « terminé » et que deux nœuds au même état réel s'affichent différemment
-- **Rule:** les états visibles (inactif, en attente de dépendance, en cours, terminé, en erreur, libéré) sont produits par une **fonction unique** dans `etat/`, à partir du `FiberState` du runtime et des événements reçus. `FiberState` ne connaît pas « terminé » : c'est le composant qui émet `travail-termine` quand il a fini, et seule cette fonction traduit. Aucun composant ne pousse un état d'affichage.
+- **Rule:** les états visibles (inactif, en attente de dépendance, en cours, terminé, en erreur, libéré) sont produits par une **fonction unique** dans `state/`, à partir du `FiberState` du runtime et des événements reçus. `FiberState` ne connaît pas « terminé » : c'est le composant qui émet `work-finished` quand il a fini, et seule cette fonction traduit. Aucun composant ne pousse un état d'affichage.
 
 ### AD-20 — Les événements portent une séquence monotone produite par le runtime
 
@@ -230,13 +230,13 @@ Correspondance couche / répertoire : le paradigme est appliqué par l'arboresce
 
 | Concern | Convention |
 | --- | --- |
-| Langue du code | Identifiants et noms de fichiers en français, comme le domaine (`composant`, `fabrique`, `verificateur`). Les termes du runtime Cordis restent en anglais (`fiber`, `inject`, `provide`, `effect`) : ce sont des noms d'API, pas du vocabulaire métier. |
+| Langue du code | **Anglais**, sans exception : identifiants, noms de fichiers, types, commentaires, descriptions de tests, classes CSS, attributs `data-`, et le vocabulaire d'action que le modèle émet (`create`, `ask`, `build`) — c'est un protocole, pas de la prose. *Révisé : la version initiale imposait le français « comme le domaine » ; elle rendait le dépôt illisible pour qui n'est pas francophone, sans rien gagner.* Reste en français ce qui s'adresse à un humain francophone : libellés d'interface, narration, artefacts, prompts envoyés au modèle, et données réglementaires. |
 | Nommage des fichiers | `kebab-case.ts` pour les modules, `PascalCase.vue` pour les composants Vue, un fichier par composant Cordis sous `agents/`. |
-| Événements | `RunEvent` discriminé sur `type`, valeurs en `kebab-case` (`composant-active`, `artefact-produit`, `porte-atteinte`). Passé composé : un événement décrit un fait accompli. |
-| Identifiants | `IdComposant` est un type nominal produit par `runtime/`. Jamais une chaîne nue dans une signature publique. |
+| Événements | `RunEvent` discriminé sur `type`, valeurs en `kebab-case` anglais (`component-activated`, `artifact-published`, `gate-reached`). Participe passé : un événement décrit un fait accompli. |
+| Identifiants | `ComponentId` est un type nominal produit par `runtime/`. Jamais une chaîne nue dans une signature publique. |
 | Dates et durées | Millisecondes entières pour les durées ; aucune date absolue dans le modèle de run. |
 | Ordre | Tout ordre visible dérive du numéro de séquence des événements (AD-20) : ordre d'apparition dans une couche du graphe, ordre du journal. Jamais un tri par date. |
-| Forme d'erreur | `{ code: string, message: string, composant?: IdComposant }`. Jamais une `Error` brute franchissant la frontière du runtime. |
+| Forme d'erreur | `{ code: string, message: string, component?: ComponentId }`. Jamais une `Error` brute franchissant la frontière du runtime. |
 | Mutation d'état | Une seule voie : le réducteur. Les composants Vue reçoivent des valeurs, émettent des intentions. |
 | Journalisation | Aucune sortie console en production. Le journal du run (NFR-014) est une projection du flux d'événements, pas un `console.log`. |
 | Configuration | Aucune variable d'environnement dans le chemin par défaut : l'application doit fonctionner servie telle quelle. |
@@ -275,12 +275,12 @@ flowchart TB
   subgraph nav["Onglet du navigateur — tout se passe ici"]
     subgraph coeur["runtime/ — noyau"]
       cordis["Contexte Cordis"]
-      fab["Fabrique"]
+      fab["Évaluation du code d'un outil"]
       flux["Flux RunEvent"]
     end
-    red["etat/ — réducteur"]
+    red["state/ — réducteur"]
     vue["ui/ — Vue 3"]
-    prod["produits/ — vérificateur"]
+    prod["outil écrit pendant le run"]
   end
   fournisseur["Fournisseur LLM — optionnel, à la demande"]
 
@@ -289,7 +289,7 @@ flowchart TB
   flux --> red
   red --> vue
   vue -->|intentions| cordis
-  cordis -->|coeffect Raisonneur| fournisseur
+  cordis -->|coeffet Reasoner| fournisseur
   cordis --> prod
 ```
 
@@ -300,17 +300,17 @@ sequenceDiagram
   participant U as Visiteur
   participant UI as ui/
   participant R as runtime/
-  participant E as etat/
+  participant E as state/
 
   U->>UI: écrit le brief, lance
   UI->>R: intention « lancer »
   R->>R: charge l'agent maître, constitue la mémoire de run
-  R-->>E: composant-cree, composant-active, message-emis
+  R-->>E: component-created, component-activated, message-emitted
   R->>R: un agent décide qu'il lui faut de l'aide et charge un autre agent
-  R->>R: la Fabrique compile un composant, le runtime le charge
-  R-->>E: composant-fabrique, artefact-produit
+  R->>R: un agent écrit le code d'un outil, le runtime l'évalue et le charge
+  R-->>E: component-built, artifact-published
   R->>R: le sceptique attaque
-  R-->>E: porte-atteinte
+  R-->>E: gate-reached
   E-->>UI: la porte attend
   U->>UI: approuve
   UI->>R: intention « approuver »
@@ -358,26 +358,22 @@ Trois points sont contractuels et non négociables au déploiement :
 
 ```text
 src/
-  runtime/          # SEUL module autorisé à importer cordis (AD-2)
-    noyau.ts        # création du contexte, chargement, libération
-    contrat.ts      # le type Composant (AD-6), IdComposant (AD-7)
-    evenements.ts   # l'union RunEvent (AD-3)
-      composition.ts
-      evaluation.ts
-    raisonneur/     # port Raisonneur (AD-9)
-      deterministe.ts
-      llm.ts
-  agents/           # libre.ts (la boucle), actions.ts (le vocabulaire), maitre.ts (l'amorce)
-  outils/           # composants qui fournissent des coeffects (registre, mémoire)
-  corpus/           # données métier (AD-10) — les règles réelles, offertes en ressource
-  exemples/         # briefs de départ + la démonstration rejouée, sans clé
-  produits/         # moteurs de payoff purs (AD-12) — verificateur-allegations
-  etat/             # store en lecture seule + réducteur (AD-4)
-    reducteur.ts
-    disposition.ts  # calcul de disposition en couches (AD-11)
-  ui/               # composants Vue — projection seulement (AD-5)
-  telemetrie/       # quatre appels, rien d'autre (AD-14)
-  assets/usine.css  # design system, conservé de l'existant
+  runtime/            # SEUL module autorisé à importer cordis (AD-2)
+    kernel.ts         # création du contexte, chargement, libération, messagerie
+    contract.ts       # le type Component (AD-6), ComponentId (AD-7)
+    events.ts         # l'union RunEvent (AD-3)
+    reasoner/         # port Reasoner (AD-9) — index, claude, relay
+  agents/             # free-agent.ts (la boucle), actions.ts (le vocabulaire),
+                      # master.ts (l'amorce)
+  corpus/             # données métier (AD-10) — les règles réelles, en ressource
+  examples/           # briefs de départ + la démonstration rejouée, sans clé
+  state/              # store en lecture seule + réducteur (AD-4)
+    reducer.ts
+    layout.ts         # disposition du graphe vivant (AD-11)
+  orchestration/      # factory.ts (le lancement), pilot.ts (le câblage)
+  ui/                 # composants Vue — projection seulement (AD-5)
+  telemetry/          # quatre appels, rien d'autre (AD-14)
+  assets/tokens.css   # design system, conservé de l'existant
 ```
 
 ## Capability → Architecture Map
@@ -386,15 +382,15 @@ src/
 | --- | --- | --- |
 | F1 · Brief et lancement | `ui/`, `orchestration/` | AD-1, AD-10, AD-23, AD-24 |
 | F2 · Moteur de composition | `runtime/` | AD-1, AD-2, AD-3, AD-6, AD-7, AD-15, AD-17, AD-19 |
-| F3 · Graphe vivant | `etat/`, `ui/` | AD-4, AD-5, AD-11, AD-19, AD-20, AD-22 |
-| F4 · Agents qui parlent | `runtime/`, `etat/`, `ui/` | AD-3, AD-4, AD-20 |
+| F3 · Graphe vivant | `state/`, `ui/` | AD-4, AD-5, AD-11, AD-19, AD-20, AD-22 |
+| F4 · Agents qui parlent | `runtime/`, `state/`, `ui/` | AD-3, AD-4, AD-20 |
 | F5 · Porte humaine | `runtime/`, `ui/` | AD-1, AD-3, AD-22 |
-| F6 · Produit livré | `produits/` | AD-12, AD-22 |
+| F6 · Produit livré | `agents/free-agent.ts`, `ui/` | AD-12, AD-22 |
 | F7 · Mode LLM branché | `runtime/raisonneur/` | AD-9, AD-13 |
-| F8 · Compteurs | `etat/`, `telemetrie/` | AD-4, AD-14 |
-| F9 · Domaines | `corpus/`, `exemples.ts` | AD-10, AD-17, AD-23 |
-| F10 · Artefacts | `runtime/`, `etat/`, `ui/` | AD-3, AD-7, AD-18 |
-| F11 · Fabrication à l'exécution | `agents/libre.ts` | AD-8, AD-16, AD-17, AD-24 |
+| F8 · Compteurs | `state/`, `telemetry/` | AD-4, AD-14 |
+| F9 · Domaines | `corpus/`, `examples/` | AD-10, AD-17, AD-23 |
+| F10 · Artefacts | `runtime/`, `state/`, `ui/` | AD-3, AD-7, AD-18 |
+| F11 · Fabrication à l'exécution | `agents/free-agent.ts` | AD-8, AD-16, AD-17, AD-24 |
 
 ## Deferred
 

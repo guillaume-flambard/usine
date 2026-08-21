@@ -1,10 +1,16 @@
 # usine
 
-**Memo Labs — L'usine agentique.** Un système agentique qui, à partir d'un brief
-métier, se compose lui-même : des agents et des outils se chargent, se câblent
-par leurs dépendances déclarées, fabriquent des composants à l'exécution, passent
-une porte humaine et livrent un produit fonctionnel — le tout visible en direct
-sous forme de graphe, sans clé d'API et sans token.
+**Memo Labs — L'usine agentique.** Un besoin écrit en clair, et une usine qui
+n'existe pas encore. Un modèle décide quels agents doivent exister ; ces agents
+en créent d'autres, s'interrogent entre eux, écrivent le code de leurs outils et
+le chargent à chaud. Une porte humaine tranche, puis le produit — une fonction
+que personne n'avait nommée — s'exécute dans la page sur ce que vous tapez.
+
+Sans clé branchée, le site rejoue des réponses préparées et le dit à l'écran :
+un modèle est ce qui fait naître les agents, et rien ne prétend le contraire.
+
+Le code est en anglais ; l'interface, la narration et les prompts sont en
+français.
 
 Planification : `_bmad-output/planning-artifacts/` (PRD, architecture, UX, epics).
 Cadrage : `docs/`.
@@ -59,9 +65,9 @@ pnpm lint
 ```sh
 pnpm exec playwright install chromium   # une fois, sur un dépôt fraîchement cloné
 
-pnpm test            # le noyau, le réducteur, les scénarios — sans navigateur
-pnpm test:navigateur # les promesses d'interface, dans un vrai Chromium
-pnpm test:tout       # les deux
+pnpm test          # le noyau, le réducteur, les agents — sans navigateur
+pnpm test:browser  # les promesses d'interface, dans un vrai Chromium
+pnpm test:all      # les deux
 ```
 
 Les promesses d'interface — la page qui ne défile jamais, le parcours critique
@@ -75,6 +81,7 @@ docker build -t usine-agentique .
 docker run --rm -p 8080:80 usine-agentique
 ```
 
-Voir `deploiement/README.md`. La politique de sécurité servie est stricte,
-sans `unsafe-eval` : le mode par défaut doit passer dessous, et un test de
-non-régression le vérifie.
+Voir `deployment/README.md`. La politique de sécurité servie autorise
+`unsafe-eval` — et rien d'autre : les agents écrivent le code de leurs outils,
+et ce code doit tourner. Le code est affiché avant de s'exécuter, la porte
+humaine reste devant la livraison, et deux tests tiennent la politique.

@@ -16,7 +16,7 @@ encore sur GitHub. L'image est donc construite **sur le serveur**, depuis
 `/opt/usine`, et poussée dans un registre local (`127.0.0.1:5000`) que Coolify
 tire ensuite.
 
-Pour redéployer après un changement : `./deploiement/redeployer.sh`
+Pour redéployer après un changement : `./deployment/redeploy.sh`
 
 **À convertir dès que le dépôt existe** : créer `guillaume-flambard/usine`,
 pousser, puis dans Coolify passer l'application en build pack `dockerfile`
@@ -24,7 +24,7 @@ avec cette source. Le `git push` déclenchera alors le déploiement, comme pour
 les quatorze autres applications, et le registre local comme ce script
 deviendront inutiles.
 
-## Le relais de raisonnement (`services/relais`)
+## Le relais de raisonnement (`services/relay`)
 
 Il existe pour une seule raison : **une clé OpenRouter ne peut pas vivre dans
 un bundle client**. Elle se lit dans l'onglet réseau et se vide. Le relais la
@@ -33,40 +33,40 @@ ce qui laisse `connect-src 'self'` intact.
 
 Ce qu'il fait, et rien d'autre :
 
-- `GET /sante` → `{ pret, modele }`. `pret` dit **s'il y a** une clé, jamais
+- `GET /health` → `{ ready, model }`. `ready` dit **s'il y a** une clé, jamais
   laquelle. C'est ce que la page lit au chargement pour choisir son mode.
-- `POST /raisonner` → `{ texte, modele, tokens }`. Trois rôles admis
-  (`planificateur`, `architecte`, `sceptique`), instruction bornée à 500
-  caractères, contexte à 4000, sortie à 400 tokens, 6 demandes par minute et
-  par adresse, 300 par jour toutes adresses confondues.
-- Toute panne — quota, 401, fournisseur muet, relais absent — retombe sur le
-  repli écrit à la main, côté client. **Un run va toujours au bout.**
+- `POST /reason` → `{ text, model, tokens }`. Rôles admis en liste blanche
+  (`agent`, `master-agent`, `planner`, `architect`, `sceptic`), instruction
+  bornée à 500 caractères, contexte à 4000, sortie à 400 tokens, 6 demandes par
+  minute et par adresse, 300 par jour toutes adresses confondues.
+- Toute panne — quota, 401, fournisseur muet, relais absent — retombe côté
+  client sur ce que l'agent avait déjà. **Un run va toujours au bout.**
 
 ### Le déployer
 
 Seconde application Coolify, dans le même projet que l'usine.
 
 **Coolify ne donne pas d'alias DNS stable à ses conteneurs** : leur nom porte
-un horodatage et change à chaque déploiement. Viser `http://relais:3000` sur le
+un horodatage et change à chaque déploiement. Viser `http://relay:3000` sur le
 réseau interne ne tient donc pas. Le relais reçoit un domaine, et c'est nginx —
 pas le navigateur — qui l'appelle :
 
-- source : l'image `127.0.0.1:5000/usine-relais:latest`, construite par
-  `./deploiement/redeployer.sh` comme celle de l'usine
-- domaine : `https://relais.usine.memolabs.dev`, port interne `3000`
+- source : l'image `127.0.0.1:5000/usine-relay:latest`, construite par
+  `./deployment/redeploy.sh` comme celle de l'usine
+- domaine : `https://relay.usine.memolabs.dev`, port interne `3000`
 - variable d'environnement `OPENROUTER_API_KEY` — **collée dans Coolify, jamais
   dans le dépôt, jamais dans une conversation**
 - variables facultatives : `MODELE` (défaut `anthropic/claude-3.5-haiku`),
   `ORIGINE` (défaut `https://usine.memolabs.dev`)
 
-Puis, sur l'application **usine**, la variable `RELAIS_URL` :
+Puis, sur l'application **usine**, la variable `RELAY_URL` :
 
 ```
-RELAIS_URL=https://relais.usine.memolabs.dev
+RELAY_URL=https://relay.usine.memolabs.dev
 ```
 
 Elle est substituée au démarrage du conteneur
-(`NGINX_ENVSUBST_FILTER=^RELAIS_`) : changer de relais ne demande pas de
+(`NGINX_ENVSUBST_FILTER=^RELAY_`) : changer de relais ne demande pas de
 reconstruire l'image.
 
 Le relais est public, mais il ne sert que trois rôles, borne tout ce qui
@@ -85,9 +85,9 @@ docker run --rm -p 8080:80 usine-agentique
 
 ## Ce qui est contractuel
 
-- **La politique de sécurité est stricte, sans `unsafe-eval`.** Le mode par
-  défaut doit passer sous cette politique. La fabrication par évaluation de
-  code, réservée au mode LLM branché, échouera proprement ici — c'est voulu.
+- **La politique autorise `unsafe-eval`, et rien d'autre.** Les agents écrivent
+  le code de leurs outils : sans évaluation, rien d'imprévu ne peut sortir d'un
+  run. Aucune source de script externe n'est autorisée pour autant.
 - **Aucun secret dans l'image de l'usine.** La clé du relais vit dans
   l'environnement du relais ; celle que l'utilisateur saisit vit en mémoire de
   son onglet et ne survit pas à sa fermeture.
