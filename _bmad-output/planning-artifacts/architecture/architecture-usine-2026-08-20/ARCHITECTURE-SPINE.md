@@ -103,11 +103,13 @@ Correspondance couche / répertoire : le paradigme est appliqué par l'arboresce
 - **Prevents:** deux schémas d'identifiants, et des nœuds orphelins après un rechargement
 - **Rule:** l'identifiant d'un composant dérive de sa fiber, produit par `runtime/`. Aucun autre module ne fabrique d'identifiant de composant. Les artefacts et les messages référencent cet identifiant.
 
-### AD-8 — La fabrication passe par un port `Fabrique`
+### AD-8 — Un agent écrit le code de son outil, et ce code est évalué
+
+*Renversé. La version initiale interdisait l'évaluation par défaut et passait par un port `Fabrique` à deux voies, dont l'une n'assemblait qu'un vocabulaire fermé. Un agent ne pouvait donc jamais produire un outil imprévu — c'était le plafond, pas une sécurité.*
 
 - **Binds:** F11
-- **Prevents:** que l'évaluation de code s'infiltre dans le chemin par défaut et casse la CSP stricte
-- **Rule:** `Fabrique` a deux implémentations : `parComposition` (assemble des primitives déclarées, aucune évaluation, compatible `default-src 'self'`) et `parEvaluation` (`new Function`, exige `unsafe-eval`). Le défaut est `parComposition`. `parEvaluation` n'est atteignable que depuis le mode LLM branché et exige un consentement explicite.
+- **Prevents:** qu'un outil « fabriqué » ne soit en réalité qu'une combinaison choisie dans un catalogue écrit d'avance
+- **Rule:** l'outil d'un agent est du **code que le modèle écrit**, évalué (`new Function`) et chargé à chaud comme n'importe quel composant. L'évaluation est cantonnée à **un seul fichier** (`agents/libre.ts`), et une règle ESLint la refuse partout ailleurs — vérifiée par un test qui exécute le linter. Ce qui protège n'est pas l'interdiction d'évaluer : c'est que le code est **affiché avant de tourner**, que la **porte humaine** reste devant la livraison, et que la page ne porte ni secret ni donnée de visiteur.
 
 ### AD-9 — Le LLM est un adaptateur derrière le port `Raisonneur`
 
@@ -123,17 +125,31 @@ Correspondance couche / répertoire : le paradigme est appliqué par l'arboresce
 - **Prevents:** qu'un graphe connu d'avance se fasse passer pour une composition, et des branchements conditionnels par niche dans le moteur
 - **Rule:** aucun fichier ne déclare quels agents existent. Un **plan** est produit à l'exécution à partir du brief (AD-23) et le maître le charge (AD-24). Ce qui reste déclaré est de la **donnée métier** : les corpus de règles (`src/corpus/`), que l'usine choisit et n'invente pas, et des briefs d'exemple (`src/exemples.ts`) qui ne décrivent aucun graphe. Ajouter une niche, c'est ajouter un corpus — aucun fichier de moteur, aucune topologie.
 
-### AD-23 — Un plan est une donnée hostile, vérifiée avant tout chargement
+### AD-23 — Un agent n'a pas de comportement, il a une boucle d'actions
+
+*Remplace la version « plan vérifié avant chargement ». Un plan décidé au départ restait un graphe connu d'avance : plus court, mais connu.*
 
 - **Binds:** F1, F9, F10
-- **Prevents:** qu'un plan rédigé par un modèle fige le run, produise des verdicts faux ou fasse dériver la facture
-- **Rule:** le plan (`orchestration/plan.ts`) déclare des agents — nom, rôle, injections, publications, outil à fabriquer. Il vient d'un modèle ou d'une déduction du brief, donc **il est vérifié avant le moindre chargement** : cycles, dépendances sans fournisseur, noms en double, noms appartenant au maître, primitives inventées, agents décoratifs, promesses non tenues envers la suite fixe, nombre d'agents plafonné. Une chaîne qui classe sans `ecarter-les-negations` ni `exiger-une-source` est refusée : **le plan décide de la composition, jamais de la justesse du verdict.** Tout refus retombe sur le plan déterministe, et la raison s'affiche.
+- **Prevents:** qu'un catalogue d'agents écrits à la main se fasse passer pour une composition, et qu'une réponse de modèle atteigne le moteur sans être reconstruite
+- **Rule:** un agent est une **mission** et une **boucle** : le modèle rend des actions (`creer`, `demander`, `fabriquer`, `publier`, `retirer`, `dire`, `terminer`), le moteur les exécute et lui rend les observations. Aucun rôle, aucun nom, aucune dépendance n'est écrit dans le produit. Ce qui vient du modèle est **reconstruit champ par champ** avant exécution (`agents/actions.ts`) — une action illisible est écartée, le tour continue. Sans modèle, aucun agent ne naît : l'usine ne peut rien inventer, et l'écran le dit plutôt que de rejouer un catalogue.
 
-### AD-24 — Le maître fait naître le graphe, vague après vague
+### AD-24 — Ce qui borne un run est un budget, pas un catalogue
 
 - **Binds:** F1, F3, F11
-- **Prevents:** qu'un graphe entier apparaisse d'un bloc, et qu'un agent en panne fige le run sans écran
-- **Rule:** le maître publie ses coeffets, planifie, puis charge les agents par **vagues** : une vague ne naît qu'une fois la précédente réellement publiée (`noyau.attendre`), avec une borne au-delà de laquelle le run poursuit en le disant. Ce qui ne se planifie pas — porte humaine, livraison — est une **suite fixe** chargée après le plan : un produit qui pourrait se livrer sans décision humaine ne serait plus le même produit. Une **cadence de lecture** impose un temps minimum entre deux naissances ; elle est annoncée dans l'artefact du plan, jamais présentée comme du travail.
+- **Prevents:** qu'un chantier récursif parte à l'infini, et qu'un agent en panne fige le run sans écran
+- **Rule:** quatre bornes, portées par le chantier partagé : nombre d'agents, profondeur de création, tours par agent, tokens du run. Un dépassement est une **observation rendue à l'agent** (« refusé : profondeur maximale atteinte »), pas une exception. Le maître n'ouvre la porte humaine qu'une fois le chantier **stabilisé** — plus aucun composant actif et aucune apparition pendant plusieurs vérifications — ou le délai écoulé, et il le dit. La porte reste hors du champ des agents : un produit qui pourrait se livrer sans décision humaine ne serait plus le même produit.
+
+### AD-25 — Les agents se parlent par un aller-retour explicite
+
+- **Binds:** F2, F3
+- **Prevents:** qu'« ils se parlent » soit raconté par la narration sans exister dans le moteur
+- **Rule:** les coeffects ne vont que dans un sens. La conversation est un mécanisme distinct : `ecouter` déclare comment un composant répond, `demander(nom, question)` route vers lui et attend, borné dans le temps. Une question et sa réponse sont **deux événements** (`question-posee`, `reponse-donnee`), donc deux faits vérifiables et deux traces à l'écran. Un destinataire absent, muet ou trop lent rend `undefined` — un silence, jamais une panne du demandeur.
+
+### AD-26 — Un composant ne défait que ce qu'il a fait
+
+- **Binds:** F2, F10
+- **Prevents:** qu'un agent retire son propre maître, ou un pair qu'il n'a pas créé, et que le run se déferre par le milieu
+- **Rule:** `liberer` et `remplacer` existent dans le contexte d'un composant, mais **refusent tout identifiant dont il n'est pas le parent**. La filiation est portée par le runtime, jamais déclarée par l'agent. Elle est aussi rendue visible : une arête de filiation relie créateur et créé quand aucun flux de données ne les relie déjà.
 
 ### AD-11 — La disposition suit la topologie vivante, et ne se recalcule que quand elle change
 
@@ -167,11 +183,13 @@ Correspondance couche / répertoire : le paradigme est appliqué par l'arboresce
 - **Prevents:** qu'un agent défaillant fasse tomber la démonstration devant un recruteur
 - **Rule:** `runtime/` capture les erreurs d'activation et les convertit en `RunEvent` d'erreur. Le run continue, le nœud porte l'état d'erreur, ses dépendants restent en attente et le signalent (FR-014).
 
-### AD-16 — La CSP stricte est un invariant de déploiement
+### AD-16 — La politique de sécurité est un invariant de déploiement, `unsafe-eval` compris
+
+*Renversé en même temps qu'AD-8, et pour la même raison. Ce qui était « pas d'`unsafe-eval` » est devenu « `unsafe-eval` et rien d'autre ».*
 
 - **Binds:** all
-- **Prevents:** qu'`unsafe-eval` s'installe par commodité et rende le chemin par défaut dépendant de l'évaluation
-- **Rule:** la production sert `default-src 'self'` sans `unsafe-eval`. Le mode par défaut doit passer sous cette politique ; un test de non-régression le vérifie dans un navigateur réel.
+- **Prevents:** que la politique s'élargisse au-delà de ce que l'évaluation exige réellement
+- **Rule:** la production sert `default-src 'self'` et `script-src 'self' 'unsafe-eval'` — l'évaluation est nécessaire (AD-8), aucune source de script externe ne l'est. Le reste ne bouge pas : `object-src`, `frame-src`, `base-uri`, `form-action`, `frame-ancestors` à `'none'`, `connect-src` limité à `'self'` et au fournisseur du mode branché. Deux tests le tiennent : un test de contrat qui lit le fichier nginx servi, et un test en navigateur réel qui exécute un outil écrit pendant le run et vérifie qu'aucune requête ne part.
 
 ### AD-17 — Un nom de coeffect a un propriétaire unique, déclaré
 
@@ -197,11 +215,10 @@ Correspondance couche / répertoire : le paradigme est appliqué par l'arboresce
 - **Prevents:** que des agents en parallèle rendent l'ordre d'affichage non reproductible, et que deux endroits se disputent la ligne de narration
 - **Rule:** chaque `RunEvent` porte un numéro de séquence strictement croissant, attribué par `runtime/`. La ligne de narration (FR-026) est une **dérivation du réducteur** : le message de plus haute séquence, point. Aucun composant d'interface ne décide de ce qui s'affiche dans la narration.
 
-### AD-21 — Les primitives de fabrication vivent dans un registre unique
+### AD-21 — *(retirée)* Le registre de primitives de fabrication
 
-- **Binds:** F11
-- **Prevents:** que deux constructeurs définissent chacun leur vocabulaire de primitives et produisent des composants inassemblables
-- **Rule:** `runtime/fabrique/` détient le registre des primitives disponibles et leur signature. Une spécification ne peut nommer qu'une primitive de ce registre ; une primitive inconnue échoue à la compilation et devient un `RunEvent` d'erreur. Ajouter une primitive est une modification du registre, jamais une déclaration locale à un agent.
+*Supprimée avec AD-8. Le registre était le vocabulaire fermé dans lequel un agent devait puiser ; il n'existe plus, les agents écrivent leur code.*
+
 
 ### AD-22 — L'accessibilité est un invariant de rendu, pas une finition
 
@@ -289,7 +306,7 @@ sequenceDiagram
   UI->>R: intention « lancer »
   R->>R: charge l'agent maître, constitue la mémoire de run
   R-->>E: composant-cree, composant-active, message-emis
-  R->>R: le planificateur produit une spécification
+  R->>R: un agent décide qu'il lui faut de l'aide et charge un autre agent
   R->>R: la Fabrique compile un composant, le runtime le charge
   R-->>E: composant-fabrique, artefact-produit
   R->>R: le sceptique attaque
@@ -345,15 +362,15 @@ src/
     noyau.ts        # création du contexte, chargement, libération
     contrat.ts      # le type Composant (AD-6), IdComposant (AD-7)
     evenements.ts   # l'union RunEvent (AD-3)
-    fabrique/       # port Fabrique (AD-8)
       composition.ts
       evaluation.ts
     raisonneur/     # port Raisonneur (AD-9)
       deterministe.ts
       llm.ts
-  agents/           # un fichier par composant : planificateur, architecte, constructeurs, sceptique, livraison
+  agents/           # libre.ts (la boucle), actions.ts (le vocabulaire), maitre.ts (l'amorce)
   outils/           # composants qui fournissent des coeffects (registre, mémoire)
-  corpus/           # données métier (AD-10) — les règles réelles, par domaine
+  corpus/           # données métier (AD-10) — les règles réelles, offertes en ressource
+  exemples/         # briefs de départ + la démonstration rejouée, sans clé
   produits/         # moteurs de payoff purs (AD-12) — verificateur-allegations
   etat/             # store en lecture seule + réducteur (AD-4)
     reducteur.ts
@@ -377,7 +394,7 @@ src/
 | F8 · Compteurs | `etat/`, `telemetrie/` | AD-4, AD-14 |
 | F9 · Domaines | `corpus/`, `exemples.ts` | AD-10, AD-17, AD-23 |
 | F10 · Artefacts | `runtime/`, `etat/`, `ui/` | AD-3, AD-7, AD-18 |
-| F11 · Fabrication à l'exécution | `runtime/fabrique/` | AD-8, AD-16, AD-17, AD-21 |
+| F11 · Fabrication à l'exécution | `agents/libre.ts` | AD-8, AD-16, AD-17, AD-24 |
 
 ## Deferred
 

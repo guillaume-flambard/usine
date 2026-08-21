@@ -107,3 +107,24 @@ Conséquence : l'échange de source à chaud, qui n'est pas un geste de
 l'interface, laisse le produit livré indisponible jusqu'au run suivant.
 Couvert par un test qui dit exactement ce qui tient aujourd'hui
 (`invariants.spec.ts`), pas par un test qui ment.
+
+## L'usine sans clé ne montre qu'un run rejoué
+
+Un modèle est ce qui fait naître les agents. Sans clé, l'usine ne peut rien
+inventer — et un repli qui « inventerait » quand même ne serait qu'un catalogue
+caché, exactement ce que ce produit refuse de montrer.
+
+Le site rejoue donc des réponses préparées, pour un seul besoin, et l'annonce à
+trois endroits : le badge de mode, l'explication dépliable, et une note sous le
+champ quand le besoin saisi n'est pas celui que la démonstration sait jouer.
+
+À faire quand la clé sera dans Coolify : enregistrer un vrai run et remplacer
+les réponses préparées par cette transcription — la démonstration dira alors
+« run réel du <date>, rejoué », ce qui est une phrase plus vraie.
+
+## Le budget d'un run libre n'est pas mesuré en euros
+
+Les bornes sont en agents, profondeur, tours et tokens. Le coût réel dépend du
+modèle choisi et de la longueur des contextes, qu'aucune de ces bornes ne
+plafonne directement. Le relais impose sa propre limite par adresse et par
+jour ; c'est elle qui protège la facture aujourd'hui, pas le budget du run.
