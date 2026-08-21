@@ -73,14 +73,16 @@ describe('the served security policy', () => {
     }
   })
 
-  it('keeps the model relay on the same origin', () => {
+  it('keeps the model relay on the same origin, and on the loopback', () => {
     // A third-party origin would force opening `connect-src` and handling
-    // CORS; above all, the relay's key must never travel client-side.
+    // CORS; above all, the relay's key must never travel client-side. The
+    // relay lives in the same container, so nginx never leaves the machine.
     const block = nginx.split('location ~ ^/api/')[1]?.split('location ')[0] ?? ''
-    expect(block).toContain('proxy_pass $relay')
-    // Resolved per request: a missing relay returns 502, it does not stop
-    // nginx from starting.
-    expect(block).toContain('resolver')
+    expect(block).toContain('proxy_pass http://127.0.0.1:3000/')
+    expect(block).not.toMatch(/proxy_pass https?:\/\/(?!127\.0\.0\.1)/)
+    // The visitor's address is forwarded: without it the relay would see one
+    // address for the whole planet and its per-minute cap would be shared.
+    expect(block).toContain('X-Forwarded-For')
     expect(directive('connect-src')).toContain("'self'")
   })
 

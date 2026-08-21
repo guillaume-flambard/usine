@@ -37,44 +37,49 @@ Ce qu'il fait, et rien d'autre :
   laquelle. C'est ce que la page lit au chargement pour choisir son mode.
 - `POST /reason` → `{ text, model, tokens }`. Rôles admis en liste blanche
   (`agent`, `master-agent`, `planner`, `architect`, `sceptic`), instruction
-  bornée à 500 caractères, contexte à 4000, sortie à 400 tokens, 6 demandes par
-  minute et par adresse, 300 par jour toutes adresses confondues.
-- Toute panne — quota, 401, fournisseur muet, relais absent — retombe côté
+  bornée à 1200 caractères, contexte à 6000, sortie à 1200 tokens, 40 demandes
+  par minute et par adresse — un seul run en fait une dizaine — et 400 par jour
+  toutes adresses confondues.
+- Le raisonnement du modèle est **désactivé** (`reasoning: { enabled: false }`).
+  Mesuré sur DeepSeek V4 Flash : deux appels sur trois rendaient 1200 tokens de
+  réflexion et zéro caractère de contenu. Ce qu'on demande est un objet JSON
+  dans une forme fixe, pas une délibération.
+- Toute panne — quota, 401, fournisseur muet, relais arrêté — retombe côté
   client sur ce que l'agent avait déjà. **Un run va toujours au bout.**
 
-### Le déployer
+### Il vit dans le même conteneur que le site
 
-Seconde application Coolify, dans le même projet que l'usine.
+Une seule image, deux processus : nginx au premier plan, le relais sur la
+boucle locale en `127.0.0.1:3000`. `deployment/entrypoint.sh` démarre les deux.
 
-**Coolify ne donne pas d'alias DNS stable à ses conteneurs** : leur nom porte
-un horodatage et change à chaque déploiement. Viser `http://relay:3000` sur le
-réseau interne ne tient donc pas. Le relais reçoit un domaine, et c'est nginx —
-pas le navigateur — qui l'appelle :
+C'est un choix, et il vient d'une contrainte réelle : **Coolify ne donne pas
+d'alias DNS stable à ses conteneurs** — leur nom porte un horodatage qui change
+à chaque déploiement. Deux conteneurs auraient obligé à exposer le relais sur un
+domaine public pour que le nginx *de la même machine* puisse l'atteindre : une
+sortie sur Internet pour revenir chez soi. Un conteneur, une boucle locale, et
+le problème n'existe pas.
 
-- source : l'image `127.0.0.1:5000/usine-relay:latest`, construite par
-  `./deployment/redeploy.sh` comme celle de l'usine
-- domaine : `https://relay.usine.memolabs.dev`, port interne `3000`
-- variable d'environnement `OPENROUTER_API_KEY` — **collée dans Coolify, jamais
-  dans le dépôt, jamais dans une conversation**
-- variables facultatives : `MODEL` (défaut `deepseek/deepseek-v4-flash`),
-  `ORIGINE` (défaut `https://usine.memolabs.dev`)
+Ce qu'il faut donc côté Coolify, sur l'application **usine** et nulle part
+ailleurs :
 
-Puis, sur l'application **usine**, la variable `RELAY_URL` :
+- `OPENROUTER_API_KEY` — **collée dans Coolify, jamais dans le dépôt, jamais
+  dans une conversation**
+- facultatif : `MODEL` (défaut `deepseek/deepseek-v4-flash`), `ORIGIN` (défaut
+  `https://usine.memolabs.dev`), `RELAY_PORT` (défaut `3000`)
 
-```
-RELAY_URL=https://relay.usine.memolabs.dev
-```
+`RELAY_PORT` et non `PORT` : une PaaS renseigne `PORT` avec le port public du
+conteneur — Coolify y met 80 — et le relais se battait avec nginx pour l'avoir.
+Il n'écoute que sur la boucle : personne hors du conteneur ne l'atteint.
 
-Elle est substituée au démarrage du conteneur
-(`NGINX_ENVSUBST_FILTER=^RELAY_`) : changer de relais ne demande pas de
-reconstruire l'image.
+Le relais mort ne fait pas tomber le site : `/api` rend 502, la sonde échoue, et
+la page retombe sur sa démonstration rejouée, ce qu'elle annonce à l'écran.
 
-Le relais est public, mais il ne sert que trois rôles, borne tout ce qui
-rentre, plafonne le débit par adresse (Traefik renseigne `X-Forwarded-For`) et
-la dépense par jour. La clé, elle, ne sort jamais de son conteneur.
+### Coût
 
-Sans relais déployé, `/api` rend 502, la sonde échoue, et le site reste en mode
-déterministe — ce qu'il annonce à l'écran. Aucune page cassée.
+DeepSeek V4 Flash : 0,083 $ le million de tokens en entrée, 0,165 $ en sortie.
+Un run complet — une dizaine d'appels, quelques milliers de tokens — coûte de
+l'ordre de 0,0003 $. Aux plafonds ci-dessus, la journée pleine tient sous
+0,05 $.
 
 ## Construire et servir
 

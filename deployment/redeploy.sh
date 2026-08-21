@@ -13,7 +13,6 @@ set -euo pipefail
 
 HOST="${1:-memo-labs}"
 IMAGE="127.0.0.1:5000/usine-agentique:latest"
-IMAGE_RELAY="127.0.0.1:5000/usine-relay:latest"
 
 echo "→ vérification locale avant envoi"
 pnpm lint
@@ -32,20 +31,18 @@ ssh "$HOST" "rm -rf /opt/usine && mkdir -p /opt/usine && cd /opt/usine \
   && tar xzf /tmp/usine.tgz && rm -f /tmp/usine.tgz \
   && find . -name '._*' -delete \
   && docker build -q -t $IMAGE . >/dev/null \
-  && docker push -q $IMAGE >/dev/null \
-  && docker build -q -t $IMAGE_RELAY services/relay >/dev/null \
-  && docker push -q $IMAGE_RELAY >/dev/null"
+  && docker push -q $IMAGE >/dev/null"
 
-# Les deux applications se déploient de la même façon ; le relais n'existe
-# dans Coolify que si la clé y a été collée.
+# Une seule application : le site et son relais sont dans la même image.
 echo "→ déploiement Coolify"
 ssh "$HOST" "docker exec coolify php artisan tinker --execute='
-foreach ([\"usine\", \"usine-relay\"] as \$name) {
-  \$a = \App\Models\Application::where(\"name\", \$name)->first();
-  if (\$a) queue_application_deployment(application: \$a, deployment_uuid: strtolower(\Illuminate\Support\Str::random(24)), no_questions_asked: true);
-}
+\$a = \App\Models\Application::where(\"name\",\"usine\")->first();
+queue_application_deployment(application: \$a, deployment_uuid: strtolower(\Illuminate\Support\Str::random(24)), no_questions_asked: true);
 ' >/dev/null 2>&1"
 
 echo "→ vérification"
-sleep 30
+sleep 45
 curl -sI https://usine.memolabs.dev --max-time 25 | head -1
+# La sonde du relais dit s'il porte une clé : sans elle, le site rejoue sa
+# démonstration au lieu de faire raisonner un modèle.
+curl -s https://usine.memolabs.dev/api/health --max-time 25 | head -c 120

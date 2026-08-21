@@ -3,7 +3,10 @@
 
 import { createRelay } from './relay.mjs'
 
-const PORT = Number(process.env.PORT ?? 3000)
+// `RELAY_PORT`, not `PORT`: a PaaS sets `PORT` to the container's public port
+// — Coolify sets 80 — and the relay would fight nginx for it. It listens on
+// the loopback only; nobody outside the container reaches it.
+const PORT = Number(process.env.RELAY_PORT ?? 3000)
 const MODEL = process.env.MODEL ?? 'deepseek/deepseek-v4-flash'
 const KEY = process.env.OPENROUTER_API_KEY ?? ''
 
@@ -17,6 +20,6 @@ createRelay({
   key: KEY,
   model: MODEL,
   origin: process.env.ORIGIN ?? 'https://usine.memolabs.dev',
-}).listen(PORT, () => {
+}).listen(PORT, '127.0.0.1', () => {
   process.stdout.write(`reasoning relay on :${PORT} — model ${MODEL}\n`)
 })
