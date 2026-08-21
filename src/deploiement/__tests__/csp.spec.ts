@@ -23,10 +23,13 @@ describe('la politique de sécurité servie', () => {
     expect(directive('default-src')).toBe("default-src 'self'")
   })
 
-  it("n'autorise jamais l'évaluation de code", () => {
-    // C'est la promesse centrale du mode par défaut.
-    expect(politique).not.toContain('unsafe-eval')
-    expect(directive('script-src')).toBe("script-src 'self'")
+  it("n'autorise l'évaluation que pour le code que les agents écrivent", () => {
+    // Arbitrage assumé : sans `unsafe-eval`, un agent ne peut qu'assembler un
+    // vocabulaire fermé, et rien d'imprévu ne sort jamais du run.
+    expect(directive('script-src')).toBe("script-src 'self' 'unsafe-eval'")
+    // Ce qui ne se négocie pas : aucune source de script externe.
+    expect(directive('script-src')).not.toMatch(/https?:/)
+    expect(politique).not.toContain("unsafe-inline'; script")
   })
 
   it("n'ouvre le réseau que vers le fournisseur du mode branché", () => {

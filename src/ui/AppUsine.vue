@@ -4,7 +4,8 @@
 // c'est ce qui rend le câblage testable sans navigateur.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { creerPilote } from '../orchestration/pilote'
-import { CONTACT, EXEMPLES, briefParDefaut } from '../exemples'
+import { CONTACT, EXEMPLES } from '../exemples'
+import { BRIEF_DE_DEMONSTRATION, raisonneurDeDemonstration } from '../exemples/demonstration'
 import type { NoeudVue } from '../etat/modele'
 import GrapheVivant from './GrapheVivant.vue'
 import PanneauNoeud from './PanneauNoeud.vue'
@@ -12,6 +13,7 @@ import PorteHumaine from './PorteHumaine.vue'
 import ProduitLivre from './ProduitLivre.vue'
 import InterrupteurModele, { type SourceModele } from './InterrupteurModele.vue'
 import { raisonneurRelais, relaisDisponible } from '../runtime/raisonneur/relais'
+import type { OrigineRaisonnement } from '../runtime/raisonneur'
 import {
   nouveauRun,
   payoffAffiche,
@@ -21,9 +23,19 @@ import {
 } from '../telemetrie'
 
 const pilote = creerPilote()
+// Sans modèle, l'usine ne peut rien inventer. Plutôt qu'un écran vide, elle
+// rejoue des réponses préparées — et l'écran ne prétend jamais l'inverse.
+pilote.brancher(raisonneurDeDemonstration())
 const etat = pilote.store.etat
 
-const brief = ref(briefParDefaut())
+const brief = ref(BRIEF_DE_DEMONSTRATION)
+
+/** La démonstration ne sait rejouer qu'un besoin ; l'écran ne le cache pas. */
+const briefRejouable = computed(
+  () =>
+    ['allégation', 'santé', 'complément', 'conformité'].filter((mot) => brief.value.includes(mot))
+      .length >= 2,
+)
 // La disposition suit le graphe : elle n'est plus une photographie prise
 // avant le run, elle est recalculée quand l'usine fait naître un agent.
 const disposition = pilote.disposition
@@ -32,7 +44,7 @@ const demarrage = ref(false)
 const erreur = ref<string | undefined>()
 const choisi = ref<string | undefined>()
 const aideMode = ref(false)
-const mode = ref<'deterministe' | 'llm'>(pilote.modeRaisonnement())
+const mode = ref<OrigineRaisonnement>(pilote.modeRaisonnement())
 const source = ref<SourceModele>('aucune')
 const relaisPret = ref(false)
 
@@ -48,12 +60,12 @@ function brancherRelaisDuSite() {
   erreur.value = undefined
 }
 
-async function brancherModele(cle: string, evaluation: boolean) {
+async function brancherModele(cle: string) {
   try {
     // Import dynamique : sans branchement, le SDK n'est jamais chargé et le
     // bundle du mode par défaut n'en porte pas une ligne.
     const { raisonneurClaude } = await import('../runtime/raisonneur/claude')
-    pilote.brancher(raisonneurClaude({ cle }), { evaluation })
+    pilote.brancher(raisonneurClaude({ cle }))
     source.value = 'cle'
     erreur.value = undefined
   } catch (cause) {
@@ -67,7 +79,9 @@ async function brancherModele(cle: string, evaluation: boolean) {
 }
 
 function debrancherModele() {
-  pilote.brancher(undefined)
+  // Débrancher ne rend pas la page inerte : elle retombe sur la démonstration
+  // rejouée, qui s'annonce comme telle.
+  pilote.brancher(raisonneurDeDemonstration())
   source.value = 'aucune'
   mode.value = pilote.modeRaisonnement()
 }
@@ -95,17 +109,16 @@ const phase = computed(() => {
   return pilote.phase()
 })
 
-/** Ce que l'usine s'est donné comme plan. Absent tant qu'elle n'a pas lu le brief. */
-const plan = computed(() => {
+/** Le produit du run : une fonction publiée sous un nom que personne n'avait choisi. */
+const produit = computed(() => {
   void etat.value.derniereSequence
-  return pilote.plan()
+  return pilote.produit()
 })
 
-/** Le produit livré, dès que la porte est franchie. */
-const verificateur = computed(() => {
-  void etat.value.derniereSequence
-  return pilote.verificateur()
-})
+/** Les agents que ce run a fait naître. Aucun n'existait avant le brief. */
+const agentsCrees = computed(
+  () => etat.value.noeuds.filter((noeud) => noeud.nom !== 'agent-maitre').length,
+)
 
 const noeudChoisi = computed<NoeudVue | undefined>(
   () => etat.value.noeuds.find((noeud) => noeud.id === choisi.value) as NoeudVue | undefined,
@@ -132,7 +145,7 @@ watch(
 )
 
 watch(
-  () => verificateur.value !== undefined,
+  () => produit.value !== undefined,
   (livre) => {
     if (livre) payoffAffiche()
   },
@@ -227,9 +240,9 @@ onBeforeUnmount(() => {
         <span>{{
           mode === 'llm'
             ? source === 'relais'
-              ? 'Mode LLM — modèle du site'
-              : 'Mode LLM branché'
-            : 'Mode déterministe'
+              ? 'Modèle du site — run vivant'
+              : 'Modèle branché — run vivant'
+            : 'Démonstration rejouée'
         }}</span>
         <button
           class="mode-aide"
@@ -242,15 +255,15 @@ onBeforeUnmount(() => {
       </div>
       <p v-if="aideMode" id="explication-mode" class="mode-explication">
         <template v-if="mode === 'llm'">
-          Le planificateur, l’architecte et le sceptique raisonnent réellement : leurs textes sont
-          rédigés par un modèle{{
+          Aucun agent n’est écrit d’avance. Un modèle{{
             source === 'relais' ? ' hébergé par le site, sans clé de votre part' : ''
-          }}. La composition, la fabrication et les verdicts restent déterministes, et un échec
-          d’appel retombe sur la réponse écrite à la main.
+          }}
+          décide lesquels existent, ce qu’ils se demandent, et le code des outils qu’ils écrivent.
+          Le graphe que vous voyez n’a jamais existé avant votre besoin.
         </template>
         <template v-else>
-          Les agents se composent, fabriquent et travaillent réellement ; leur jugement est écrit à
-          la main, pas produit par un modèle. Aucune clé, aucun token.
+          Aucun modèle n’est branché : l’usine ne peut rien inventer. Elle a besoin d’un modèle pour
+          faire naître ses agents — sans lui, il n’y a rien à montrer.
         </template>
       </p>
       <div class="mode-branchement">
@@ -268,6 +281,13 @@ onBeforeUnmount(() => {
         <h1 class="titre-cache">L'usine agentique — du besoin au produit</h1>
         <label class="eyebrow" for="brief">Le besoin — l'usine n'existe pas encore</label>
         <textarea id="brief" v-model="brief" class="champ-brief"></textarea>
+        <!-- Un besoin que la démonstration ne sait pas rejouer ne produira
+             rien : le dire avant le clic vaut mieux qu'un graphe vide. -->
+        <p v-if="mode === 'demonstration' && !briefRejouable" class="plan-resume">
+          <span class="plan-cle">Note</span>
+          Ce besoin n’est pas celui de la démonstration. Sans modèle branché, l’usine n’aura rien à
+          faire naître.
+        </p>
 
         <div class="rangee-actions">
           <button class="bouton" :disabled="demarrage" @click="relancer">
@@ -297,11 +317,9 @@ onBeforeUnmount(() => {
 
         <!-- Le plan est la seule chose qui explique le graphe : il n'existait
              pas avant le brief, et il n'est pas le même d'un brief à l'autre. -->
-        <p v-if="plan" class="plan-resume">
-          <span class="plan-cle">Plan</span>
-          {{ plan.agents.length }} agents ·
-          {{ plan.origine === 'modele' ? 'rédigé par un modèle' : 'déduit du brief' }} ·
-          {{ plan.produit }}
+        <p v-if="agentsCrees > 0" class="plan-resume">
+          <span class="plan-cle">Chantier</span>
+          {{ agentsCrees }} agents créés pendant ce run · aucun n'existait avant votre besoin
         </p>
 
         <div class="fil">
@@ -362,20 +380,17 @@ onBeforeUnmount(() => {
         <!-- Les deux occupent le même bas d'écran : le produit livré prend
              la place de la porte une fois la décision rendue. -->
         <PorteHumaine
-          v-if="etat.porte && !verificateur"
+          v-if="etat.porte && !produit"
           :porte="etat.porte"
           @approuver="approuver"
           @ecarter="ecarter"
         />
 
         <ProduitLivre
-          v-if="verificateur"
-          :verifier="verificateur"
+          v-if="produit"
+          :executer="produit.executer"
+          :nom="produit.nom"
           :contact="CONTACT"
-          :titre="pilote.plan()?.produit ?? 'Produit livré'"
-          :aide="
-            pilote.plan()?.aide ?? 'Collez un texte : chaque phrase reçoit un verdict et sa source.'
-          "
           @soumis="verificationSoumise"
         />
 

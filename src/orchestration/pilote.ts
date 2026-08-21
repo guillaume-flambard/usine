@@ -9,15 +9,23 @@ import { computed, shallowRef, type Ref } from 'vue'
 import { disposerVivant, signatureTopologie, type Disposition } from '../etat/disposition'
 import { creerStore, type StoreRun } from '../etat/store'
 import { creerNoyau, type Noyau } from '../runtime/noyau'
-import type { Verdict } from '../runtime/fabrique/primitives'
-import { fabriqueParComposition, fabriqueParEvaluation, type Fabrique } from '../runtime/fabrique'
-import { raisonneurDeterministe, type Raisonneur } from '../runtime/raisonneur'
-import type { Plan } from './plan'
-import { lancerUsine } from './usine'
+import {
+  raisonneurDeterministe,
+  type OrigineRaisonnement,
+  type Raisonneur,
+} from '../runtime/raisonneur'
+import type { Budget } from '../agents/libre'
+import { lancerUsine, produitDuRun } from './usine'
+
+/** Le produit d'un run : une fonction publiée, dont personne ne savait le nom. */
+export interface ProduitLivre {
+  nom: string
+  executer: (entree: unknown) => unknown
+}
 
 export type PhaseRun =
   | 'Au repos'
-  | 'Planification'
+  | 'Amorçage'
   | 'Construction'
   | 'Décision'
   | 'Écarté'
@@ -25,21 +33,10 @@ export type PhaseRun =
   | 'Incident'
   | 'Libéré'
 
-export interface OptionsBranchement {
-  /**
-   * Autorise la fabrication par évaluation de code. Elle exige une politique
-   * de sécurité permissive, d'où le consentement séparé : ce n'est pas un
-   * effet de bord du branchement d'un modèle.
-   */
-  evaluation?: boolean
-}
-
 export interface Pilote {
   readonly store: StoreRun
   /** La disposition du graphe tel qu'il est. Recalculée quand il pousse. */
   readonly disposition: Ref<Disposition>
-  /** Le plan que le run s'est donné. Absent tant qu'il n'a pas planifié. */
-  plan(): Plan | undefined
   phase(): PhaseRun
   /** Vrai quand plus rien ne bougera sans une action humaine. */
   fini(): boolean
@@ -49,11 +46,9 @@ export interface Pilote {
    * Branche un vrai modèle sur les agents qui raisonnent. Sans appel, le run
    * reste déterministe : aucune clé, aucun token, aucune requête.
    */
-  brancher(raisonneur: Raisonneur | undefined, options?: OptionsBranchement): void
+  brancher(raisonneur: Raisonneur | undefined): void
   /** Le mode de raisonnement en vigueur au prochain run. */
-  modeRaisonnement(): 'deterministe' | 'llm'
-  /** La voie de fabrication en vigueur au prochain run. */
-  voieDeFabrication(): 'composition' | 'evaluation'
+  modeRaisonnement(): OrigineRaisonnement
   arreter(): Promise<void>
   /** Approuve la porte en attente. Rend `false` si aucune n'attend. */
   approuver(): boolean
@@ -67,7 +62,7 @@ export interface Pilote {
    * fonction que la pièce fabriquée publie — l'application la consomme,
    * elle ne participe pas à la composition.
    */
-  verificateur(): ((texte: string) => readonly Verdict[]) | undefined
+  produit(): ProduitLivre | undefined
   /** Le noyau du run en cours, pour l'introspection. Absent au repos. */
   noyau(): Noyau | undefined
 }
@@ -80,10 +75,12 @@ const DISPOSITION_VIDE: Disposition = {
 }
 
 export interface OptionsPilote {
-  /** Temps minimum entre deux naissances. Les tests la mettent à zéro. */
-  cadenceMs?: number
-  /** Borne l'attente d'une vague avant de charger la suivante. */
-  delaiParVague?: number
+  /** Ce qui borne un run libre : agents, profondeur, tours, tokens. */
+  budget?: Budget
+  /** Combien de temps un chantier peut rester en mouvement. */
+  delaiStabilisationMs?: number
+  /** Le pas entre deux vérifications de stabilité. Les tests le raccourcissent. */
+  pasMs?: number
 }
 
 export function creerPilote(options: OptionsPilote = {}): Pilote {
@@ -93,7 +90,6 @@ export function creerPilote(options: OptionsPilote = {}): Pilote {
   let derniereErreur: string | undefined
   let demarrageEnCours = false
   let raisonneurCourant: Raisonneur = raisonneurDeterministe()
-  let fabriqueCourante: Fabrique = fabriqueParComposition()
 
   // La disposition ne se recalcule que quand la topologie change : un
   // message ou un changement d'état n'a aucune raison de déplacer un nœud.
@@ -111,8 +107,6 @@ export function creerPilote(options: OptionsPilote = {}): Pilote {
     return derniere.value.disposition
   })
 
-  const plan = (): Plan | undefined => noyauCourant?.produit<{ plan?: Plan }>('memoire')?.plan
-
   const phase = (): PhaseRun => {
     const noeuds = store.etat.value.noeuds
     if (noeuds.length === 0) return 'Au repos'
@@ -128,10 +122,10 @@ export function creerPilote(options: OptionsPilote = {}): Pilote {
     // un run annoncé terminé.
     if (noeuds.some((n) => n.etat === 'en-erreur')) return 'Incident'
     if (noeuds.every((n) => n.etat === 'termine')) return 'Terminé'
-    // Tant que le maître est seul, l'usine lit le brief : elle ne construit
-    // rien encore, et le dire serait faux.
-    if (noeuds.some((n) => n.nom !== 'agent-maitre' && n.etat === 'en-cours')) return 'Construction'
-    return 'Planification'
+    // Tant que le maître est seul, rien n'a encore été créé : dire
+    // « Construction » laisserait croire que des agents travaillent.
+    if (noeuds.length > 1) return 'Construction'
+    return 'Amorçage'
   }
 
   async function arreter() {
@@ -144,24 +138,20 @@ export function creerPilote(options: OptionsPilote = {}): Pilote {
   return {
     store,
     disposition,
-    plan,
     phase,
     fini: () => ['Terminé', 'Écarté', 'Libéré', 'Incident'].includes(phase()),
     erreur: () => derniereErreur,
     noyau: () => noyauCourant,
-    verificateur() {
+    produit() {
       // Seulement après une approbation : le produit n'est livré qu'une fois
       // la porte franchie, et écarter le retire.
       if (store.etat.value.porte?.decision !== 'approuve') return undefined
       // Ni depuis un run tombé en panne ou libéré : servir le produit d'un
       // run que le graphe montre en échec serait incohérent.
       if (phase() === 'Incident' || phase() === 'Libéré') return undefined
-      const publie = noyauCourant?.produit<unknown>('verificateur')
-      // `produit` rend ce qui a été publié sous ce nom, quel qu'il soit :
-      // sans cette garde, un clic finirait en TypeError dans la page.
-      return typeof publie === 'function'
-        ? (publie as (texte: string) => readonly Verdict[])
-        : undefined
+      // Le nom du produit n'est pas connu d'avance : on cherche ce qui a été
+      // publié d'exécutable, quel que soit le nom que ses auteurs ont choisi.
+      return noyauCourant === undefined ? undefined : produitDuRun(noyauCourant)
     },
     arreter,
     async demarrer(brief: string) {
@@ -177,9 +167,11 @@ export function creerPilote(options: OptionsPilote = {}): Pilote {
         await lancerUsine(noyauCourant, {
           brief,
           raisonneur: raisonneurCourant,
-          fabrique: fabriqueCourante,
-          ...(options.cadenceMs !== undefined ? { cadenceMs: options.cadenceMs } : {}),
-          ...(options.delaiParVague !== undefined ? { delaiParVague: options.delaiParVague } : {}),
+          ...(options.budget !== undefined ? { budget: options.budget } : {}),
+          ...(options.delaiStabilisationMs !== undefined
+            ? { delaiStabilisationMs: options.delaiStabilisationMs }
+            : {}),
+          ...(options.pasMs !== undefined ? { pasMs: options.pasMs } : {}),
         })
       } catch (cause) {
         derniereErreur = cause instanceof Error ? cause.message : String(cause)
@@ -215,16 +207,9 @@ export function creerPilote(options: OptionsPilote = {}): Pilote {
       }
       return true
     },
-    brancher(raisonneur: Raisonneur | undefined, options: OptionsBranchement = {}) {
+    brancher(raisonneur: Raisonneur | undefined) {
       raisonneurCourant = raisonneur ?? raisonneurDeterministe()
-      // La voie par évaluation n'est atteignable que branché ET consenti :
-      // débrancher la referme, pour qu'on ne l'oublie pas active.
-      fabriqueCourante =
-        raisonneur !== undefined && options.evaluation === true
-          ? fabriqueParEvaluation()
-          : fabriqueParComposition()
     },
     modeRaisonnement: () => raisonneurCourant.origine,
-    voieDeFabrication: () => fabriqueCourante.voie,
   }
 }

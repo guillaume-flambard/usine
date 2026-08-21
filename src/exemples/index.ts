@@ -31,6 +31,4 @@ export const EXEMPLES: readonly Exemple[] = [
   },
 ]
 
-export const briefParDefaut = (): string => EXEMPLES[0]?.brief ?? ''
-
 export const CONTACT = 'g.flambard@gmail.com'

@@ -4,6 +4,7 @@
 
 import { Context } from 'cordis'
 import type {
+  Repondeur,
   Annulation,
   Artefact,
   CauseDesactivation,
@@ -79,6 +80,12 @@ export interface Noyau {
    */
   attendre(nom: string, delaiMs?: number): Promise<boolean>
   /**
+   * Les noms effectivement publiés à cet instant. Sans cela, l'application
+   * ne pourrait consommer que ce qu'elle savait d'avance — ce qui n'a plus
+   * de sens quand le graphe n'est pas connu avant le run.
+   */
+  nomsPublies(): readonly string[]
+  /**
    * Tranche une porte humaine en attente. Rend `false` si aucune porte
    * n'attend sous cet identifiant — une décision ne se prend pas deux fois.
    */
@@ -104,6 +111,8 @@ export function creerNoyau(): Noyau {
   const abonnes = new Set<Abonne>()
   /** Ceux qui attendent qu'un nom soit publié. Vidé à la libération. */
   const attentes = new Map<string, Set<(publie: boolean) => void>>()
+  /** Qui sait répondre aux questions. Un composant sans écoute est muet. */
+  const ecouteurs = new Map<IdComposant, Repondeur>()
   /** Le contexte Cordis de chaque composant, pour recharger un enfant au bon endroit. */
   const contextesParEntree = new Map<IdComposant, Context>()
   const remplacementsEnCours = new Set<IdComposant>()
@@ -322,6 +331,57 @@ export function creerNoyau(): Noyau {
             if (!utilisable()) return Promise.resolve(undefined)
             return chargerDans(contexte, enfant, id, fabrication)
           },
+          async liberer(enfant: IdComposant) {
+            // Un composant ne défait que ce qu'il a fait : sans cette borne,
+            // un agent pourrait retirer son propre maître.
+            if (!utilisable() || entrees.get(enfant)?.parent !== id) return false
+            await api.liberer(enfant)
+            return true
+          },
+          async remplacer(enfant: IdComposant, remplacant: Composant, fabrication?: Fabrication) {
+            if (!utilisable() || entrees.get(enfant)?.parent !== id) return undefined
+            return api.remplacer(enfant, remplacant, fabrication)
+          },
+          ecouter(repondre: Repondeur) {
+            if (!utilisable()) return
+            ecouteurs.set(id, repondre)
+            contexte.effect(
+              () => () => {
+                ecouteurs.delete(id)
+              },
+              'ecoute',
+            )
+          },
+          async demander(destinataire: string, question: string, delaiMs = 30_000) {
+            if (!utilisable()) return undefined
+            const cible = [...entrees.values()].find(
+              (autre) => autre.nom === destinataire && autre.etat === 'actif' && autre.id !== id,
+            )
+            const repondre = cible === undefined ? undefined : ecouteurs.get(cible.id)
+            if (cible === undefined || repondre === undefined) return undefined
+
+            emettre({ type: 'question-posee', de: id, vers: cible.id, question })
+            try {
+              // Bornée : un répondeur qui ne rend jamais la main figerait celui
+              // qui l'interroge, et le run entier derrière lui.
+              const reponse = await Promise.race([
+                Promise.resolve(repondre(question, id)),
+                new Promise<undefined>((suite) => setTimeout(() => suite(undefined), delaiMs)),
+              ])
+              if (reponse === undefined) return undefined
+              emettre({ type: 'reponse-donnee', de: cible.id, vers: id, reponse })
+              return reponse
+            } catch (cause) {
+              // Une réponse qui lève est un silence, pas une panne du demandeur.
+              const message = cause instanceof Error ? cause.message : String(cause)
+              emettre({
+                type: 'message-emis',
+                id: cible.id,
+                message: `Ne peut pas répondre : ${message}`,
+              })
+              return undefined
+            }
+          },
         }
 
         // Rien de ce que le composant émet ne sort avant son activation.
@@ -486,7 +546,9 @@ export function creerNoyau(): Noyau {
     return undefined
   }
 
-  return {
+  // Nommée : la façade d'un composant s'appuie dessus pour libérer ou
+  // remplacer un enfant, sans que le composant atteigne le moteur.
+  const api: Noyau = {
     charger(composant: Composant) {
       return chargerDans(racine, composant)
     },
@@ -528,6 +590,9 @@ export function creerNoyau(): Noyau {
     produit<T = unknown>(nom: string): T | undefined {
       // Non stricte : au repos ou entre deux runs, l'absence est normale.
       return racine.get(nom, false) as T | undefined
+    },
+    nomsPublies(): readonly string[] {
+      return [...fournisseurs.keys()]
     },
     attendre(nom: string, delaiMs?: number): Promise<boolean> {
       if (fournisseurs.has(nom)) return Promise.resolve(true)
@@ -601,4 +666,6 @@ export function creerNoyau(): Noyau {
       }
     },
   }
+
+  return api
 }

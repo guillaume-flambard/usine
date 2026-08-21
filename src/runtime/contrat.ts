@@ -102,7 +102,40 @@ export interface ContexteComposant {
    * distinguée dans le graphe et son code sera consultable.
    */
   charger(composant: Composant, fabrication?: Fabrication): Promise<IdComposant | undefined>
+  /**
+   * Libère un composant que celui-ci a chargé. Un composant ne peut défaire
+   * que ce qu'il a fait : sans cette borne, un agent pourrait retirer son
+   * propre maître et le run se déferait par le milieu.
+   */
+  liberer(enfant: IdComposant): Promise<boolean>
+  /**
+   * Remplace un composant que celui-ci a chargé. Si le remplaçant échoue,
+   * l'ancien est remis : une restructuration ratée ne laisse pas de trou.
+   */
+  remplacer(
+    enfant: IdComposant,
+    remplacant: Composant,
+    fabrication?: Fabrication,
+  ): Promise<IdComposant | undefined>
+  /**
+   * Déclare comment ce composant répond aux questions qu'on lui adresse.
+   * Sans écoute déclarée, il est injoignable — c'est un silence, pas une
+   * erreur.
+   */
+  ecouter(repondre: Repondeur): void
+  /**
+   * Pose une question à un autre composant, par son nom, et attend sa
+   * réponse. Rend `undefined` si personne ne porte ce nom, si le
+   * destinataire n'écoute pas, ou si le délai est écoulé.
+   *
+   * C'est le seul aller-retour du système : les coeffects, eux, ne vont que
+   * dans un sens.
+   */
+  demander(destinataire: string, question: string, delaiMs?: number): Promise<string | undefined>
 }
+
+/** Ce qu'un composant répond quand on l'interroge. */
+export type Repondeur = (question: string, de: IdComposant) => Promise<string> | string
 
 /**
  * Un agent ou un outil. Les deux ont exactement la même forme.

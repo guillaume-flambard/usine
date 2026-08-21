@@ -18,9 +18,11 @@ async function monter() {
 
 // Le graphe naît à la cadence de lecture du produit : l'attente suit le
 // vrai rythme de l'écran, elle ne le devine pas.
+// Le run naît au rythme du modèle rejoué : l'attente suit ce rythme, elle ne
+// le devine pas.
 const lancer = async () => {
   document.querySelector<HTMLButtonElement>('.pane .bouton')?.click()
-  await attendre(4000)
+  await attendre(9000)
 }
 
 /**
@@ -82,7 +84,7 @@ describe('la coquille dans un navigateur', () => {
     await lancer()
 
     const noeuds = [...document.querySelectorAll<SVGGElement>('.noeud')]
-    expect(noeuds.length).toBeGreaterThan(5)
+    expect(noeuds.length).toBeGreaterThan(3)
     for (const noeud of noeuds) {
       expect(noeud.getAttribute('tabindex')).toBe('0')
       // Un nœud sans nom accessible n'existe pas pour un lecteur d'écran.
@@ -161,7 +163,7 @@ describe('le mouvement réduit', () => {
     // Et les nœuds restent là, avec leur état : le mouvement disparaît, pas
     // l'information.
     const noeuds = [...document.querySelectorAll('.noeud')]
-    expect(noeuds.length).toBeGreaterThan(5)
+    expect(noeuds.length).toBeGreaterThan(3)
     for (const noeud of noeuds) {
       expect(noeud.getAttribute('data-etat')).toBeTruthy()
       expect((noeud as HTMLElement).getBoundingClientRect().width).toBeGreaterThan(0)
@@ -190,11 +192,12 @@ describe('le produit livré, de bout en bout dans un navigateur', () => {
     document.querySelector<HTMLButtonElement>('.produit .bouton')?.click()
     await attendre(120)
 
-    const verdicts = [...document.querySelectorAll('.verdicts li')]
-    expect(verdicts).toHaveLength(2)
-    expect(verdicts[0]?.getAttribute('data-statut')).toBe('interdit')
-    expect(verdicts[0]?.textContent ?? '').toContain('1924/2006')
-    expect(verdicts[1]?.getAttribute('data-statut')).toBe('autorise')
+    // La page ne sait pas ce que le produit rend : il a été écrit pendant le
+    // run. Elle montre sa sortie telle quelle, et c'est elle qu'on lit.
+    const sortie = document.querySelector('.produit-sortie')?.textContent ?? ''
+    expect(sortie).toContain('interdit')
+    expect(sortie).toContain('1924/2006')
+    expect(sortie).toContain('autorisé')
   })
 })
 
@@ -236,7 +239,7 @@ describe('la mesure, telle que la coquille la produit', () => {
 })
 
 describe('le changement de niche depuis la page', () => {
-  it('suit le brief choisi, jusque dans la source de vérité du graphe', async () => {
+  it('prévient quand la démonstration ne sait pas jouer le besoin choisi', async () => {
     await monter()
     const selecteur = document.querySelector<HTMLSelectElement>('.selecteur')
     expect(selecteur, "le sélecteur d'exemples est absent").not.toBeNull()
@@ -250,12 +253,15 @@ describe('le changement de niche depuis la page', () => {
     const brief = document.querySelector<HTMLTextAreaElement>('#brief')
     expect(brief?.value ?? '').toContain('publicitaires')
 
+    // La démonstration ne sait rejouer qu'un besoin. Elle le dit avant le
+    // clic plutôt que de faire naître un juriste européen pour autre chose.
+    const note = [...document.querySelectorAll('.plan-resume')]
+      .map((p) => p.textContent ?? '')
+      .join(' ')
+    expect(note).toContain('n’est pas celui de la démonstration')
+
     await lancer()
-    await attendre(600)
-    const source = [...document.querySelectorAll<SVGGElement>('.noeud')].find((n) =>
-      (n.getAttribute('aria-label') ?? '').includes('Source'),
-    )
-    // Le brief a changé la source de vérité que l'usine s'est choisie.
-    expect(source?.textContent ?? '').toContain('Code de la consommation')
+    const nes = [...document.querySelectorAll<SVGGElement>('.noeud')]
+    expect(nes).toHaveLength(1)
   })
 })

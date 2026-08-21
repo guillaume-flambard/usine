@@ -1,110 +1,84 @@
 <script setup lang="ts">
-// Le payoff. Aucun exemple pré-rempli : le visiteur doit taper son propre
-// texte, sinon la preuve ne vaut rien — c'est exactement ce qui rend le
+// Le payoff. Aucun exemple pré-rempli : le visiteur doit taper sa propre
+// entrée, sinon la preuve ne vaut rien — c'est exactement ce qui rend le
 // dernier écran impossible à préenregistrer.
+//
+// Ce composant ne sait pas ce que le produit fait. Il ne peut pas le savoir :
+// le produit a été écrit pendant le run, par des agents, sous un nom que
+// personne n'avait choisi d'avance. Il l'exécute et montre ce qui sort.
 import { ref } from 'vue'
-import type { Verdict } from '../runtime/fabrique/primitives'
 
 const props = defineProps<{
-  verifier: (texte: string) => readonly Verdict[]
-  /** Où écrire pour aller plus loin. Le scénario le déclare, pas ce composant. */
+  /** La fonction publiée par le run. Sa forme est inconnue. */
+  executer: (entree: unknown) => unknown
+  /** Le nom sous lequel ses auteurs l'ont publiée. */
+  nom: string
+  /** Où écrire pour aller plus loin. */
   contact: string
-  /** Comment le produit se présente. Il change avec la niche. */
-  titre: string
-  aide: string
 }>()
 
 const emit = defineEmits<{ soumis: [] }>()
 
-/** Le verdict est calculé sur le fil principal : on borne l'entrée. */
+/** Le produit tourne sur le fil principal : on borne l'entrée. */
 const LIMITE = 20000
 
-const texte = ref('')
-const verdicts = ref<readonly Verdict[] | undefined>()
-
-const LIBELLES: Record<Verdict['statut'], string> = {
-  autorise: 'Autorisé',
-  interdit: 'Interdit',
-  'a-verifier': 'À vérifier',
-}
-
-const RAISONS: Record<NonNullable<Verdict['raison']>, string> = {
-  'aucune-regle': 'Aucune règle du registre ne couvre cette formulation.',
-  'regle-ambigue': 'Une règle correspond, mais elle demande un examen au cas par cas.',
-  'formulation-negative':
-    'Une règle correspond, mais l’allégation est à la forme négative : le verdict n’est pas transposable.',
-  'source-absente': 'La règle correspondante n’est adossée à aucune source citable.',
-}
-
+const entree = ref('')
+const sortie = ref<string | undefined>()
 const erreur = ref<string | undefined>()
 
-function verifierTexte() {
-  // Le raccourci ne doit pas contourner la règle du bouton désactivé.
-  if (texte.value.trim().length === 0) return
+/** Rend lisible ce qui sort, quelle que soit sa forme. */
+function enTexte(valeur: unknown): string {
+  if (typeof valeur === 'string') return valeur
+  if (valeur === undefined) return '(le produit n’a rien rendu)'
   try {
-    erreur.value = undefined
-    verdicts.value = props.verifier(texte.value)
-    emit('soumis')
-  } catch (cause) {
-    erreur.value = cause instanceof Error ? cause.message : String(cause)
-    verdicts.value = undefined
+    return JSON.stringify(valeur, null, 2)
+  } catch {
+    return String(valeur)
   }
 }
 
-function effacer() {
-  texte.value = ''
-  verdicts.value = undefined
-  erreur.value = undefined
+function lancer() {
+  if (entree.value.trim().length === 0) return
+  try {
+    erreur.value = undefined
+    // Le produit vient d'être écrit par un modèle : il peut lever, boucler
+    // sur une entrée qu'il n'attendait pas, ou rendre n'importe quoi. Le dire
+    // vaut mieux que laisser la page blanche.
+    sortie.value = enTexte(props.executer(entree.value.slice(0, LIMITE)))
+    emit('soumis')
+  } catch (cause) {
+    sortie.value = undefined
+    erreur.value = `Le produit a levé : ${cause instanceof Error ? cause.message : String(cause)}`
+  }
 }
 </script>
 
 <template>
-  <section class="produit" aria-label="Produit livré">
-    <p class="eyebrow">Produit livré · {{ titre }}</p>
-    <label class="produit-aide" for="copie">{{ aide }}</label>
+  <section class="produit" aria-live="polite">
+    <p class="eyebrow">Produit livré — « {{ nom }} »</p>
+    <p class="produit-aide">
+      Écrit pendant ce run, chargé à chaud, et jamais vu avant. Donnez-lui une entrée : ce que vous
+      lirez sort de son code, pas d’un exemple.
+    </p>
+
+    <label class="titre-cache" for="copie">Entrée à soumettre au produit</label>
     <textarea
       id="copie"
-      v-model="texte"
-      class="champ-brief produit-champ"
-      rows="4"
-      :maxlength="LIMITE"
-      @keydown.ctrl.enter="verifierTexte"
-      @keydown.meta.enter="verifierTexte"
+      v-model="entree"
+      class="champ-brief"
+      rows="3"
+      @keydown.ctrl.enter="lancer"
+      @keydown.meta.enter="lancer"
     ></textarea>
 
     <div class="rangee-actions">
-      <button class="bouton" :disabled="texte.trim().length === 0" @click="verifierTexte">
-        Vérifier les allégations
+      <button class="bouton" :disabled="entree.trim().length === 0" @click="lancer">
+        Exécuter le produit
       </button>
-      <button v-if="verdicts" class="bouton bouton-fantome" @click="effacer">Effacer</button>
+      <a class="produit-contact" :href="`mailto:${contact}`">Écrire à Memo Labs</a>
     </div>
 
     <p v-if="erreur" class="incident" role="alert">{{ erreur }}</p>
-
-    <template v-if="verdicts">
-      <p v-if="verdicts.length === 0" class="produit-vide" role="status" aria-live="polite">
-        Aucune allégation détectée dans ce texte.
-      </p>
-      <ul v-else class="verdicts" role="status" aria-live="polite">
-        <li v-for="(verdict, index) in verdicts" :key="index" :data-statut="verdict.statut">
-          <p class="verdict-statut">
-            <!-- Le statut est écrit, pas seulement coloré. -->
-            <span class="verdict-marque" aria-hidden="true"></span>
-            {{ LIBELLES[verdict.statut] }}
-          </p>
-          <p class="verdict-texte">« {{ verdict.texte }} »</p>
-          <!-- La raison et la source ne s'excluent pas : une règle peut
-               correspondre tout en demandant un examen. -->
-          <p v-if="verdict.raison" class="verdict-source">{{ RAISONS[verdict.raison] }}</p>
-          <p v-if="verdict.source" class="verdict-source">{{ verdict.source }}</p>
-        </li>
-      </ul>
-
-      <!-- Le point de contact vient après le premier résultat, jamais avant. -->
-      <p class="produit-suite">
-        Vous voulez voir ça sur votre catalogue&nbsp;?
-        <a :href="`mailto:${contact}?subject=L%27usine%20agentique`">Écrivez-nous.</a>
-      </p>
-    </template>
+    <pre v-else-if="sortie !== undefined" class="produit-sortie">{{ sortie }}</pre>
   </section>
 </template>

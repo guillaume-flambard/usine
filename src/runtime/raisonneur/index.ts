@@ -17,9 +17,17 @@ export interface Demande {
   repli: string
 }
 
+/**
+ * D'où vient un raisonnement. `demonstration` est le mode du site sans clé :
+ * les réponses sont préparées d'avance, et l'écran le dit — un run préparé
+ * qui se ferait passer pour un run vivant serait exactement le mensonge que
+ * ce produit refuse.
+ */
+export type OrigineRaisonnement = 'deterministe' | 'llm' | 'demonstration'
+
 export interface Raisonnement {
   texte: string
-  origine: 'deterministe' | 'llm'
+  origine: OrigineRaisonnement
   /** Renseigné seulement quand un modèle a réellement été appelé. */
   tokens?: { entree: number; sortie: number }
   /** Ce qui a fait échouer l'appel, quand on est retombé sur le repli. */
@@ -27,7 +35,7 @@ export interface Raisonnement {
 }
 
 export interface Raisonneur {
-  readonly origine: 'deterministe' | 'llm'
+  readonly origine: OrigineRaisonnement
   raisonner(demande: Demande): Promise<Raisonnement>
 }
 

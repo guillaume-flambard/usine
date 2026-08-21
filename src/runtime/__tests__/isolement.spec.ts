@@ -84,12 +84,7 @@ describe("cantonnement de l'évaluation de code", () => {
 
   it("laisse la fabrique évaluer : c'est sa raison d'être", async () => {
     expect(
-      evalue(
-        await messages(
-          'src/runtime/fabrique/index.ts',
-          "const f = new Function('return 1')\nvoid f\n",
-        ),
-      ),
+      evalue(await messages('src/agents/libre.ts', "const f = new Function('return 1')\nvoid f\n")),
     ).toBe(false)
   })
 })

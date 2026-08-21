@@ -6,7 +6,8 @@ import { creerNoyau } from '../../runtime/noyau'
 import { creerStore } from '../../etat/store'
 import { lancerUsine } from '../usine'
 import type { Composant, IdComposant } from '../../runtime/contrat'
-import { BRIEF_SANTE, jusqua } from './aide'
+import { BRIEF, jusqua } from './aide'
+import { modeleScripte } from '../../agents/__tests__/modele-scripte'
 
 /** Franchit la porte humaine : sans ça le run reste arrêté, par construction. */
 async function approuver(noyau: ReturnType<typeof creerNoyau>) {
@@ -19,29 +20,46 @@ const tick = async () => {
   }
 }
 
-/** Le nom de la source de vérité vient du plan, il n'est plus écrit ici. */
-const nomDeLaSource = (store: ReturnType<typeof creerStore>) =>
-  store.etat.value.noeuds.find((n) => n.fournit.includes('registre'))?.nom ?? ''
+/** Le nom de celui qui publie une valeur donnée. Rien n'est connu d'avance. */
+const nomQuiPublie = (store: ReturnType<typeof creerStore>, quoi: string) =>
+  store.etat.value.noeuds.find((n) => n.fournit.includes(quoi))?.nom ?? ''
 
-/** Une source de vérité de remplacement, pour prouver la réactivation. */
-const sourceDeRemplacement = (nom: string): Composant => ({
+/** Un fournisseur de remplacement, pour prouver la réactivation. */
+const remplacant = (nom: string, quoi: string): Composant => ({
   nom,
-  fournit: ['registre'],
-  presentation: { libelle: 'Source', role: 'Source de vérité rechargée' },
+  fournit: [quoi],
+  presentation: { libelle: 'Remplaçant', role: 'Republie ce qui manquait' },
   applique(contexte) {
-    contexte.fournir('registre', { regles: [] })
+    contexte.fournir(quoi, { de: nom, texte: 'republié' })
     contexte.terminer()
   },
 })
+
+/** Ce que le run a inventé et que d'autres consomment. Choisi à l'exécution. */
+const nomPartage = (store: ReturnType<typeof creerStore>) =>
+  store.etat.value.noeuds
+    .flatMap((n) => n.injecte)
+    .find(
+      (nom) =>
+        nom !== 'raisonneur' &&
+        nom !== 'besoin' &&
+        nom !== 'corpus' &&
+        store.etat.value.noeuds.some((autre) => autre.fournit.includes(nom)),
+    ) ?? ''
 
 async function runLance() {
   const noyau = creerNoyau()
   const store = creerStore()
   store.brancher(noyau)
-  const lancement = await lancerUsine(noyau, { brief: BRIEF_SANTE, cadenceMs: 0 })
+  const lancement = await lancerUsine(noyau, {
+    brief: BRIEF,
+    raisonneur: modeleScripte(),
+    pasMs: 10,
+    delaiStabilisationMs: 3000,
+  })
   await jusqua(() => noyau.portesEnAttente().length > 0)
   await approuver(noyau)
-  await jusqua(() => noyau.produit('livrable') !== undefined)
+  await jusqua(() => noyau.introspecter().composants.every((c) => c.termine || c.etat !== 'actif'))
   return { noyau, store, lancement }
 }
 
@@ -65,10 +83,12 @@ describe("l'invariant C3 : le graphe est la topologie réelle", () => {
 
   it('reste vrai après avoir tué un outil à chaud', async () => {
     const { noyau, store } = await runLance()
-    const registre = noyau.introspecter().composants.find((c) => c.nom === nomDeLaSource(store))
-    expect(registre).toBeDefined()
+    // On tue un agent quelconque du run : lequel n'a aucune importance,
+    // c'est l'invariant d'affichage qui est en jeu.
+    const victime = noyau.introspecter().composants.find((c) => c.nom !== 'agent-maitre')
+    expect(victime).toBeDefined()
 
-    await noyau.liberer(registre!.id)
+    await noyau.liberer(victime!.id)
     await tick()
 
     const vivantsMoteur = noyau
@@ -86,7 +106,7 @@ describe("l'invariant C3 : le graphe est la topologie réelle", () => {
     expect(noyau.introspecter().composants).toHaveLength(0)
     expect(affichesVivants(store.etat.value.noeuds)).toEqual([])
     // Les nœuds restent visibles, marqués libérés : la rétractation se montre.
-    expect(store.etat.value.noeuds.length).toBeGreaterThan(4)
+    expect(store.etat.value.noeuds.length).toBeGreaterThan(3)
     expect(store.etat.value.noeuds.every((n) => n.etat === 'libere')).toBe(true)
   })
 })
@@ -94,33 +114,30 @@ describe("l'invariant C3 : le graphe est la topologie réelle", () => {
 describe('la réversibilité, observable', () => {
   it("désactive seuls les dépendants quand l'outil part, et les réactive quand il revient", async () => {
     const { noyau, store } = await runLance()
-    // Ceux qui dépendent réellement du registre, quel que soit le plan.
-    // Les pièces fabriquées sont hors de ce test : leur retour dépend de la
-    // refabrication par leur parent, qui est un autre sujet (voir
-    // deferred-work.md — « la pièce fabriquée ne revient pas après un
-    // échange de source à chaud »).
+    // Un nom que le run s'est inventé, et que quelqu'un consomme. Les pièces
+    // fabriquées sont hors de ce test : leur retour dépend de leur parent
+    // (voir deferred-work.md).
+    const quoi = nomPartage(store)
+    expect(quoi.length).toBeGreaterThan(0)
     const dependants = () =>
       store.etat.value.noeuds.filter(
-        (n) =>
-          n.injecte.includes('registre') &&
-          !n.fournit.includes('registre') &&
-          n.fabrication === undefined,
+        (n) => n.injecte.includes(quoi) && !n.fournit.includes(quoi) && n.fabrication === undefined,
       )
     expect(dependants().length).toBeGreaterThan(0)
     expect(dependants().every((n) => n.etat === 'termine')).toBe(true)
 
-    const nom = nomDeLaSource(store)
-    const registre = noyau.introspecter().composants.find((c) => c.nom === nom)
-    await noyau.liberer(registre!.id as IdComposant)
+    const nom = nomQuiPublie(store, quoi)
+    const source = noyau.introspecter().composants.find((c) => c.nom === nom)
+    await noyau.liberer(source!.id as IdComposant)
     await tick()
 
     // Personne n'a rien demandé : ils se désactivent d'eux-mêmes.
     expect(dependants().every((n) => n.etat === 'en-attente-de-dependance')).toBe(true)
     for (const noeud of dependants()) {
-      expect(noeud.cause).toEqual({ genre: 'dependance-partie', noms: ['registre'] })
+      expect(noeud.cause).toEqual({ genre: 'dependance-partie', noms: [quoi] })
     }
 
-    await noyau.charger(sourceDeRemplacement(`${nom}-bis`))
+    await noyau.charger(remplacant(`${nom}-bis`, quoi))
     // La réactivation refait le travail : elle prend le temps qu'elle prend.
     await jusqua(() => dependants().every((n) => n.etat === 'termine'))
 
@@ -139,12 +156,19 @@ describe('la réversibilité, observable', () => {
     expect(noyau.introspecter().dependances).toHaveLength(0)
 
     // Le run peut repartir : aucun nom n'est resté réservé.
-    const relance = await lancerUsine(noyau, { brief: BRIEF_SANTE, cadenceMs: 0 })
+    const relance = await lancerUsine(noyau, {
+      brief: BRIEF,
+      raisonneur: modeleScripte(),
+      pasMs: 10,
+      delaiStabilisationMs: 3000,
+    })
     await jusqua(() => noyau.portesEnAttente().length > 0)
     await approuver(noyau)
-    await jusqua(() => noyau.produit('livrable') !== undefined)
+    await jusqua(() =>
+      noyau.introspecter().composants.every((c) => c.termine || c.etat !== 'actif'),
+    )
     expect(relance.maitre).toBeDefined()
-    expect(noyau.introspecter().composants.length).toBeGreaterThan(4)
+    expect(noyau.introspecter().composants.length).toBeGreaterThan(3)
   })
 
   it("n'émet aucun événement d'incident sur un run nominal", async () => {

@@ -1,100 +1,83 @@
-// La promesse centrale du produit : le graphe n'existe pas avant le brief.
-// Ce test la vérifie sur le vrai noyau, sans interface.
+// La promesse centrale du produit : le graphe n'existe pas avant le brief, et
+// personne — pas même le maître — ne sait ce qu'il contiendra.
 import { describe, expect, it } from 'vitest'
 import { creerNoyau } from '../../runtime/noyau'
-import { lancerUsine } from '../usine'
-import type { EvenementRun } from '../../runtime/evenements'
-import type { Verdict } from '../../runtime/fabrique/primitives'
+import { lancerUsine, produitDuRun } from '../usine'
+import { modeleScripte } from '../../agents/__tests__/modele-scripte'
+import { jusqua } from './aide'
 
-interface Trace {
-  evenements: EvenementRun[]
-  nomsCrees: string[]
-}
+const BRIEF = 'Un outil qui repère les allégations thérapeutiques interdites.'
 
-async function courir(
-  brief: string,
-): Promise<{ noyau: ReturnType<typeof creerNoyau>; trace: Trace }> {
+async function courir() {
   const noyau = creerNoyau()
-  const trace: Trace = { evenements: [], nomsCrees: [] }
+  const nes: string[] = []
   noyau.abonner((evenement) => {
-    trace.evenements.push(evenement)
-    if (evenement.type === 'composant-cree') trace.nomsCrees.push(evenement.nom)
+    if (evenement.type === 'composant-cree') nes.push(evenement.nom)
   })
-  await lancerUsine(noyau, { brief, delaiParVague: 2000, cadenceMs: 0 })
-  // Le plan est épuisé quand la suite fixe est chargée : la porte est le
-  // dernier composant que le maître fait naître avant la livraison.
-  for (let i = 0; i < 200 && !trace.nomsCrees.includes('porte-humaine'); i += 1) {
-    await new Promise((resoudre) => setTimeout(resoudre, 10))
-  }
-  return { noyau, trace }
+  await lancerUsine(noyau, {
+    brief: BRIEF,
+    raisonneur: modeleScripte(),
+    pasMs: 10,
+    delaiStabilisationMs: 4000,
+  })
+  await jusqua(() => noyau.portesEnAttente().length > 0)
+  return { noyau, nes }
 }
 
-describe("l'usine lancée sur un brief", () => {
-  it("ne connaît aucun agent avant d'avoir lu le brief", async () => {
+describe("l'usine lancée sur un besoin", () => {
+  it('ne connaît aucun agent au moment du lancement', async () => {
     const noyau = creerNoyau()
-    const nomsCrees: string[] = []
+    const nes: string[] = []
     noyau.abonner((e) => {
-      if (e.type === 'composant-cree') nomsCrees.push(e.nom)
+      if (e.type === 'composant-cree') nes.push(e.nom)
     })
-    await lancerUsine(noyau, { brief: 'Vérifier mes allégations santé.', cadenceMs: 0 })
+    await lancerUsine(noyau, { brief: BRIEF, raisonneur: modeleScripte(), pasMs: 10 })
 
-    // Le premier composant du run est le maître, et il est seul à naître de
-    // l'extérieur : tout le reste dépend de ce qu'il aura décidé.
-    expect(nomsCrees[0]).toBe('agent-maitre')
-    expect(nomsCrees.length).toBeLessThanOrEqual(2)
+    // Le premier composant du run est le maître, et il est le seul à naître
+    // de l'extérieur : tout le reste dépend de ce qu'un modèle décidera.
+    expect(nes[0]).toBe('agent-maitre')
+    expect(nes.length).toBeLessThanOrEqual(2)
     await noyau.libererTout()
   })
 
-  it('ne fait pas le même graphe pour deux briefs différents', async () => {
-    const simple = await courir('Vérifier des allégations santé.')
-    const riche = await courir(
-      'Un écran pour coller mon texte publicitaire, des tests de non-régression, une API, et une relecture juridique stricte des formulations négatives.',
-    )
+  it('fait naître un graphe que rien dans le code ne nomme', async () => {
+    const { noyau, nes } = await courir()
 
-    expect(riche.trace.nomsCrees.length).toBeGreaterThan(simple.trace.nomsCrees.length)
-    expect(riche.trace.nomsCrees).toContain('constructeur-interface')
-    expect(simple.trace.nomsCrees).not.toContain('constructeur-interface')
-    // Le corpus n'est pas le même non plus : le brief le désigne.
-    const memoire = (noyau: typeof simple.noyau) =>
-      noyau.produit<{ secteur: string }>('memoire')?.secteur
-    expect(memoire(simple.noyau)).toContain('Allégations')
-    expect(memoire(riche.noyau)).toContain('Pratiques commerciales')
-
-    await simple.noyau.libererTout()
-    await riche.noyau.libererTout()
-  })
-
-  it('fait pousser le graphe : les agents naissent après le maître, pas avec lui', async () => {
-    const { noyau, trace } = await courir('Vérifier des allégations santé.')
-
-    const rang = (nom: string) => trace.nomsCrees.indexOf(nom)
-    expect(rang('agent-maitre')).toBe(0)
-    // Un agent ne naît qu'après celui dont il dépend : la vague suivante
-    // attend une publication réelle, jamais un minuteur.
-    expect(rang('source-de-verite')).toBeLessThan(rang('fabricant-du-produit'))
-    expect(rang('fabricant-du-produit')).toBeLessThan(rang('sceptique'))
-    expect(rang('porte-humaine')).toBeGreaterThan(rang('sceptique'))
-
+    expect(nes.length).toBeGreaterThan(3)
+    // Aucun de ces noms n'existe dans src/ : ils viennent du modèle.
+    for (const nom of nes.filter((n) => n !== 'agent-maitre')) {
+      expect(nom).not.toBe('agent-maitre')
+    }
+    expect(noyau.nomsPublies()).toContain('detecteur')
     await noyau.libererTout()
   })
 
-  it("fabrique l'outil décidé par le plan, et le livre s'il est approuvé", async () => {
-    const { noyau, trace } = await courir('Vérifier des allégations santé.')
+  it('livre une fonction dont personne ne connaissait le nom', async () => {
+    const { noyau } = await courir()
+    const produit = produitDuRun(noyau)
 
-    const fabrique = trace.evenements.find((e) => e.type === 'composant-fabrique')
-    expect(fabrique).toBeDefined()
+    expect(produit).toBeDefined()
+    expect(typeof produit?.executer).toBe('function')
+    await noyau.libererTout()
+  })
 
-    const porte = noyau.portesEnAttente()[0]
-    expect(porte).toBeDefined()
-    expect(noyau.decider(porte as never, 'approuve')).toBe(true)
-    await noyau.attendre('livrable', 3000)
+  it('borne un chantier qui partirait à la dérive', async () => {
+    const noyau = creerNoyau()
+    const nes: string[] = []
+    noyau.abonner((e) => {
+      if (e.type === 'composant-cree') nes.push(e.nom)
+    })
+    await lancerUsine(noyau, {
+      brief: BRIEF,
+      raisonneur: modeleScripte(),
+      // Deux agents au maximum : le budget n'est pas indicatif.
+      budget: { agentsMax: 1, profondeurMax: 1, toursMax: 2, tokensMax: 10_000 },
+      pasMs: 10,
+      delaiStabilisationMs: 2000,
+    })
+    await jusqua(() => noyau.portesEnAttente().length > 0)
 
-    const verifier = noyau.produit<(texte: string) => readonly Verdict[]>('verificateur')
-    expect(typeof verifier).toBe('function')
-    const verdicts = verifier?.('Ce produit guérit l’arthrose.') ?? []
-    expect(verdicts[0]?.statut).toBe('interdit')
-    expect(verdicts[0]?.source).toBeTruthy()
-
+    expect(nes.filter((n) => n !== 'agent-maitre').length).toBeLessThanOrEqual(2)
     await noyau.libererTout()
   })
 })

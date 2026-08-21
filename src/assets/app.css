@@ -802,3 +802,20 @@ body,
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+
+/* Ce que le produit écrit pendant le run a rendu. Sa forme est inconnue :
+   on la montre telle quelle plutôt que de prétendre la mettre en page. */
+.produit-sortie {
+  margin: 0.75rem 0 0;
+  padding: 0.75rem;
+  max-height: 30vh;
+  overflow: auto;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

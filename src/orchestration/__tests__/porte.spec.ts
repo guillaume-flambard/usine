@@ -2,9 +2,8 @@
 // de trancher, et la décision a des conséquences visibles.
 import { describe, expect, it, vi } from 'vitest'
 import { creerNoyau } from '../../runtime/noyau'
-import { porteHumaine } from '../../agents/deterministes'
 import type { Composant, IdComposant } from '../../runtime/contrat'
-import { runJusquALaPorte } from './aide'
+import { jusqua, runJusquALaPorte } from './aide'
 
 const tick = async () => {
   for (let i = 0; i < 8; i += 1) await new Promise<void>((r) => setTimeout(r, 0))
@@ -19,16 +18,15 @@ describe("la porte s'arrête et attend", () => {
     expect(pilote.phase()).toBe('Décision')
     expect(pilote.store.etat.value.porte?.decision).toBeUndefined()
     expect(pilote.store.etat.value.porte?.decision).toBeUndefined()
-    expect(pilote.store.etat.value.noeuds.find((n) => n.nom === 'livraison')?.etat).toBe(
-      'en-attente-de-dependance',
-    )
+    // Rien n'est livré tant que personne n'a tranché.
+    expect(pilote.produit()).toBeUndefined()
   })
 
-  it('montre ce qui a été produit et ce que le sceptique a relevé', async () => {
+  it('montre ce qui a réellement été produit, et ce qu on lui oppose', async () => {
     const pilote = await jusquALaPorte()
     const porte = pilote.store.etat.value.porte
 
-    expect(porte?.objet.resume).toContain('fabriquée pendant le run')
+    expect(porte?.objet.resume).toContain('agents ont été créés')
     expect(porte?.objet.resume).toContain('Approuver')
     // Une décision qui ne porterait sur rien ne vaudrait rien.
     expect((porte?.objet.objection ?? '').trim().length).toBeGreaterThan(20)
@@ -52,9 +50,7 @@ describe('aucun délai ne franchit la porte', () => {
 
     expect(pilote.store.etat.value.porte?.decision).toBeUndefined()
     expect(pilote.phase()).toBe('Décision')
-    expect(pilote.store.etat.value.noeuds.find((n) => n.nom === 'livraison')?.etat).toBe(
-      'en-attente-de-dependance',
-    )
+    expect(pilote.produit()).toBeUndefined()
   })
 })
 
@@ -64,22 +60,20 @@ describe('approuver', () => {
     expect(pilote.approuver()).toBe(true)
     await tick()
 
+    await jusqua(() => pilote.produit() !== undefined)
     expect(pilote.store.etat.value.porte?.decision).toBe('approuve')
-    expect(pilote.phase()).toBe('Terminé')
-    expect(pilote.store.etat.value.noeuds.find((n) => n.nom === 'livraison')?.etat).toBe('termine')
+    // La livraison, c'est le produit devenu manipulable : la fonction que le
+    // run a écrite, exécutable depuis la page.
+    expect(typeof pilote.produit()?.executer).toBe('function')
   })
 
-  it('trace la décision dans le journal et dans un artefact', async () => {
+  it('trace la décision dans le journal', async () => {
     const pilote = await jusquALaPorte()
     pilote.approuver()
-    await tick()
+    await jusqua(() => pilote.store.etat.value.journal.some((m) => m.message.includes('approuvé')))
 
-    const porteNoeud = pilote.store.etat.value.noeuds.find((n) => n.nom === 'porte-humaine')
-    expect(porteNoeud?.artefact?.titre).toBe('Décision humaine')
-    expect(porteNoeud?.artefact?.corps).toContain('Approuvée')
-    // Approuver, c'est passer outre l'objection, pas en découler.
-    expect(porteNoeud?.artefact?.decouleDe).toContain("l'examen de l'objection")
-    expect(pilote.store.etat.value.journal.some((m) => m.message.includes('approuvée'))).toBe(true)
+    expect(pilote.store.etat.value.journal.some((m) => m.message.includes('approuvé'))).toBe(true)
+    expect(pilote.store.etat.value.porte?.decision).toBe('approuve')
   })
 
   it('ne se prend pas deux fois', async () => {
@@ -99,9 +93,7 @@ describe('écarter', () => {
     expect(pilote.store.etat.value.porte?.decision).toBe('ecarte')
     expect(pilote.phase()).toBe('Écarté')
     expect(pilote.fini()).toBe(true)
-    expect(pilote.store.etat.value.noeuds.find((n) => n.nom === 'livraison')?.etat).not.toBe(
-      'termine',
-    )
+    expect(pilote.produit()).toBeUndefined()
   })
 
   it('montre la rétractation au lieu de figer le graphe', async () => {
@@ -118,13 +110,12 @@ describe('écarter', () => {
     expect(pilote.store.etat.value.porte?.decision).toBe('ecarte')
   })
 
-  it('consigne le refus dans un artefact consultable', async () => {
+  it('consigne le refus dans le journal', async () => {
     const pilote = await jusquALaPorte()
     await pilote.ecarter()
-    await tick()
+    await jusqua(() => pilote.store.etat.value.journal.some((m) => m.message.includes('écarté')))
 
-    const porteNoeud = pilote.store.etat.value.noeuds.find((n) => n.nom === 'porte-humaine')
-    expect(porteNoeud?.artefact?.corps).toContain('Écartée')
+    expect(pilote.store.etat.value.journal.some((m) => m.message.includes('écarté'))).toBe(true)
   })
 
   it('ne se prend pas après une approbation', async () => {
@@ -135,40 +126,14 @@ describe('écarter', () => {
   })
 })
 
-describe("l'objection du sceptique", () => {
-  it("cite un élément précis d'un artefact produit en amont", async () => {
+describe("l'objection", () => {
+  it('porte sur ce qui a réellement été produit', async () => {
     const pilote = await jusquALaPorte()
     const objection = pilote.store.etat.value.porte?.objet.objection ?? ''
 
     // Une objection générique ne satisferait pas l'exigence : elle doit
-    // s'appuyer sur ce qui a réellement été produit.
-    expect(objection).toMatch(/\d+ sorties/)
-    expect(objection).toMatch(/\d+ caractères lus/)
-  })
-})
-
-describe('la porte quand rien n a pu être fabriqué', () => {
-  const amont: Composant = {
-    nom: 'amont-sterile',
-    fournit: ['sortie-produit', 'objection'],
-    presentation: { libelle: 'Amont', role: 'Ne fabrique rien' },
-    applique(contexte) {
-      contexte.fournir('sortie-produit', { fabrique: false })
-      contexte.fournir('objection', { texte: 'Rien à attaquer.' })
-      contexte.terminer()
-    },
-  }
-
-  it("s'ouvre quand même et le dit", async () => {
-    const noyau = creerNoyau()
-    await noyau.charger(amont)
-    await noyau.charger(porteHumaine)
-    await tick()
-
-    // La porte ne doit pas dépendre de la pièce qu'elle permet de refuser :
-    // sinon elle ne s'ouvrirait jamais quand la fabrication échoue.
-    const enAttente = noyau.portesEnAttente()
-    expect(enAttente).toHaveLength(1)
+    // s'appuyer sur ce que ce run-là a produit.
+    expect(objection).toContain('motifs')
   })
 })
 

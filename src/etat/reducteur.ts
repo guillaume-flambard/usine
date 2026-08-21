@@ -23,6 +23,7 @@ export function etatInitial(): EtatComplet {
     vue: geler({
       noeuds: [],
       aretes: [],
+      echanges: [],
       journal: [],
       incidents: [],
       tokens: { entree: 0, sortie: 0 },
@@ -53,6 +54,7 @@ export function reduire(etat: EtatComplet, evenement: EvenementRun): EtatComplet
   const interne = new Map(etat.interne)
   let noeuds = etat.vue.noeuds
   let aretes = etat.vue.aretes
+  let echanges = etat.vue.echanges
   let journal = etat.vue.journal
   let incidents = etat.vue.incidents
   let narration = etat.vue.narration
@@ -247,6 +249,59 @@ export function reduire(etat: EtatComplet, evenement: EvenementRun): EtatComplet
       )
       break
 
+    case 'question-posee': {
+      const auteur = (id: IdComposant) => noeuds.find((n) => n.id === id)?.nom ?? id
+      echanges = [
+        ...echanges,
+        {
+          de: evenement.de,
+          vers: evenement.vers,
+          question: evenement.question,
+          sequence: evenement.sequence,
+        },
+      ]
+      const message: MessageJournal = {
+        sequence: evenement.sequence,
+        id: evenement.de,
+        auteur: auteur(evenement.de),
+        message: `demande à ${auteur(evenement.vers)} : ${evenement.question}`,
+      }
+      journal = [...journal, message]
+      if (narration === undefined || message.sequence > narration.sequence) narration = message
+      break
+    }
+
+    case 'reponse-donnee': {
+      const auteur = (id: IdComposant) => noeuds.find((n) => n.id === id)?.nom ?? id
+      // La réponse se rattache à la question ouverte la plus récente entre
+      // ces deux-là : deux échanges simultanés ne doivent pas se mélanger.
+      let rattachee = false
+      echanges = [...echanges]
+        .reverse()
+        .map((echange) => {
+          if (
+            rattachee ||
+            echange.reponse !== undefined ||
+            echange.de !== evenement.vers ||
+            echange.vers !== evenement.de
+          ) {
+            return echange
+          }
+          rattachee = true
+          return { ...echange, reponse: evenement.reponse }
+        })
+        .reverse()
+      const message: MessageJournal = {
+        sequence: evenement.sequence,
+        id: evenement.de,
+        auteur: auteur(evenement.de),
+        message: `répond à ${auteur(evenement.vers)} : ${evenement.reponse}`,
+      }
+      journal = [...journal, message]
+      if (narration === undefined || message.sequence > narration.sequence) narration = message
+      break
+    }
+
     case 'abonne-en-erreur':
       incidents = [
         ...incidents,
@@ -262,6 +317,7 @@ export function reduire(etat: EtatComplet, evenement: EvenementRun): EtatComplet
     vue: geler({
       noeuds,
       aretes,
+      echanges,
       ...(narration !== undefined ? { narration } : {}),
       ...(porte !== undefined ? { porte } : {}),
       journal,

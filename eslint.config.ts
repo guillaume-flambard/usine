@@ -75,9 +75,9 @@ export default defineConfigWithVueTs(
   // politique de sécurité stricte, `unsafe-eval` est refusé. Seule la voie
   // par évaluation, cantonnée à un fichier, a le droit d'y toucher.
   {
-    name: 'app/pas-devaluation-hors-fabrique',
+    name: 'app/pas-devaluation-hors-agent-libre',
     files: ['src/**/*.{vue,ts,mts,tsx}'],
-    ignores: ['src/runtime/fabrique/index.ts'],
+    ignores: ['src/agents/libre.ts'],
     rules: {
       // `no-restricted-syntax` est déjà employé par la règle d'isolement
       // du moteur ; le redéclarer ici l'écraserait pour les mêmes fichiers.

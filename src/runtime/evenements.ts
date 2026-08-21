@@ -105,6 +105,22 @@ export interface DecisionPrise extends Base {
   decision: Decision
 }
 
+/** Une question adressée d'un composant à un autre. */
+export interface QuestionPosee extends Base {
+  type: 'question-posee'
+  de: IdComposant
+  vers: IdComposant
+  question: string
+}
+
+/** La réponse à une question. `de` est celui qui répond. */
+export interface ReponseDonnee extends Base {
+  type: 'reponse-donnee'
+  de: IdComposant
+  vers: IdComposant
+  reponse: string
+}
+
 /** Émis quand un abonné lève : le run continue, l'incident est visible. */
 export interface AbonneEnErreur extends Base {
   type: 'abonne-en-erreur'
@@ -123,6 +139,8 @@ export type EvenementRun =
   | ArtefactProduit
   | ComposantFabrique
   | TokensConsommes
+  | QuestionPosee
+  | ReponseDonnee
   | PorteAtteinte
   | PorteRetiree
   | DecisionPrise

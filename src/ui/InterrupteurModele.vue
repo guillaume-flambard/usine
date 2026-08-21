@@ -5,17 +5,18 @@
 // deux cas, l'utilisateur est prévenu avant le premier appel de ce qui part
 // chez le fournisseur.
 import { ref } from 'vue'
+import type { OrigineRaisonnement } from '../runtime/raisonneur'
 
 export type SourceModele = 'aucune' | 'relais' | 'cle'
 
 defineProps<{
-  mode: 'deterministe' | 'llm'
+  mode: OrigineRaisonnement
   source: SourceModele
   /** Le relais du site répond et porte une clé : sans ça, rien à proposer. */
   relaisPret: boolean
 }>()
 const emit = defineEmits<{
-  brancher: [cle: string, evaluation: boolean]
+  brancher: [cle: string]
   brancherRelais: []
   debrancher: []
 }>()
@@ -23,11 +24,10 @@ const emit = defineEmits<{
 const ouvert = ref(false)
 const cle = ref('')
 const consenti = ref(false)
-const evaluation = ref(false)
 
 function brancher() {
   if (cle.value.trim().length === 0 || !consenti.value) return
-  emit('brancher', cle.value.trim(), evaluation.value)
+  emit('brancher', cle.value.trim())
   // La clé quitte le champ dès qu'elle est transmise : elle ne reste pas
   // affichée à l'écran.
   cle.value = ''
@@ -49,11 +49,10 @@ function brancherRelais() {
 function debrancher() {
   emit('debrancher')
   consenti.value = false
-  evaluation.value = false
   ouvert.value = false
 }
 
-const libelle = (mode: 'deterministe' | 'llm', source: SourceModele): string => {
+const libelle = (mode: OrigineRaisonnement, source: SourceModele): string => {
   if (source === 'relais') return 'modèle du site — changer'
   if (mode === 'llm') return 'modèle branché — débrancher'
   return 'brancher un modèle'
@@ -74,19 +73,18 @@ const libelle = (mode: 'deterministe' | 'llm', source: SourceModele): string => 
     <div v-if="ouvert" id="panneau-modele" class="modele-panneau">
       <template v-if="source === 'relais'">
         <p class="modele-note">
-          Le modèle du site raisonne pour le planificateur, l’architecte et le sceptique. La clé
-          reste sur le serveur, le quota est partagé : au-delà, les agents retombent sur leur repli
-          écrit à la main.
+          Le modèle du site fait naître les agents, décide de ce qu’ils se demandent et écrit le
+          code de leurs outils. La clé reste sur le serveur, le quota est partagé : au-delà, le run
+          s’arrête là où il en est.
         </p>
         <button class="bouton bouton-fantome" @click="debrancher">
-          Repasser en mode déterministe
+          Repasser à la démonstration rejouée
         </button>
       </template>
 
       <template v-else-if="source === 'cle'">
         <p class="modele-note">
-          Un modèle est branché sur les agents qui raisonnent. Le prochain run le fera raisonner
-          réellement.
+          Un modèle est branché. Le prochain run fera naître des agents que personne n’a écrits.
         </p>
         <button class="bouton bouton-fantome" @click="debrancher">Débrancher</button>
       </template>
@@ -117,15 +115,9 @@ const libelle = (mode: 'deterministe' | 'llm', source: SourceModele): string => 
         <label class="modele-consentement">
           <input v-model="consenti" type="checkbox" />
           <span>
-            J’ai compris que le contenu du run — brief, spécifications, artefacts — sera envoyé à
-            Anthropic pour être traité.
-          </span>
-        </label>
-        <label class="modele-consentement">
-          <input v-model="evaluation" type="checkbox" />
-          <span>
-            Autoriser en plus la fabrication par évaluation de code. Elle exige une politique de
-            sécurité permissive : c’est un arbitrage à part, pas une conséquence du branchement.
+            J’ai compris que le contenu du run — besoin, échanges, artefacts — sera envoyé à
+            Anthropic pour être traité, et que le code écrit par le modèle sera exécuté dans cet
+            onglet.
           </span>
         </label>
         <button class="bouton" :disabled="cle.trim().length === 0 || !consenti" @click="brancher">

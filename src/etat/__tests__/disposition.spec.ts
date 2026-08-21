@@ -124,7 +124,9 @@ describe('la disposition telle que l application la calcule', () => {
     const pilote = await runJusquALaPorte()
     const noeuds = pilote.store.etat.value.noeuds
 
-    expect(noeuds.length).toBeGreaterThan(4)
+    expect(noeuds.length).toBeGreaterThan(3)
+    // Un outil écrit pendant le run est un nœud comme un autre : il doit
+    // avoir sa place alors que personne ne l'attendait.
     expect(noeuds.some((n) => n.fabrication !== undefined)).toBe(true)
     for (const n of noeuds) {
       expect(pilote.disposition.value.boites.has(n.nom), n.nom).toBe(true)

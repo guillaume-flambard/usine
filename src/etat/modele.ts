@@ -55,6 +55,19 @@ export interface AreteVue {
   dernierTransit?: number
 }
 
+/**
+ * Un échange entre deux agents. C'est le seul aller-retour du système : les
+ * coeffects, eux, ne vont que dans un sens.
+ */
+export interface EchangeVue {
+  de: IdComposant
+  vers: IdComposant
+  question: string
+  /** Absente tant que le destinataire n'a pas répondu, ou s'il est resté muet. */
+  reponse?: string
+  sequence: number
+}
+
 export interface MessageJournal {
   sequence: number
   id: IdComposant
@@ -82,6 +95,8 @@ export interface PorteVue {
 export interface EtatRun {
   noeuds: readonly NoeudVue[]
   aretes: readonly AreteVue[]
+  /** Les questions posées d'agent à agent, et leurs réponses. */
+  echanges: readonly EchangeVue[]
   /** Le message de plus haute séquence. Une seule ligne à l'écran. */
   narration?: MessageJournal
   journal: readonly MessageJournal[]
