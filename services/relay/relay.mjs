@@ -9,20 +9,27 @@ import { createServer } from 'node:http'
 
 /** Hard bounds. A visitor cannot make the bill drift. */
 export const LIMITS = {
-  maxContext: 4000,
-  maxInstruction: 500,
+  maxContext: 6000,
+  maxInstruction: 1200,
   maxBody: 20_000,
-  maxOutput: 400,
-  perMinute: 6,
-  perDay: 300,
+  // An agent turn is JSON and can carry a tool's source: 400 tokens truncated
+  // it mid-code, and a truncated turn is an unreadable turn.
+  maxOutput: 1200,
+  // A single run makes a dozen calls in under a minute — one per agent turn,
+  // plus the answers. Six per minute refused most of a legitimate run.
+  perMinute: 40,
+  perDay: 400,
 }
 
 /** Only these roles may ask to reason. */
 export const ROLES = new Set(['planner', 'architect', 'sceptic', 'agent', 'master-agent'])
 
+// Deliberately minimal: the caller's instruction carries the format — often
+// a strict JSON object. A system prompt demanding "plain text, three
+// sentences" fought it, and every agent turn came back unreadable.
 const SYSTEM_PROMPT =
-  "Tu es un agent d'une chaîne de production logicielle. Réponds en français, " +
-  'en texte brut, sans préambule, sans titre, sans liste à puces. Trois phrases au plus.'
+  "Tu es un agent d'une chaîne de production logicielle. Réponds en français. " +
+  "Suis exactement le format que l'instruction demande, sans préambule ni commentaire autour."
 
 /**
  * The rate counter. Per address for the minute, global for the day: the second
@@ -69,7 +76,7 @@ const readBody = (request, maximum) =>
  */
 export function createHandler({
   key = '',
-  model = 'anthropic/claude-3.5-haiku',
+  model = 'deepseek/deepseek-v4-flash',
   origin = 'https://usine.memolabs.dev',
   call = globalThis.fetch,
   limits = LIMITS,
@@ -129,11 +136,18 @@ export function createHandler({
           authorization: `Bearer ${key}`,
           'content-type': 'application/json',
           'http-referer': origin,
-          'x-title': "L'usine agentique — Memo Labs",
+          // ASCII only: an HTTP header is a ByteString, an em dash throws.
+          'x-title': 'Usine agentique - Memo Labs',
         },
         body: JSON.stringify({
           model,
           max_tokens: limits.maxOutput,
+          // Reasoning off, deliberately. A reasoning model spends the whole
+          // output budget thinking and returns empty content: measured, two
+          // calls out of three came back with 1200 reasoning tokens and not
+          // one character. What is asked here is a JSON object in a fixed
+          // shape, not a deliberation.
+          reasoning: { enabled: false },
           messages: [
             { role: 'system', content: SYSTEM_PROMPT },
             {
@@ -152,8 +166,17 @@ export function createHandler({
         return json(response, 502, { error: `le modèle a refusé (${upstream.status})` })
       }
 
-      const text = String(result?.choices?.[0]?.message?.content ?? '').trim()
+      const choice = result?.choices?.[0]
+      const text = String(choice?.message?.content ?? '').trim()
       const usage = result?.usage ?? {}
+      // An empty answer has a cause, and the cause is worth more than the
+      // silence: a model cut off mid-output is not a model that had nothing
+      // to say.
+      if (text.length === 0 && choice?.finish_reason === 'length') {
+        return json(response, 502, {
+          error: `réponse coupée à ${limits.maxOutput} tokens sans texte utile`,
+        })
+      }
       return json(response, 200, {
         text,
         model: result?.model ?? model,

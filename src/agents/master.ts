@@ -36,7 +36,7 @@ const MASTER_MISSION = (brief: string) =>
     `Le besoin exprimé : ${brief}`,
     '',
     "Fais naître les premiers agents dont ce besoin a besoin — pas plus. Chacun aura sa propre mission et pourra en créer d'autres, s'interroger entre eux et écrire des outils.",
-    "Au moins un agent, quelque part, doit finir par écrire l'outil qui rend le besoin utilisable.",
+    "Au moins un agent, quelque part, doit écrire l'outil qui rend le besoin utilisable — avec « build », pas en le décrivant. Dis-le explicitement dans sa mission.",
     'Tu ne fais pas le travail toi-même : tu amorces, puis tu termines.',
   ].join('\n')
 
@@ -94,6 +94,9 @@ async function seed(
       depth: 0,
     },
     worksite,
+    // The master is not done: it still has to wait for the worksite to settle
+    // and open the gate. Marking it finished here would show the run as over.
+    { finishWhenDone: false },
   )
 
   // The worksite carries on without it: the agents it created create others.
@@ -131,7 +134,9 @@ async function seed(
       summary: [
         summary.agents > 0
           ? `${summary.agents} agents ont été créés pendant ce run ; aucun n'existait avant votre brief.`
-          : "Aucun agent n'a été créé : sans modèle branché, l'usine ne peut rien inventer.",
+          : worksite.reasoner.origin === 'deterministic'
+            ? "Aucun agent n'a été créé : sans modèle branché, l'usine ne peut rien inventer."
+            : "Aucun agent n'a été créé : le modèle n'en a proposé aucun. Le journal dit ce qu'il a répondu.",
         summary.tools.length > 0
           ? `${summary.tools.length} outil(s) ont été écrits et chargés à chaud : ${summary.tools.join(', ')}.`
           : "Aucun outil exécutable n'est sorti du run.",

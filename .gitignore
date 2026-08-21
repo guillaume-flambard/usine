@@ -13,6 +13,7 @@ dist
 dist-*
 dist-ssr
 coverage
+.vitest-attachments
 *.local
 
 # Editor directories and files
@@ -38,3 +39,7 @@ __screenshots__/
 
 # Vite
 *.timestamp-*-*.mjs
+
+# Secrets: never committed. The relay key lives here for local runs only.
+.env
+.env.*

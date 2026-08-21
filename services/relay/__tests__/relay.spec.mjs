@@ -101,10 +101,10 @@ describe('the reasoning relay', () => {
   })
 
   it('announces its state with no key, and refuses to reason', async () => {
-    await onServer({ key: '', model: 'anthropic/claude-3.5-haiku' }, async (base) => {
+    await onServer({ key: '', model: 'deepseek/deepseek-v4-flash' }, async (base) => {
       expect(await (await fetch(`${base}/health`)).json()).toEqual({
         ready: false,
-        model: 'anthropic/claude-3.5-haiku',
+        model: 'deepseek/deepseek-v4-flash',
       })
       expect((await askFor(base, { role: 'architect', instruction: 'x' })).status).toBe(503)
     })

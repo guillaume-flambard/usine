@@ -56,7 +56,7 @@ pas le navigateur — qui l'appelle :
 - domaine : `https://relay.usine.memolabs.dev`, port interne `3000`
 - variable d'environnement `OPENROUTER_API_KEY` — **collée dans Coolify, jamais
   dans le dépôt, jamais dans une conversation**
-- variables facultatives : `MODELE` (défaut `anthropic/claude-3.5-haiku`),
+- variables facultatives : `MODEL` (défaut `deepseek/deepseek-v4-flash`),
   `ORIGINE` (défaut `https://usine.memolabs.dev`)
 
 Puis, sur l'application **usine**, la variable `RELAY_URL` :

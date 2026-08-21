@@ -4,7 +4,7 @@
 import { createRelay } from './relay.mjs'
 
 const PORT = Number(process.env.PORT ?? 3000)
-const MODEL = process.env.MODEL ?? 'anthropic/claude-3.5-haiku'
+const MODEL = process.env.MODEL ?? 'deepseek/deepseek-v4-flash'
 const KEY = process.env.OPENROUTER_API_KEY ?? ''
 
 if (KEY.length === 0) {
