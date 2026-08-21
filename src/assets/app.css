@@ -351,6 +351,10 @@ body,
   flex: 1;
   min-height: 0;
   display: flex;
+  /* En colonne, et c'est structurel : le résumé du graphe se pose au-dessus
+     du canvas. En ligne — ce qu'il était — il devenait un voisin du graphe et
+     lui volait sa largeur, ce qui écrasait le tracé contre le bord. */
+  flex-direction: column;
 }
 
 .zone[data-panel='true'] {
@@ -756,4 +760,217 @@ body,
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Le résumé du graphe, une fois l'application en service. L'application est le
+   protagoniste, le graphe la preuve : elle se déplie, elle ne s'impose pas. */
+.graph-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  /* Il ne pousse pas : le canvas prend ce qui reste. */
+  flex: 0 0 auto;
+  padding: 6px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+}
+
+.graph-summary-more {
+  margin-left: auto;
+  text-decoration: underline;
+}
+
+/* Les exemples écrivent dans le champ ; ils ne lancent rien. */
+.examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.examples-key {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+button.picker {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+button.picker:hover {
+  border-color: var(--ink);
+}
+
+.capacity-note {
+  color: var(--muted);
+}
+
+/* Le partage : il n'apparaît qu'une fois qu'il y a quelque chose à partager. */
+.share {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.share-link {
+  font-size: 12px;
+  word-break: break-all;
+}
+
+
+/* ── La colonne de conversation ───────────────────────────────────────────
+   Une seule chose à lire, du haut vers le bas : ce que les agents disent.
+   Le composeur est en bas, là où l'on écrit. Tout le reste est une ligne. */
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.status-toggle {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Une ligne pour tous les faits du run. Elle remplace cinq boîtes. */
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 0;
+  flex: 0 0 auto;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.status-sep {
+  opacity: 0.5;
+}
+
+.status-detail {
+  flex: 0 0 auto;
+  margin-top: 10px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.status-detail p {
+  margin: 0 0 8px;
+}
+
+/* Le fil prend la place qui reste, et défile seul. */
+.thread {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.thread-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.thread-message {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+/* L'auteur est un repère, pas un titre : il ne doit pas peser plus que ce
+   qu'il a dit. */
+.thread-author {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.thread-incident {
+  margin: 0;
+  font-size: 13px;
+  color: var(--accent);
+}
+
+/* Le composeur : le champ, et ce qu'on peut en faire. */
+.composer {
+  flex: 0 0 auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.composer .brief-field {
+  min-height: 0;
+  resize: none;
+}
+
+.composer-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.composer-row .button {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.composer-hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
 }

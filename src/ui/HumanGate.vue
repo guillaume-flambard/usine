@@ -5,7 +5,15 @@
 import { nextTick, ref, watch } from 'vue'
 import type { GateView } from '../state/model'
 
-const props = defineProps<{ gate: GateView }>()
+const props = defineProps<{
+  gate: GateView
+  /**
+   * Whether an application is serving right now. The gate no longer decides
+   * whether something appears — it decides the fate of something in use — so
+   * what each gesture costs depends on this.
+   */
+  serving: boolean
+}>()
 defineEmits<{ approve: []; reject: [] }>()
 
 const firstButton = ref<HTMLButtonElement | undefined>()
@@ -36,26 +44,40 @@ watch(
       <p id="gate-objection" class="gate-objection">
         <b>Sceptique —</b> {{ gate.subject.objection }}
       </p>
+      <!-- What each gesture costs, before the click and not after. Rejecting
+           now destroys something the visitor has under their hands. -->
+      <p v-if="serving" id="gate-cost" class="gate-cost">
+        L’application vous sert déjà. <b>Emporter</b> la valide et vous la laisse.
+        <b>Écarter</b> la retire : les composants sont relâchés et vous perdez ce qui tourne.
+      </p>
     </div>
     <div v-if="gate.decision === undefined" class="gate-actions">
       <button
         ref="firstButton"
         class="button button-ghost"
-        aria-describedby="gate-summary gate-objection"
+        aria-describedby="gate-summary gate-objection gate-cost"
         @click="$emit('reject')"
       >
         Écarter
       </button>
       <button
         class="button button-ghost"
-        aria-describedby="gate-summary gate-objection"
+        aria-describedby="gate-summary gate-objection gate-cost"
         @click="$emit('approve')"
       >
-        Approuver
+        {{ serving ? 'Emporter' : 'Approuver' }}
       </button>
     </div>
     <p v-else class="gate-verdict">
-      {{ gate.decision === 'approved' ? 'Approuvée' : 'Écartée' }}
+      {{ gate.decision === 'approved' ? 'Emportée' : 'Écartée' }}
     </p>
   </section>
 </template>
+
+<style scoped>
+.gate-cost {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--muted, #6b6560);
+}
+</style>

@@ -2,7 +2,7 @@
 // What matters here: the key never travels through it, and no relay failure
 // prevents a run from reaching its end.
 import { describe, expect, it, vi } from 'vitest'
-import { relayAvailable, relayReasoner } from '../relay'
+import { relayAvailable, relayState, relayReasoner } from '../relay'
 import type { ReasoningRequest } from '../index'
 
 const REQUEST: ReasoningRequest = {
@@ -75,12 +75,40 @@ describe('the reasoner that goes through the relay', () => {
 })
 
 describe('the relay probe', () => {
-  it('only reports the relay ready when it carries a key', async () => {
-    const ready = vi.fn(async () => response({ ready: true, model: 'anthropic/claude-3.5-haiku' }))
+  it('only reports the relay ready when it carries a key and has capacity', async () => {
+    const ready = vi.fn(async () =>
+      response({ ready: true, model: 'x', remaining: { visitor: 90, global: 4000 }, callsPerRun: 45 }),
+    )
     const keyless = vi.fn(async () => response({ ready: false }))
 
     expect(await relayAvailable('/api/health', ready)).toBe(true)
     expect(await relayAvailable('/api/health', keyless)).toBe(false)
+  })
+
+  it('reports a keyed relay with nothing left as unavailable', async () => {
+    // Sending a visitor into a run that dies on its third agent is worse than
+    // replaying honestly. Capacity is part of availability, not a detail.
+    const spent = vi.fn(async () =>
+      response({ ready: true, remaining: { visitor: 3, global: 4000 }, callsPerRun: 45 }),
+    )
+    const siteSpent = vi.fn(async () =>
+      response({ ready: true, remaining: { visitor: 90, global: 10 }, callsPerRun: 45 }),
+    )
+
+    expect(await relayAvailable('/api/health', spent)).toBe(false)
+    expect(await relayAvailable('/api/health', siteSpent)).toBe(false)
+  })
+
+  it('reports what is left in runs, not in calls', async () => {
+    const call = vi.fn(async () =>
+      response({ ready: true, remaining: { visitor: 90, global: 900 }, callsPerRun: 45 }),
+    )
+
+    // A visitor reads runs. Calls are the relay's unit, not theirs.
+    await expect(relayState('/api/health', call)).resolves.toEqual({
+      ready: true,
+      runs: { visitor: 2, site: 20 },
+    })
   })
 
   it('returns false on 502, on an unreadable body, and on a network failure', async () => {

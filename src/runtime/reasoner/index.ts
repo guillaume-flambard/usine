@@ -15,6 +15,14 @@ export interface ReasoningRequest {
    * of a model.
    */
   fallback: string
+  /**
+   * Les outils que l'appelant met à disposition, quand il en a.
+   *
+   * Transmis tels quels au fournisseur. Celui qui ne sait pas les honorer rend
+   * du texte, et la relecture fait tout le travail comme avant — c'est un gain
+   * de fiabilité, pas une dépendance.
+   */
+  tools?: unknown
 }
 
 /**
@@ -25,8 +33,22 @@ export interface ReasoningRequest {
  */
 export type ReasoningOrigin = 'deterministic' | 'llm' | 'demo'
 
+/** Un appel d'outil, tel que le fournisseur l'a émis. */
+export interface ToolCall {
+  name: string
+  /** Les arguments, encore en texte : ils sont relus comme donnée hostile. */
+  arguments: string
+}
+
 export interface Reasoning {
   text: string
+  /**
+   * Les actions, quand le fournisseur les a émises comme appels d'outils.
+   *
+   * C'est la voie fiable : le nom de l'action y voyage hors du corps JSON, là
+   * où l'ordre des clés ne peut pas le brouiller.
+   */
+  calls?: readonly ToolCall[]
   origin: ReasoningOrigin
   /** Set only when a model was actually called. */
   tokens?: { input: number; output: number }

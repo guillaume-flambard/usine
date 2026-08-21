@@ -9,11 +9,14 @@ import { CORPUS } from '../corpus'
 import type { Component } from '../runtime/contract'
 import { deterministicReasoner, type Reasoner } from '../runtime/reasoner'
 import { BUDGET, createWorksite, runLoop, think, type Budget, type Worksite } from './free-agent'
+import type { SpawnWorker } from '../app/isolate'
 
 export interface MasterOptions {
   brief: string
   reasoner?: Reasoner
   budget?: Budget
+  /** How an isolated thread is made. Absent in the product; supplied by tests. */
+  spawnWorker?: SpawnWorker
   /**
    * Waits until no agent is working any more. Comes from orchestration, which
    * alone sees the topology: the master does not know its grandchildren.
@@ -21,6 +24,13 @@ export interface MasterOptions {
   settled(timeoutMs?: number): Promise<boolean>
   /** What the run actually published, at this instant. */
   outputs(): readonly string[]
+  /**
+   * The worksite, when the caller wants to watch it. The master builds one
+   * otherwise. Orchestration hands one in because the screen and the live
+   * behaviours live there, and the interface has to read them without going
+   * through an agent.
+   */
+  worksite?: Worksite
 }
 
 /** What the human gate shows: only what really exists. */
@@ -30,19 +40,27 @@ export interface RunSummary {
   publications: readonly string[]
 }
 
+// The short path is a prompt, not a scheduler: nothing here can force a
+// model. What it can do is make the first turn's cheapest correct move the
+// one that puts something on screen — and make any other first move read as a
+// mistake. A visitor waiting on a blank page leaves in ten seconds.
 const MASTER_MISSION = (brief: string) =>
   [
     "Tu ouvres une usine logicielle qui n'existe pas encore.",
     `Le besoin exprimé : ${brief}`,
     '',
-    "Fais naître les premiers agents dont ce besoin a besoin — pas plus. Chacun aura sa propre mission et pourra en créer d'autres, s'interroger entre eux et écrire des outils.",
-    "Au moins un agent, quelque part, doit écrire l'outil qui rend le besoin utilisable — avec « build », pas en le décrivant. Dis-le explicitement dans sa mission.",
+    "**Le visiteur regarde un écran vide en ce moment même.** Ton premier tour n'est pas un tour de réflexion : il doit faire apparaître quelque chose d'utilisable le plus vite possible.",
+    "Au premier tour, fais UNE seule chose : crée l'agent qui posera l'écran et le premier comportement, en le disant explicitement dans sa mission. Ne crée pas trois agents pour délibérer d'abord — l'analyse vient après, quand quelque chose sert déjà.",
+    "Un run n'a de produit que si un agent a posé un « screen » ET écrit un « build ». Un texte qui décrit l'application n'est pas l'application.",
+    "Une fois l'application vivante, tu peux faire naître d'autres agents pour l'améliorer : ils remplaceront des comportements à chaud, sans que le visiteur perde ce qu'il a fait.",
     'Tu ne fais pas le travail toi-même : tu amorces, puis tu termines.',
   ].join('\n')
 
 export function masterAgent(options: MasterOptions): Component {
   const reasoner = options.reasoner ?? deterministicReasoner()
-  const worksite: Worksite = createWorksite(options.brief, reasoner, options.budget ?? BUDGET)
+  const worksite: Worksite =
+    options.worksite ??
+    createWorksite(options.brief, reasoner, options.budget ?? BUDGET, options.spawnWorker)
 
   return {
     name: 'master-agent',

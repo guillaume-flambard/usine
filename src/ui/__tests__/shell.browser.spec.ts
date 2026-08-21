@@ -18,7 +18,14 @@ async function mount() {
 // The run is born at the replayed model's pace: the wait follows that pace, it
 // does not guess it.
 const startRun = async () => {
-  document.querySelector<HTMLButtonElement>('.pane .button')?.click()
+  // The field starts empty, so a run starts the way a visitor starts one:
+  // by writing. The first example is the one the replay knows.
+  const brief = document.querySelector<HTMLTextAreaElement>('#brief')
+  if (brief !== null && brief.value.length === 0) {
+    document.querySelector<HTMLButtonElement>('.picker')?.click()
+    await wait(120)
+  }
+  document.querySelector<HTMLButtonElement>('.composer .button')?.click()
   await wait(9000)
 }
 
@@ -66,14 +73,24 @@ describe('the shell in a browser', () => {
   it('reaches the critical path from the keyboard', async () => {
     await mount()
     const brief = document.querySelector<HTMLTextAreaElement>('#brief')
-    const button = document.querySelector<HTMLButtonElement>('.pane .button')
+    const button = document.querySelector<HTMLButtonElement>('.composer .button')
     expect(brief).not.toBeNull()
     expect(button).not.toBeNull()
 
     brief?.focus()
     expect(document.activeElement).toBe(brief)
-    button?.focus()
-    expect(document.activeElement).toBe(button)
+
+    // Le bouton ne s'active qu'une fois un besoin écrit : un lancement sans
+    // brief ne produirait rien, et un bouton actif qui ne fait rien est pire
+    // qu'un bouton éteint.
+    expect(button?.disabled).toBe(true)
+    document.querySelector<HTMLButtonElement>('.picker')?.click()
+    await wait(150)
+
+    const ready = document.querySelector<HTMLButtonElement>('.composer .button')
+    expect(ready?.disabled).toBe(false)
+    ready?.focus()
+    expect(document.activeElement).toBe(ready)
   })
 
   it('makes nodes focusable and named', async () => {
@@ -158,7 +175,11 @@ describe('reduced motion', () => {
     expect(block, 'no reduced-motion rule in the loaded stylesheet').toBeDefined()
 
     // And the nodes are still there, with their state: the motion goes, not
-    // the information.
+    // the information. The graph folds itself once the application serves, so
+    // it is unfolded here the way a visitor would — by asking for it.
+    document.querySelector<HTMLButtonElement>('.graph-summary')?.click()
+    await wait(120)
+
     const nodes = [...document.querySelectorAll('.node')]
     expect(nodes.length).toBeGreaterThan(3)
     for (const node of nodes) {
@@ -168,62 +189,51 @@ describe('reduced motion', () => {
   })
 })
 
-describe('the delivered product, end to end in a browser', () => {
-  it('classifies a text typed by a human after the gate', async () => {
+describe('the application, end to end in a browser', () => {
+  it('serves the application before the gate, in an unreachable frame', async () => {
     await mount()
     await startRun()
 
-    // The gate halts the run: it is what makes approval necessary.
-    const buttons = [...document.querySelectorAll<HTMLButtonElement>('.gate-actions .button')]
-    expect(buttons).toHaveLength(2)
-    buttons[1]?.click()
-    await wait(500)
+    // No approval, no click on the gate. If this test ever needs a decision
+    // first, the product has gone back to delivering at the end.
+    const frame = document.querySelector<HTMLIFrameElement>('.live-frame')
+    expect(frame, "l'application n'est pas apparue").not.toBeNull()
 
-    const field = document.querySelector<HTMLTextAreaElement>('#product-input')
-    expect(field, 'the delivered product did not appear').not.toBeNull()
-    if (field === null) return
-    field.value = 'Ce complément guérit les carences. Il contribue à réduire la fatigue.'
-    field.dispatchEvent(new Event('input', { bubbles: true }))
-    await wait(60)
+    // The frame is sandboxed with an opaque origin: the host page cannot read
+    // it, which is also why the interactions inside it are exercised in
+    // `frame.browser.spec.ts` rather than from here.
+    expect(frame?.getAttribute('sandbox')).toBe('allow-scripts')
+    expect(frame?.contentDocument).toBeNull()
 
-    document.querySelector<HTMLButtonElement>('.product .button')?.click()
-    await wait(120)
+    // And the gate is still there, above what it decides the fate of.
+    expect(document.querySelectorAll('.gate-actions .button')).toHaveLength(2)
+  })
 
-    // The page does not know what the product returns: it was written during
-    // the run. It shows its output as is, and that is what we read.
-    const output = document.querySelector('.product-output')?.textContent ?? ''
-    expect(output).toContain('interdit')
-    expect(output).toContain('1924/2006')
-    expect(output).toContain('autorisé')
+  it('says what the hot replacement spared, without overstating it', async () => {
+    await mount()
+    await startRun()
+    const counter = document.querySelector('.live-counter')?.textContent ?? ''
+
+    expect(counter).toContain('remplacement')
+    // Zero restarts is the half of the claim that must be measured rather
+    // than assumed, so it is on screen too.
+    expect(counter).toContain('0 redémarrage')
+    expect(counter).toContain('interaction')
   })
 })
 
 describe('measurement, as the shell produces it', () => {
-  it('counts the four facts, once each, at the right moments', async () => {
+  it('counts the facts in the order the run produces them', async () => {
     const log: Event[] = []
     installTelemetry({ count: (e) => log.push(e) })
     try {
       await mount()
       await startRun()
-      expect(log).toEqual(['run-started', 'gate-reached'])
 
-      document.querySelectorAll<HTMLButtonElement>('.gate-actions .button')[1]?.click()
-      await wait(500)
-      expect(log).toEqual(['run-started', 'gate-reached', 'payoff-shown'])
-
-      const field = document.querySelector<HTMLTextAreaElement>('#product-input')
-      expect(field).not.toBeNull()
-      if (field === null) return
-      field.value = 'Ce complément guérit les carences.'
-      field.dispatchEvent(new Event('input', { bubbles: true }))
-      await wait(60)
-      document.querySelector<HTMLButtonElement>('.product .button')?.click()
-      await wait(80)
-      // Two submissions count as one fact: that is the module's rule.
-      document.querySelector<HTMLButtonElement>('.product .button')?.click()
-      await wait(80)
-
-      expect(log).toEqual(['run-started', 'gate-reached', 'payoff-shown', 'check-submitted'])
+      // The application served before the gate opened. That order is the
+      // product's whole claim, so the measurement follows it rather than the
+      // other way round.
+      expect(log).toEqual(['run-started', 'product-served', 'gate-reached'])
     } finally {
       installTelemetry(undefined)
     }
@@ -233,27 +243,129 @@ describe('measurement, as the shell produces it', () => {
 describe('changing the need from the page', () => {
   it('warns when the demo cannot play the chosen need', async () => {
     await mount()
-    const picker = document.querySelector<HTMLSelectElement>('.picker')
-    expect(picker, 'the example picker is missing').not.toBeNull()
-    if (picker === null) return
-    expect(picker.options.length).toBeGreaterThanOrEqual(3)
+    const pickers = [...document.querySelectorAll<HTMLButtonElement>('.picker')]
+    expect(pickers.length, 'the examples are missing').toBeGreaterThanOrEqual(3)
 
-    picker.value = 'advertising'
-    picker.dispatchEvent(new Event('change', { bubbles: true }))
+    // The field starts empty: an example that arrived prefilled and was
+    // submitted as it stands would prove nothing about the run.
+    const empty = document.querySelector<HTMLTextAreaElement>('#brief')
+    expect(empty?.value).toBe('')
+
+    // Clicking writes into the field. It does not launch.
+    pickers[1]?.click()
     await wait(200)
 
     const brief = document.querySelector<HTMLTextAreaElement>('#brief')
     expect(brief?.value ?? '').toContain('publicitaires')
 
-    // The demo only knows how to replay one need. It says so before the click
-    // rather than spawning a European lawyer for something else.
-    const note = [...document.querySelectorAll('.worksite-summary')]
-      .map((p) => p.textContent ?? '')
-      .join(' ')
-    expect(note).toContain('n’est pas celui de la démonstration')
+    // The demo only knows how to replay one need. It says so next to the
+    // launch button rather than spawning a European lawyer for something else.
+    const hint = document.querySelector('.composer-hint')?.textContent ?? ''
+    expect(hint).toContain('ne produira rien')
 
     await startRun()
     const born = [...document.querySelectorAll<SVGGElement>('.node')]
     expect(born).toHaveLength(1)
+  })
+})
+
+describe('the graph gives way to the application', () => {
+  it('folds itself once something serves, and says what it proved', async () => {
+    await mount()
+    await startRun()
+
+    // A graph fascinates for twenty seconds; an application is used. Once one
+    // serves, the graph is a summary line — and the line carries the numbers
+    // that justify having watched it.
+    const summary = document.querySelector<HTMLButtonElement>('.graph-summary')
+    expect(summary, 'no graph summary line').not.toBeNull()
+    expect(summary?.textContent ?? '').toContain('remplacement')
+    expect(summary?.getAttribute('aria-expanded')).toBe('false')
+
+    const node = document.querySelector<SVGGElement>('.node')
+    expect(node?.getBoundingClientRect().width).toBe(0)
+
+    summary?.click()
+    await wait(120)
+
+    expect(summary?.getAttribute('aria-expanded')).toBe('true')
+    expect(
+      document.querySelector<SVGGElement>('.node')?.getBoundingClientRect().width,
+    ).toBeGreaterThan(0)
+  })
+})
+
+describe('the replay, announced', () => {
+  it('says it is a replay at all times, and says why', async () => {
+    await mount()
+
+    // Permanent, not a toast that fades: a visitor arriving mid-run must be
+    // able to tell a replay from a live run without having seen the start.
+    expect(document.querySelector('.status')?.textContent ?? '').toContain('rejoué')
+
+    document.querySelector<HTMLButtonElement>('.status-toggle')?.click()
+    await wait(60)
+    const explanation = document.querySelector('#status-detail')?.textContent ?? ''
+
+    // The reason matters: "no model connected" and "your capacity for today
+    // is spent" are different facts, and only one of them is about the site.
+    expect(explanation).toContain('Aucun modèle n’est branché')
+    // And what is still real is named, rather than left to be assumed false.
+    expect(explanation).toContain('fil isolé')
+  })
+
+  it('runs the replay through the same views as a live run', async () => {
+    await mount()
+    await startRun()
+
+    // Same graph, same gate, same application. If a replay needed its own
+    // path, it would drift from the live one and stop being a proof.
+    expect(document.querySelectorAll('.node').length).toBeGreaterThan(3)
+    expect(document.querySelector('.live-frame')).not.toBeNull()
+    expect(document.querySelectorAll('.gate-actions .button')).toHaveLength(2)
+  })
+})
+
+describe('la zone du run tient sa géométrie', () => {
+  it('empile le résumé et le graphe au lieu de les mettre côte à côte', async () => {
+    await mount()
+    await startRun()
+
+    // Déplié d'abord : replié, le graphe est en display:none et sa largeur
+    // vaut zéro — ce qui ne dit rien de sa géométrie.
+    document.querySelector<HTMLButtonElement>('.graph-summary')?.click()
+    await wait(150)
+
+    const zone = document.querySelector<HTMLElement>('.zone')
+    const canvas = document.querySelector<HTMLElement>('.canvas')
+    const summary = document.querySelector<HTMLElement>('.graph-summary')
+    expect(zone && canvas && summary).toBeTruthy()
+    if (zone === null || canvas === null || summary === null) return
+
+    // En ligne, le résumé devenait un voisin du graphe et lui volait sa
+    // largeur : le tracé se retrouvait écrasé contre le bord.
+    expect(getComputedStyle(zone).flexDirection).toBe('column')
+    expect(canvas.getBoundingClientRect().width).toBeGreaterThan(
+      zone.getBoundingClientRect().width * 0.9,
+    )
+    expect(summary.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      canvas.getBoundingClientRect().top + 1,
+    )
+  })
+
+  it('pose l’application au bas de la zone, jamais à côté du graphe', async () => {
+    await mount()
+    await startRun()
+
+    const canvas = document.querySelector<HTMLElement>('.canvas')
+    const app = document.querySelector<HTMLElement>('.live-app')
+    expect(app).not.toBeNull()
+    if (canvas === null || app === null) return
+
+    expect(getComputedStyle(app).position).toBe('absolute')
+    // Elle recouvre le bas : le graphe garde toute sa largeur au-dessus.
+    expect(app.getBoundingClientRect().width).toBeGreaterThan(
+      canvas.getBoundingClientRect().width * 0.9,
+    )
   })
 })

@@ -4,10 +4,10 @@ type: architecture-spine
 purpose: build-substrate
 altitude: feature
 paradigm: 'Noyau de composition + projection unidirectionnelle (ports et adaptateurs autour du runtime Cordis)'
-scope: "Application Vue 3 client-only qui exécute un run agentique sur Cordis, le projette en graphe vivant, et livre un produit fonctionnel"
+scope: "Application Vue 3 qui exécute un run agentique sur Cordis, le projette en graphe vivant, et sert une application écrite pendant le run que les agents remplacent à chaud"
 status: final
 created: '2026-08-20'
-updated: '2026-08-20'
+updated: '2026-08-21'
 binds:
   - F1 · Brief et lancement
   - F2 · Moteur de composition
@@ -20,11 +20,14 @@ binds:
   - F9 · Scénarios
   - F10 · Artefacts
   - F11 · Fabrication à l'exécution
+  - F12 · Application vivante et remplacement à chaud
+  - F13 · Sources réelles, emport et rejeu
 sources:
   - _bmad-output/planning-artifacts/prds/prd-usine-2026-08-20/prd.md
   - _bmad-output/planning-artifacts/prds/prd-usine-2026-08-20/addendum.md
   - _bmad-output/planning-artifacts/prds/prd-usine-2026-08-20/spike-cordis-navigateur.md
   - docs/0-DECISIONS.md
+  - "Shi, Zhang, Cui — A Programming Paradigm for Spatiotemporal Composability (PKU / DeepSeek-AI) — §1.2.2, §3.1, §3.2, §5.2.2"
 companions: []
 ---
 
@@ -36,7 +39,9 @@ companions: []
 
 Le runtime est le cœur : c'est lui qui charge les composants, propage les coeffects, fabrique et révoque. Il ne connaît ni Vue, ni le DOM, ni le domaine. Tout ce que le reste du monde apprend de lui sort par un **flux d'événements typés**, réduit dans un **modèle de lecture** que l'interface se contente d'afficher.
 
-Le sens de la dépendance ne s'inverse jamais. L'interface pose des **intentions** (lancer, approuver, écarter, brancher un modèle) ; elle ne touche jamais une fiber.
+Le sens de la dépendance ne s'inverse jamais. L'interface pose des **intentions** (lancer, approuver, écarter, soumettre une entrée à l'application) ; elle ne touche jamais une fiber.
+
+*Révisé le 2026-08-21.* Le paradigme ne change pas ; sa raison d'être devient explicite. Le papier qui le fonde distingue deux dimensions — **temporelle** (retirer un composant annule complètement ses effets) et **spatiale** (les dépendants réagissent quand une dépendance apparaît, disparaît ou change d'identité). La v1 déployée n'en démontrait aucune : rien ne servait pendant le run, donc il n'y avait pas de service à ne pas interrompre. L'architecture est donc réorientée autour d'un fait unique : **le système sert pendant qu'il se modifie.** Tout ce qui suit en découle — d'où vient l'état, où s'exécute le code écrit par un modèle, ce qu'un remplacement garantit.
 
 ```mermaid
 graph LR
@@ -109,7 +114,8 @@ Correspondance couche / répertoire : le paradigme est appliqué par l'arboresce
 
 - **Binds:** F11
 - **Prevents:** qu'un outil « fabriqué » ne soit en réalité qu'une combinaison choisie dans un catalogue écrit d'avance
-- **Rule:** l'outil d'un agent est du **code que le modèle écrit**, évalué (`new Function`) et chargé à chaud comme n'importe quel composant. L'évaluation est cantonnée à **un seul fichier** (`agents/free-agent.ts`), et une règle ESLint la refuse partout ailleurs — vérifiée par un test qui exécute le linter. Ce qui protège n'est pas l'interdiction d'évaluer : c'est que le code est **affiché avant de tourner**, que la **porte humaine** reste devant la livraison, et que la page ne porte ni secret ni donnée de visiteur.
+- **Rule:** l'outil d'un agent est du **code que le modèle écrit**, évalué et chargé à chaud comme n'importe quel composant. L'évaluation est cantonnée à un point unique, et une règle ESLint la refuse partout ailleurs — vérifiée par un test qui exécute le linter. Ce qui protège n'est pas l'interdiction d'évaluer : c'est que le code est **affiché avant de tourner** et qu'une décision humaine reste devant l'emport.
+- **Amendement du 2026-08-21 :** « chargé à chaud comme n'importe quel composant » ne suffisait pas — le code s'exécutait dans le contexte de la page hôte, où il voyait le document, le stockage local et la route du relais. L'évaluation et l'exécution se séparent : voir **AD-29**.
 
 ### AD-9 — Le LLM est un adaptateur derrière le port `Raisonneur`
 
@@ -159,23 +165,21 @@ Correspondance couche / répertoire : le paradigme est appliqué par l'arboresce
 - **Prevents:** qu'un nœud vivant n'ait aucune place, que la disposition se recalcule à chaque message, et que deux runs de même topologie ne se ressemblent pas
 - **Rule:** la disposition est calculée sur les **nœuds et arêtes réellement vivants**, et recalculée **au seul changement de topologie** — une signature `noms + arêtes` en décide ; ni un état, ni un artefact, ni un message ne déplace quoi que ce soit. Les nœuds **glissent** vers leur nouvelle place, la transition étant neutralisée sous `prefers-reduced-motion`. L'ordre interne d'une couche vient de l'ordre d'apparition. Le graphe est tenu entier dans son cadre par un `viewBox` : sa taille n'est pas connue d'avance. Le calcul de coordonnées s'appuie sur `@dagrejs/dagre` ; le **rendu** reste du code du projet, en SVG.
 
-### AD-12 — Le vérificateur est une fonction pure
+### AD-12 — *(retirée le 2026-08-21)* Le vérificateur est une fonction pure
 
-- **Binds:** F6
-- **Prevents:** la dérive du déterminisme exigé par FR-039, et un verdict qui dépendrait du moment où il est calculé
-- **Rule:** le moteur de règles n'a ni horloge, ni aléatoire, ni entrée/sortie. Il prend un texte et un jeu de règles, il rend des verdicts sourcés. En l'absence de règle applicable, il rend « à vérifier » — jamais un verdict tranché (FR-038).
+Liée à F6 dans sa forme scénarisée, disparue avec elle. Ce qu'elle protégeait — une sortie qu'on peut rejouer et vérifier — est repris par **AD-33** (le run est rejouable depuis son flux) et par NFR-012 (toute réponse dit quelle version l'a produite).
 
-### AD-13 — Aucun secret persisté
+### AD-13 — Aucun secret côté client
 
 - **Binds:** F7
-- **Prevents:** une clé qui survit à l'onglet et fuit par le stockage du navigateur
-- **Rule:** la clé d'API vit dans une variable de module. Jamais `localStorage`, jamais `sessionStorage`, jamais un cookie, jamais un journal. Elle ne sort que vers le fournisseur sélectionné.
+- **Prevents:** une clé lisible dans le paquet servi, dans le stockage du navigateur ou dans une requête émise par la page
+- **Rule:** *révisée le 2026-08-21.* La clé du fournisseur ne touche jamais le client — le navigateur n'appelle que sa propre origine, et le relais, servi par le même conteneur, porte la clé et sort. La règle d'origine (« la clé vit dans une variable de module ») supposait que le visiteur fournisse la sienne ; ce n'est plus le cas. Ce qui reste inchangé et absolu : ni `localStorage`, ni `sessionStorage`, ni cookie, ni journal ne contient de secret, et aucun secret n'entre dans le paquet.
 
 ### AD-14 — Télémétrie fermée à quatre appels
 
 - **Binds:** F8
 - **Prevents:** qu'un contenu saisi par l'utilisateur parte par inadvertance, ce que NFR-011 interdit
-- **Rule:** un module unique expose exactement quatre fonctions sans paramètre libre : `runLance`, `porteAtteinte`, `payoffAffiche`, `verificationSoumise`. Aucune charge utile, aucun identifiant, aucun cookie. Tout autre besoin de mesure passe par une décision, pas par un ajout silencieux.
+- **Rule:** un module unique expose exactement quatre fonctions sans paramètre libre. Aucune charge utile, aucun identifiant, aucun cookie. Tout autre besoin de mesure passe par une décision, pas par un ajout silencieux. *Révisé le 2026-08-21 :* les quatre événements suivent le nouveau parcours — run lancé, premier écran utilisable, première soumission à l'application, porte atteinte (NFR-011). Le journal du relais (NFR-028) est une **seconde** surface de mesure, côté serveur, qui ne conserve aucun texte saisi ; il ne relâche pas cette règle-ci, il vit à côté.
 
 ### AD-15 — Un échec est un événement, pas une exception
 
@@ -189,7 +193,8 @@ Correspondance couche / répertoire : le paradigme est appliqué par l'arboresce
 
 - **Binds:** all
 - **Prevents:** que la politique s'élargisse au-delà de ce que l'évaluation exige réellement
-- **Rule:** la production sert `default-src 'self'` et `script-src 'self' 'unsafe-eval'` — l'évaluation est nécessaire (AD-8), aucune source de script externe ne l'est. Le reste ne bouge pas : `object-src`, `frame-src`, `base-uri`, `form-action`, `frame-ancestors` à `'none'`, `connect-src` limité à `'self'` et au fournisseur du mode branché. Deux tests le tiennent : un test de contrat qui lit le fichier nginx servi, et un test en navigateur réel qui exécute un outil écrit pendant le run et vérifie qu'aucune requête ne part.
+- **Rule:** la production sert `default-src 'self'` et `script-src 'self' 'unsafe-eval'` — l'évaluation est nécessaire (AD-8), aucune source de script externe ne l'est. `object-src`, `base-uri`, `form-action`, `frame-ancestors` restent à `'none'` ; `connect-src` reste limité à `'self'`.
+- **Amendement du 2026-08-21 :** `frame-src` passe de `'none'` à `'self'`, et **c'est le seul assouplissement que le cycle A demande**. Le cadre de l'application est une page que nous servons, sous sa propre politique, et le balisage écrit par les agents y arrive par message plutôt que par exécution (AD-28). Un dossier qui réclamerait `'unsafe-inline'`, une origine externe ou un cadre non sablé est un dossier à refuser, pas à négocier. Trois tests tiennent l'invariant : un test de contrat sur le fichier nginx servi, un test en navigateur réel qui exécute un comportement écrit pendant le run et vérifie qu'aucune requête ne part, et un test qui vérifie que le cadre ne peut pas atteindre la page hôte.
 
 ### AD-17 — Un nom de coeffect a un propriétaire unique, déclaré
 
@@ -225,6 +230,56 @@ Correspondance couche / répertoire : le paradigme est appliqué par l'arboresce
 - **Binds:** F3, F4, F5, F6
 - **Prevents:** que chaque unité d'affichage arbitre l'accessibilité à sa façon et qu'un état de nœud finisse porté par la seule couleur
 - **Rule:** trois règles s'appliquent à tout élément qui exprime un état : il porte une forme ou un texte en plus de sa couleur (NFR-017), il est atteignable au clavier s'il est actionnable (NFR-016), et son animation est neutralisée sous `prefers-reduced-motion` sans que l'information disparaisse (NFR-018). Les états de nœud sont rendus par un composant unique — pas réimplémentés par vue.
+
+### AD-27 — L'application sert avant la porte, et pendant tout le run
+
+*Ajoutée le 2026-08-21. C'est l'invariant dont tous les suivants découlent.*
+
+- **Binds:** F5, F6, F12
+- **Prevents:** que le produit n'existe qu'après une décision humaine — auquel cas rien ne sert pendant qu'on le modifie, et la composabilité temporelle n'a rien à démontrer
+- **Rule:** dès qu'un écran et un comportement existent, l'application est servie et acceptable en entrée. Aucun composant, aucune vue, aucune intention ne peut conditionner l'existence du produit à l'état de la porte. La porte statue sur ce qui **sert déjà** : elle décide de l'emport ou de la rétractation, jamais de l'apparition.
+
+### AD-28 — Le cadre isolé ne contient aucun code écrit par un agent
+
+- **Binds:** F12
+- **Prevents:** deux choses à la fois — qu'une page écrite par un modèle s'exécute avec les droits de la nôtre, et qu'un agent puisse loger la logique dans l'écran, où elle échapperait au remplacement à chaud
+- **Rule:** le cadre est une page **que nous servons**, portant un pont fixe. Elle reçoit du balisage assaini — liste blanche de balises, aucun élément de script, aucun attribut d'événement, aucune source externe — et des attributs déclaratifs (`data-invoke`, `data-field`, `data-output`) qui **désignent** des comportements sans en contenir. Le cadre ne calcule rien : il ne le peut pas. Cette impossibilité est délibérée — elle force toute la logique dans des composants remplaçables, donc rend la démonstration structurelle au lieu de décorative.
+
+### AD-29 — Le code écrit par un modèle ne s'exécute pas sur le fil de la page
+
+- **Binds:** F11, F12
+- **Prevents:** qu'un comportement généré lise le document, le stockage local ou la route du relais ; qu'une boucle infinie gèle l'onglet sans recours ; et qu'un run partagé devienne un vecteur d'exécution chez son destinataire
+- **Rule:** l'évaluation produit une fonction, mais l'**exécution** a lieu dans un fil isolé, sans document, sans stockage, sans réseau. Tout échange est un message. Un comportement qui dépasse son temps imparti est **arrêté** — c'est la seule défense réelle contre une boucle infinie, et elle n'existe pas sur le fil principal. Le composant qui l'enveloppe reste un composant Cordis ordinaire : c'est lui qui porte le cycle de vie, le fil n'est qu'un lieu d'exécution.
+
+### AD-30 — L'état de l'application vit hors de tout ce qui est remplaçable
+
+- **Binds:** F12
+- **Prevents:** qu'un remplacement à chaud coûte au visiteur ce qu'il a accumulé — auquel cas il ne vaut pas mieux qu'un redémarrage, et la thèse du produit tombe
+- **Rule:** le journal des interactions — entrée, sortie, version qui a répondu — est un coeffect fourni par le maître, donc extérieur au cadre **et** aux composants que les agents remplacent. Aucun comportement ne détient d'état entre deux appels : ce qui doit survivre est passé et rendu. Un comportement qui accumulerait en interne perdrait sa mémoire au premier remplacement, et le produit mentirait sur son compteur.
+
+### AD-31 — Un remplacement prend, ou rend la main : jamais entre les deux
+
+- **Binds:** F12
+- **Prevents:** qu'une version fautive laisse un trou — un nom sans fournisseur, un enfant orphelin, un créneau mort
+- **Rule:** remplacer relâche l'entrée, charge la remplaçante, et **si elle échoue ou tombe en état d'erreur**, la relâche, restaure la précédente **et recharge les composants qu'elle avait chargés**. Il n'existe pas d'état intermédiaire observable. Le refus est un événement, pas une exception (AD-15), et l'agent le reçoit en observation pour pouvoir réessayer. Deux remplacements simultanés sur la même entrée sont refusés plutôt qu'entrelacés.
+
+### AD-32 — La capacité est bornée par visiteur, et le rejeu est le repli
+
+- **Binds:** F7, F13
+- **Prevents:** qu'un seul visiteur épuise la journée, et qu'un site public réponde une erreur brute quand il n'a plus de capacité
+- **Rule:** le relais applique un budget **par visiteur** en plus du plafond global, et les deux sont dits à l'écran avant le lancement. Capacité épuisée, crédit à zéro, relais muet, fournisseur en panne : la page bascule sur le rejeu d'un run enregistré **en l'annonçant**. Le rejeu est un chemin de premier rang — même modèle de lecture, mêmes vues, mêmes tests que le direct. Aucun code ne distingue « le vrai run » du rejeu au-delà de l'origine des événements.
+
+### AD-33 — Un run est rejouable depuis son seul flux d'événements
+
+- **Binds:** F13
+- **Prevents:** que la démonstration dépende d'un modèle disponible, et qu'on ne puisse pas prouver après coup ce qui s'est réellement passé
+- **Rule:** le flux `RunEvent` est **le format d'archive**. Un événement ne référence jamais un objet vivant, ne porte jamais de date absolue, et se suffit à lui-même — un run exporté puis rejoué reproduit exactement le même modèle de lecture. Ce que AD-3 posait par hygiène devient une garantie extérieure : le corollaire est qu'aucune information nécessaire à l'écran ne peut exister ailleurs que dans le flux.
+
+### AD-34 — Rien ne sort du navigateur sans passer par le relais et une liste blanche
+
+- **Binds:** F13
+- **Prevents:** qu'un domaine proposé par un modèle soit appelé, et qu'un site public devienne un proxy ouvert
+- **Rule:** `connect-src` reste à `'self'` : le navigateur ne parle qu'à notre origine. Toute source de données est **choisie dans une liste tenue côté serveur**, jamais construite à partir d'une chaîne venue du modèle — un agent nomme une source, il ne fournit pas une adresse. Les quotas du relais s'appliquent à cette route comme à celle du raisonnement. Cette règle porte aussi l'outillage découvert à l'exécution, le jour où il arrivera : le client ne parlera jamais directement à un serveur d'outils.
 
 ## Consistency Conventions
 
@@ -270,28 +325,51 @@ Une seule dépendance de disposition, et rien d'autre. Ce qui a été écarté, 
 
 ### Vue d'ensemble
 
+*Révisée le 2026-08-21 : l'application vivante, son cadre isolé et le fil d'exécution apparaissent ; le relais remplace l'appel direct au fournisseur.*
+
 ```mermaid
 flowchart TB
-  subgraph nav["Onglet du navigateur — tout se passe ici"]
-    subgraph coeur["runtime/ — noyau"]
-      cordis["Contexte Cordis"]
-      fab["Évaluation du code d'un outil"]
-      flux["Flux RunEvent"]
+  subgraph nav["Onglet du navigateur"]
+    subgraph hote["Page hôte"]
+      subgraph coeur["runtime/ — noyau"]
+        cordis["Contexte Cordis"]
+        flux["Flux RunEvent"]
+      end
+      comp["comportements — composants remplaçables à chaud"]
+      etat["session — journal des interactions"]
+      red["state/ — réducteur"]
+      vue["ui/ — Vue 3"]
     end
-    red["state/ — réducteur"]
-    vue["ui/ — Vue 3"]
-    prod["outil écrit pendant le run"]
+    subgraph fil["Fil isolé"]
+      exec["exécution du code écrit par le modèle"]
+    end
+    subgraph cadre["Cadre isolé — page servie par nous"]
+      pont["pont fixe"]
+      ecran["écran — balisage assaini"]
+    end
   end
-  fournisseur["Fournisseur LLM — optionnel, à la demande"]
+  subgraph srv["Même conteneur, boucle locale"]
+    relais["relais — porte la clé, tient les quotas"]
+  end
+  fournisseur["Fournisseur de modèle"]
+  sources["Sources sur liste blanche — cycle A'"]
 
   cordis --> flux
-  fab --> cordis
   flux --> red
   red --> vue
   vue -->|intentions| cordis
-  cordis -->|coeffet Reasoner| fournisseur
-  cordis --> prod
+  cordis --> comp
+  comp -->|messages| exec
+  pont <-->|postMessage| comp
+  ecran --> pont
+  comp --> etat
+  cordis -->|coeffet Reasoner| relais
+  relais --> fournisseur
+  comp -.->|cycle A'| relais
+  relais -.-> sources
 ```
+
+Trois frontières, et chacune porte une garantie : le **cadre** ne peut pas atteindre la page hôte (AD-28), le **fil isolé** ne peut atteindre ni le document ni le réseau et peut être arrêté (AD-29), le **relais** est la seule sortie et il est sur liste blanche (AD-34). L'`état` est délibérément hors des trois : c'est lui qui survit aux remplacements (AD-30).
 
 ### Cycle d'un run
 
@@ -302,21 +380,32 @@ sequenceDiagram
   participant R as runtime/
   participant E as state/
 
+  participant A as app/ — cadre et fil isolé
+
   U->>UI: écrit le brief, lance
   UI->>R: intention « lancer »
-  R->>R: charge l'agent maître, constitue la mémoire de run
+  R->>R: charge l'agent maître (chemin court : pas de délibération au 1er tour)
   R-->>E: component-created, component-activated, message-emitted
-  R->>R: un agent décide qu'il lui faut de l'aide et charge un autre agent
-  R->>R: un agent écrit le code d'un outil, le runtime l'évalue et le charge
-  R-->>E: component-built, artifact-published
-  R->>R: le sceptique attaque
+  E-->>UI: le raisonnement s'affiche pendant l'attente
+  R->>R: un agent pose l'écran, un agent écrit un comportement
+  R-->>E: screen-published, component-built
+  R->>A: l'écran est monté, les comportements sont joignables
+  A-->>UI: l'application sert — créneaux inertes annoncés
+  U->>A: soumet une entrée
+  A->>R: appel d'un comportement, exécuté dans le fil isolé
+  R-->>E: interaction-recorded (survivra aux remplacements)
+  R->>R: un agent remplace un comportement vivant
+  R-->>E: component-replaced (v2) — sans rechargement du cadre
+  U->>A: soumet une autre entrée — son historique est intact
+  R->>R: un agent tente une version fautive
+  R-->>E: replacement-refused — la v2 continue de servir
   R-->>E: gate-reached
-  E-->>UI: la porte attend
-  U->>UI: approuve
-  UI->>R: intention « approuver »
-  R-->>E: payoff-livre
-  E-->>UI: le vérificateur apparaît
+  U->>UI: emporte
+  UI->>R: intention « emporter »
+  R-->>E: product-taken
 ```
+
+Le point à lire dans ce diagramme : **le visiteur soumet des entrées entre les deux remplacements.** Toute la thèse du produit tient dans cet entrelacement — enlever ces deux flèches et il ne reste qu'un générateur de code.
 
 ### Entités du modèle de lecture
 
@@ -370,11 +459,21 @@ src/
   state/              # store en lecture seule + réducteur (AD-4)
     reducer.ts
     layout.ts         # disposition du graphe vivant (AD-11)
+  app/                # l'application vivante (AD-27 à AD-30)
+    bridge.ts         # le pont fixe monté dans le cadre isolé (AD-28)
+    sanitize.ts       # liste blanche de balises et d'attributs (AD-28)
+    worker.ts         # le fil d'exécution des comportements (AD-29)
+    session.ts        # le journal des interactions, hors du remplaçable (AD-30)
   orchestration/      # factory.ts (le lancement), pilot.ts (le câblage)
   ui/                 # composants Vue — projection seulement (AD-5)
   telemetry/          # quatre appels, rien d'autre (AD-14)
   assets/tokens.css   # design system, conservé de l'existant
+
+public/
+  sandbox/index.html  # la page du cadre isolé, servie par nous (AD-28)
 ```
+
+*Ajouté le 2026-08-21 : `app/` et `public/sandbox/`. `corpus/` est en sursis — plus aucun consommateur depuis le retrait des scénarios (Q15).*
 
 ## Capability → Architecture Map
 
@@ -385,18 +484,28 @@ src/
 | F3 · Graphe vivant | `state/`, `ui/` | AD-4, AD-5, AD-11, AD-19, AD-20, AD-22 |
 | F4 · Agents qui parlent | `runtime/`, `state/`, `ui/` | AD-3, AD-4, AD-20 |
 | F5 · Porte humaine | `runtime/`, `ui/` | AD-1, AD-3, AD-22 |
-| F6 · Produit livré | `agents/free-agent.ts`, `ui/` | AD-12, AD-22 |
+| F6 · Le produit | `agents/`, `app/`, `ui/` | AD-27, AD-30, AD-22 |
 | F7 · Mode LLM branché | `runtime/raisonneur/` | AD-9, AD-13 |
 | F8 · Compteurs | `state/`, `telemetry/` | AD-4, AD-14 |
 | F9 · Domaines | `corpus/`, `examples/` | AD-10, AD-17, AD-23 |
 | F10 · Artefacts | `runtime/`, `state/`, `ui/` | AD-3, AD-7, AD-18 |
-| F11 · Fabrication à l'exécution | `agents/free-agent.ts` | AD-8, AD-16, AD-17, AD-24 |
+| F11 · Fabrication à l'exécution | `agents/` | AD-8, AD-16, AD-17, AD-24, AD-29 |
+| F12 · Application vivante | `runtime/`, `agents/`, `app/` (cadre, pont, fil isolé), `ui/` | AD-27, AD-28, AD-29, AD-30, AD-31, AD-22 |
+| F13 · Sources, emport, rejeu | relais, `state/`, `ui/` | AD-32, AD-33, AD-34, AD-3 |
 
 ## Deferred
 
-- **Le remplacement à chaud réel** (`@cordisjs/plugin-hmr`). Ni installé ni prouvé. FR-054 repose sur lui ou sur un rechargement de composant équivalent ; la question se tranche en phase 1, sur mesure, pas ici.
-- **La tenue à quarante nœuds** (NFR-002). Non mesurée. Le budget de rendu et l'éventuelle virtualisation se décident quand le graphe existe et qu'on peut le charger.
-- **Le fournisseur LLM et la forme des invites.** Le port `Raisonneur` fixe la frontière ; ce qui vit derrière est une décision de phase 3.
-- **La forme exacte des artefacts** produits par les agents. Le contrat dit qu'ils existent, sont attribués et traçables ; leur structure interne appartient aux histoires.
-- **Le second domaine.** Il n'est plus un scénario mais un corpus de règles dans `src/corpus/` ; l'usine le choisit à partir du brief. Ajouter un domaine est une donnée à écrire, pas une décision d'architecture.
-- **Tout ce qui relève d'un serveur** : persistance, comptes, traitement par lot, monétisation, base vectorielle. Hors périmètre client-only, et l'architecture n'a pas à s'y préparer tant que ce n'est pas décidé.
+*Révisé le 2026-08-21.*
+
+- ~~**Le remplacement à chaud réel.**~~ **Sorti du différé : c'est devenu le cœur** (AD-31). Le mécanisme du noyau est écrit, verrouillé contre l'entrelacement et testé ; ce qui manquait était un appelant. `@cordisjs/plugin-hmr` reste non installé et non nécessaire — le remplacement passe par le noyau, pas par un rechargement de module.
+- **La forme du fil isolé** (AD-29) : un fil par comportement, un fil partagé, ou un fil par application. Le choix se tranche sur mesure au premier jet du cycle A, pas ici. Ce qui est fixé et ne se renégocie pas : aucun accès au document, au stockage ni au réseau, et l'arrêt possible.
+- **Le format d'archive d'un run** (AD-33) : la garantie est posée, la sérialisation concrète — version de schéma, compression, taille acceptable dans une URL ou un fichier — appartient au cycle A′.
+- **La forme du budget par visiteur** (AD-32) : comment un visiteur est reconnu sans identifiant persistant, et ce que vaut cette reconnaissance. Contrainte qui borne la réponse : NFR-011 interdit le cookie et l'identifiant persistant, donc la réponse ne peut pas être une session classique.
+- **Le critère d'entrée dans la liste blanche des sources** (AD-34, Q12). Une liste molle transforme le relais en proxy ouvert ; le critère est une décision, pas une conséquence.
+- **La vérification par cas exécutés et la cascade de désactivation visible** (cycle B). C'est la dimension **spatiale** du paradigme, la seule encore non démontrée. Elle a sa propre passe d'architecture.
+- ~~**La mémoire de run et l'outillage MCP.**~~ **Sortis du différé le 2026-08-21 : écrits.** Le rappel est local au run (`agents/recall.ts`) parce qu'une mémoire coûtant un aller-retour par tour ajouterait une seconde là où le produit se bat pour son premier écran ; le service en garde une version persistante, adossée à pgvector. Le client MCP vit dans le service, poignée de main comprise, et le navigateur ne parle jamais à un serveur d'outils.
+- **La bibliothèque de compétences persistée d'un run à l'autre.** Toujours différée, et c'est le dernier des trois chantiers : elle compose sur le remplacement à chaud et sur la mémoire, qui existent maintenant tous deux.
+- **Ce que MCP n'a pas encore.** Un serveur *avec état* renvoie son identifiant de session dans un en-tête HTTP ; notre transport ne rend que le corps, donc ces serveurs-là ne sont pas supportés. C'est le type `Transport` qui changera, pas le module.
+- **Ce que le bac à sable serveur ne borne pas.** La sortie réseau. Isoler une socket demande un espace de noms, donc un conteneur ou un service dédié. Ce qui protège aujourd'hui est en amont — un outil ne reçoit jamais d'adresse — et un test nomme la limite au lieu de la taire.
+- **La tenue à quarante nœuds** (NFR-002). Non mesurée. Le budget de rendu se décide quand le graphe existe et qu'on peut le charger.
+- **Tout ce qui relève d'un serveur au-delà du relais** : persistance, comptes, traitement par lot, monétisation. Le relais est délibérément mince — il porte une clé, des quotas et une liste blanche, rien d'autre. L'y voir grossir est le signal qu'une décision a été prise sans être posée.

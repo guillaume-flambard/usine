@@ -16,6 +16,17 @@ export function scriptedModel(): Reasoner {
   }
 }
 
+/** The first, crude version: it only says whether a sentence is forbidden. */
+const DETECTOR_V1 =
+  "(texte) => String(texte).split('.').map((p) => p.trim()).filter((p) => p.length > 0)" +
+  ".map((phrase) => ({ phrase, interdit: ['guérit','soigne','traite'].some((m) => phrase.toLowerCase().includes(m)) }))"
+
+/** The improvement: it also says which word triggered the verdict. */
+const DETECTOR_V2 =
+  "(texte) => String(texte).split('.').map((p) => p.trim()).filter((p) => p.length > 0)" +
+  ".map((phrase) => { const motif = ['guérit','soigne','traite'].find((m) => phrase.toLowerCase().includes(m));" +
+  " return { phrase, interdit: motif !== undefined, motif } })"
+
 function answer(context: string): string {
   const turn = (thought: string, actions: unknown[]) => json({ thought, actions })
 
@@ -64,26 +75,46 @@ function answer(context: string): string {
   // The lawyer publishes what it drew from the corpus.
   if (context.includes('Toi : juriste')) {
     return turn('je lis le corpus', [
-      { type: 'publish', name: 'motifs-interdits', text: 'guérit ; soigne ; traite' },
+      {
+        type: 'publish',
+        name: 'motifs-interdits',
+        // Rédigé comme un juriste le rédigerait : le fait porte les mots de
+        // ce dont il parle. C'est ce qui permet à un agent né plus tard de le
+        // retrouver sans avoir deviné le nom du coeffet.
+        text: 'Les motifs interdits dans un détecteur d’allégations sont : guérit ; soigne ; traite.',
+      },
       { type: 'done', summary: 'Motifs publiés.' },
     ])
   }
 
-  // The artisan questions the lawyer, then writes a real tool.
+  // The artisan questions the lawyer, posts a screen, writes a behaviour —
+  // then improves it while the visitor could already be using it.
   if (context.includes('Toi : artisan')) {
-    if (context.includes('l’outil « detecteur » tourne') || context.includes('est publié')) {
-      return turn('fini', [{ type: 'done', summary: 'Outil livré.' }])
+    if (context.includes('passe en v2')) {
+      return turn('fini', [{ type: 'done', summary: 'Application livrée.' }])
     }
-    return turn('je demande confirmation puis j’écris', [
+    if (context.includes('« detecteur » sert maintenant')) {
+      return turn('je peux faire mieux', [
+        {
+          type: 'replace',
+          name: 'detecteur',
+          code: DETECTOR_V2,
+        },
+        { type: 'publish', name: 'rapport-outil', text: 'Détecteur écrit, puis amélioré.' },
+        { type: 'done', summary: 'Application livrée.' },
+      ])
+    }
+    return turn('je demande confirmation, je pose l’écran, puis j’écris', [
       { type: 'ask', to: 'juriste', question: 'Faut-il citer un article ?' },
       {
-        type: 'build',
-        name: 'detecteur',
-        provides: 'detecteur',
-        code: "(texte) => String(texte).split('.').map((p) => p.trim()).filter((p) => p.length > 0).map((phrase) => ({ phrase, interdit: ['guérit','soigne','traite'].some((m) => phrase.toLowerCase().includes(m)) }))",
+        type: 'screen',
+        markup:
+          '<h1>Détecteur d’allégations</h1>' +
+          '<textarea data-field="texte"></textarea>' +
+          '<button data-invoke="detecteur">Analyser</button>' +
+          '<div data-output="detecteur"></div>',
       },
-      { type: 'publish', name: 'rapport-outil', text: 'Détecteur écrit et chargé.' },
-      { type: 'done', summary: 'Outil livré.' },
+      { type: 'build', name: 'detecteur', code: DETECTOR_V1 },
     ])
   }
 

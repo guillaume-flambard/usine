@@ -2,7 +2,8 @@
 // and nobody — not even the master — knows what it will contain.
 import { describe, expect, it } from 'vitest'
 import { createKernel } from '../../runtime/kernel'
-import { runProduct, startFactory } from '../factory'
+import { liveBehaviours, startFactory } from '../factory'
+import { spawnVmWorker } from '../../agents/__tests__/vm-worker'
 import { scriptedModel } from '../../agents/__tests__/scripted-model'
 import { until } from './helpers'
 
@@ -17,6 +18,8 @@ async function run() {
   await startFactory(kernel, {
     brief: BRIEF,
     reasoner: scriptedModel(),
+    spawnWorker: spawnVmWorker,
+      sources: [],
     stepMs: 10,
     settleTimeoutMs: 4000,
   })
@@ -31,7 +34,13 @@ describe('the factory started on a need', () => {
     kernel.subscribe((e) => {
       if (e.type === 'component-created') born.push(e.name)
     })
-    await startFactory(kernel, { brief: BRIEF, reasoner: scriptedModel(), stepMs: 10 })
+    await startFactory(kernel, {
+      brief: BRIEF,
+      reasoner: scriptedModel(),
+      spawnWorker: spawnVmWorker,
+      sources: [],
+      stepMs: 10,
+    })
 
     // The run's first component is the master, and it is the only one born
     // from the outside: everything else depends on what a model will decide.
@@ -44,16 +53,16 @@ describe('the factory started on a need', () => {
     const { kernel, born } = await run()
 
     expect(born.length).toBeGreaterThan(3)
-    expect(kernel.providedNames()).toContain('detecteur')
+    expect(kernel.providedNames()).toContain('behaviour:detecteur')
     await kernel.releaseAll()
   })
 
-  it('delivers a function whose name nobody knew', async () => {
+  it('serves a behaviour whose name nobody knew', async () => {
     const { kernel } = await run()
-    const product = runProduct(kernel)
+    const [behaviour] = liveBehaviours(kernel)
 
-    expect(product).toBeDefined()
-    expect(typeof product?.run).toBe('function')
+    expect(behaviour).toBeDefined()
+    expect(typeof behaviour?.call).toBe('function')
     await kernel.releaseAll()
   })
 
@@ -66,6 +75,8 @@ describe('the factory started on a need', () => {
     await startFactory(kernel, {
       brief: BRIEF,
       reasoner: scriptedModel(),
+      spawnWorker: spawnVmWorker,
+      sources: [],
       // One agent at most: the budget is not advisory.
       budget: { maxAgents: 1, maxDepth: 1, maxTurns: 2, maxTokens: 10_000 },
       stepMs: 10,

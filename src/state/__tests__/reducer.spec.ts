@@ -12,6 +12,7 @@ function created(name: string, needs: string[] = [], provides: string[] = []): R
   return {
     type: 'component-created',
     sequence: next(),
+    at: 0,
     id: id(name),
     name,
     display: { role: `Rôle de ${name}` },
@@ -22,7 +23,7 @@ function created(name: string, needs: string[] = [], provides: string[] = []): R
 
 // `WithoutSequence` is distributive: without it, `Omit` on the union would keep
 // only the common keys and the variants would stop being checked.
-const ev = (e: WithoutSequence): RunEvent => ({ ...e, sequence: next() }) as RunEvent
+const ev = (e: WithoutSequence): RunEvent => ({ ...e, sequence: next(), at: 0 }) as RunEvent
 
 function replay(events: readonly RunEvent[]): FullState {
   return events.reduce(reduce, initialState())

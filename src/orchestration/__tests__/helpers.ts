@@ -4,6 +4,7 @@
 
 import { createPilot, type Pilot } from '../pilot'
 import { scriptedModel } from '../../agents/__tests__/scripted-model'
+import { spawnVmWorker } from '../../agents/__tests__/vm-worker'
 
 export const BRIEF = 'Un outil qui repère les allégations thérapeutiques interdites.'
 
@@ -21,7 +22,15 @@ export async function until(condition: () => boolean, timeoutMs = 8000): Promise
 
 /** A pilot connected to the scripted model: with no model, nothing is born. */
 export const scriptedPilot = (): Pilot => {
-  const pilot = createPilot({ stepMs: 10, settleTimeoutMs: 4000 })
+  // Sans source : un test ne joint rien, et les agents se voient dire qu'il
+  // n'y a rien à brancher plutôt que d'attendre un service.
+  const pilot = createPilot({
+    stepMs: 10,
+    settleTimeoutMs: 4000,
+    spawnWorker: spawnVmWorker,
+    sources: [],
+    fetchSource: async () => ({ body: '', truncated: false }),
+  })
   pilot.connect(scriptedModel())
   return pilot
 }
@@ -34,11 +43,11 @@ export async function runToGate(brief = BRIEF): Promise<Pilot> {
   return pilot
 }
 
-/** A run taken to the delivered product. */
+/** A run taken past the gate. The application was already serving before it. */
 export async function runApproved(brief = BRIEF): Promise<Pilot> {
   const pilot = await runToGate(brief)
   pilot.approve()
-  await until(() => pilot.product() !== undefined)
+  await until(() => pilot.store.state.value.gate?.decision === 'approved')
   return pilot
 }
 

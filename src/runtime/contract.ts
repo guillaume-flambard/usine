@@ -57,6 +57,8 @@ export interface Build {
   route: 'composition' | 'evaluation'
 }
 
+import type { MessageKind } from './events'
+
 /** Undoes an effect. Returned by the function passed to `effect`. */
 export type Teardown = () => void
 
@@ -77,12 +79,25 @@ export interface ComponentContext {
   provide(name: string, value: unknown): void
   /** Reads a dependency declared in `needs`. */
   read<T = unknown>(name: string): T | undefined
-  /** Emits a message for the narration. */
-  emit(message: string): void
+  /**
+   * Emits a message for the narration.
+   *
+   * `kind` classifies the fact rather than the prose. Without it, measuring
+   * how often a turn came back unreadable would mean matching on wording.
+   */
+  emit(message: string, kind?: MessageKind): void
   /** Signals that this component's work is done. */
   finish(): void
   /** Publishes a readable artifact, attributed to this component. */
   publishArtifact(artifact: Artifact): void
+  /**
+   * Posts the application's screen, or replaces it.
+   *
+   * Returns the new revision. The markup goes through the event stream rather
+   * than through a coeffect: a screen that lived outside the stream would be
+   * missing from a replayed run, and it is the first thing a replay needs.
+   */
+  postScreen(markup: string): number
   /**
    * Declares a real token spend. The counter on screen only ever shows what
    * was actually spent — never an animation.

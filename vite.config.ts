@@ -12,6 +12,17 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  build: {
+    rollupOptions: {
+      // Two pages, not one. The sandboxed frame is served by us, under its own
+      // security policy, and must not share a document with the host — that
+      // separation is the reason no policy needs loosening.
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        sandbox: fileURLToPath(new URL('./sandbox.html', import.meta.url)),
+      },
+    },
+  },
   server: (process.env.VITEST === undefined
       ? {
           proxy: {

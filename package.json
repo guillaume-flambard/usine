@@ -16,7 +16,10 @@
     "test": "vitest run --project node",
     "test:watch": "vitest --project node",
     "test:browser": "vitest run --project browser",
-    "test:all": "vitest run"
+    "test:all": "run-s \"test\" \"test:browser\" \"test:api\"",
+    "test:api": "cd services/api && uv run --extra dev pytest -q",
+    "lint:api": "cd services/api && uv run --extra dev ruff check . && uv run --extra dev ruff format --check .",
+    "format:api": "cd services/api && uv run --extra dev ruff check --fix . && uv run --extra dev ruff format ."
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.119.0",

@@ -1,0 +1,84 @@
+# La topologie du produit, dans le dépôt.
+#
+# C'est l'invariant : ce fichier se rejoue sous l'orchestrateur actuel, sous
+# `docker compose` nu, ou sous un autre demain. Tant qu'il n'existait pas,
+# changer d'orchestrateur était une migration ; maintenant c'est un après-midi.
+#
+# Trois services, et la raison de chacun :
+#   site  — nginx sert le paquet statique et le cadre isolé, et il est le seul
+#           joignable de l'extérieur.
+#   api   — le service compagnon : il porte la clé du fournisseur, les quotas,
+#           et ce qui viendra ensuite (persistance, mémoire, outils, MCP).
+#   db    — Postgres avec pgvector, pour les runs stockés et la mémoire.
+
+services:
+  site:
+    build:
+      context: .
+      dockerfile: deployment/Dockerfile.site
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      # nginx résout `api` par le DNS du réseau compose. C'est exactement ce
+      # qui manquait à l'orchestrateur précédent et qui avait produit une
+      # architecture absurde : exposer un relais publiquement pour que le
+      # nginx de la même machine puisse l'atteindre.
+      API_HOST: api
+      API_PORT: 8000
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.usine.rule=Host(`usine.memolabs.dev`)
+      - traefik.http.routers.usine.entrypoints=https
+      - traefik.http.routers.usine.tls.certresolver=letsencrypt
+      - traefik.http.services.usine.loadbalancer.server.port=80
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./services/api
+    environment:
+      # La clé ne vit que là, et n'entre jamais dans le paquet servi.
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:?la clé du fournisseur est requise}
+      USINE_MODEL: ${USINE_MODEL:-deepseek/deepseek-v4-flash}
+      USINE_ORIGIN: ${USINE_ORIGIN:-https://usine.memolabs.dev}
+      # Les morceaux, jamais la chaîne de connexion assemblée.
+      #
+      # Une chaîne de connexion assemblée porte un identifiant et un mot de
+      # passe côte à côte : elle a la forme d'un secret même quand la valeur
+      # est une variable, les scanners la signalent à raison, et un dépôt qui
+      # crie au loup sur lui-même apprend à ignorer ses propres alertes.
+      #
+      # Le service assemblera la chaîne à un seul endroit, le jour où la
+      # mémoire s'adossera vraiment à Postgres. Aujourd'hui ces valeurs sont
+      # passées et pas encore lues.
+      POSTGRES_HOST: db
+      POSTGRES_PORT: '5432'
+      POSTGRES_USER: usine
+      POSTGRES_DB: usine
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+    depends_on:
+      db:
+        condition: service_healthy
+    # Aucun port publié : le service n'est joignable que par `site`.
+    expose:
+      - '8000'
+    restart: unless-stopped
+
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: usine
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: usine
+    volumes:
+      - usine-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U usine -d usine']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  usine-db:

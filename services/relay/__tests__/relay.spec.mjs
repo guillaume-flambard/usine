@@ -102,10 +102,14 @@ describe('the reasoning relay', () => {
 
   it('announces its state with no key, and refuses to reason', async () => {
     await onServer({ key: '', model: 'deepseek/deepseek-v4-flash' }, async (base) => {
-      expect(await (await fetch(`${base}/health`)).json()).toEqual({
-        ready: false,
-        model: 'deepseek/deepseek-v4-flash',
-      })
+      const health = await (await fetch(`${base}/health`)).json()
+      expect(health.ready).toBe(false)
+      expect(health.model).toBe('deepseek/deepseek-v4-flash')
+      // The page reads what is left before offering to launch: a capacity
+      // discovered on the fortieth call is discovered too late.
+      expect(health.remaining.visitor).toBeGreaterThan(0)
+      expect(health.remaining.global).toBeGreaterThan(0)
+      expect(health.callsPerRun).toBeGreaterThan(0)
       expect((await askFor(base, { role: 'architect', instruction: 'x' })).status).toBe(503)
     })
   })
@@ -136,6 +140,7 @@ describe('the rate limiter', () => {
     const allow = createRateLimiter(LIMITS, () => instant)
 
     for (let i = 0; i < LIMITS.perMinute; i += 1) expect(allow('a')).toBeUndefined()
+    // Ten seconds later, still inside the same minute.
     expect(allow('a')).toContain('trop de demandes')
     // Another address is not punished for the first one.
     expect(allow('b')).toBeUndefined()
@@ -150,10 +155,39 @@ describe('the rate limiter', () => {
     const allow = createRateLimiter(limits, () => instant)
 
     for (let i = 0; i < limits.perDay; i += 1) expect(allow(`ip-${i}`)).toBeUndefined()
-    expect(allow('new-ip')).toBe('quota du jour atteint')
+    expect(allow('new-ip')).toBe('capacité du jour atteinte pour le site')
 
     // The next day the quota resets: otherwise the site dies on first abuse.
     instant += 24 * 3600_000
     expect(allow('new-ip')).toBeUndefined()
+  })
+
+  it('stops one visitor from taking the day, and spares the others', () => {
+    let instant = Date.parse('2026-08-20T10:00:00Z')
+    const limits = { ...LIMITS, perMinute: 10_000, perDay: 1000, perVisitorPerDay: 5 }
+    const allow = createRateLimiter(limits, () => instant)
+
+    for (let i = 0; i < limits.perVisitorPerDay; i += 1) expect(allow('greedy')).toBeUndefined()
+    expect(allow('greedy')).toBe('capacité du jour atteinte pour vous')
+    // The whole point: the site is not out of capacity, this visitor is.
+    expect(allow('someone-else')).toBeUndefined()
+
+    instant += 24 * 3600_000
+    expect(allow('greedy')).toBeUndefined()
+  })
+
+  it('says what is left without consuming any of it', () => {
+    const instant = Date.parse('2026-08-20T10:00:00Z')
+    const limits = { ...LIMITS, perDay: 100, perVisitorPerDay: 10 }
+    const allow = createRateLimiter(limits, () => instant)
+
+    expect(allow.remaining('a')).toEqual({ visitor: 10, global: 100 })
+    // Reading twice must not cost anything: the page reads before every run.
+    expect(allow.remaining('a')).toEqual({ visitor: 10, global: 100 })
+
+    allow('a')
+    expect(allow.remaining('a')).toEqual({ visitor: 9, global: 99 })
+    // Another visitor's remaining is their own, and the global is shared.
+    expect(allow.remaining('b')).toEqual({ visitor: 10, global: 99 })
   })
 })
