@@ -1,5 +1,5 @@
-/* Application plein écran — 100vh, deux volets, la page ne défile jamais.
-   Les tokens viennent de usine.css ; ce fichier ne fait que le layout app. */
+/* Full-screen application — 100vh, two panes, the page never scrolls.
+   Tokens come from tokens.css; this file only does the app layout. */
 
 :root {
   --etat-cours: var(--accent);
@@ -22,32 +22,32 @@ body,
   background: var(--bg);
 }
 
-.conduite {
+.controls {
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--line);
   min-height: 0;
 }
 
-.marque {
+.brand {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 14px 24px;
   border-bottom: 1px solid var(--line);
 }
-.marque-carre {
+.brand-square {
   width: 14px;
   height: 14px;
   background: var(--accent);
 }
-.marque-nom {
+.brand-name {
   font-size: 13px;
   font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
-.marque-lab {
+.brand-lab {
   margin-left: auto;
   font-size: 11px;
   letter-spacing: 0.2em;
@@ -66,12 +66,12 @@ body,
   text-transform: uppercase;
   color: var(--muted);
 }
-.mode-pastille {
+.mode-dot {
   width: 8px;
   height: 8px;
   border: 1px solid var(--muted);
 }
-.mode-aide {
+.mode-help {
   margin-left: auto;
   background: none;
   border: none;
@@ -81,10 +81,10 @@ body,
   text-decoration: underline;
   padding: 0;
 }
-.mode-aide:hover {
+.mode-help:hover {
   color: var(--ink);
 }
-.mode-explication {
+.mode-explanation {
   padding: 0 24px 12px;
   border-bottom: 1px solid var(--line);
   font-size: 13px;
@@ -92,27 +92,27 @@ body,
   color: var(--muted);
 }
 
-/* Interrupteur de modèle */
-.mode-branchement {
+/* Model switch */
+.mode-connect {
   padding: 0 24px 12px;
   border-bottom: 1px solid var(--line);
 }
-.modele-panneau {
+.model-panel {
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding-top: 10px;
 }
-.modele-champ {
+.model-field {
   min-height: 0;
   max-width: none;
 }
-.modele-note {
+.model-note {
   font-size: 12px;
   line-height: 1.5;
   color: var(--muted);
 }
-.modele-consentement {
+.model-consent {
   display: flex;
   gap: 8px;
   align-items: flex-start;
@@ -120,9 +120,9 @@ body,
   line-height: 1.5;
   color: var(--muted);
 }
-/* La pastille du mode ne repose pas sur la seule couleur : creuse en
-   déterministe, pleine quand un modèle est branché. */
-.mode-pastille[data-branche='true'] {
+/* The mode dot does not rely on colour alone: hollow with no model, solid
+   when one is connected. */
+.mode-dot[data-connected='true'] {
   background: var(--accent);
   border-color: var(--accent);
 }
@@ -136,7 +136,7 @@ body,
   min-height: 0;
 }
 
-.titre-cache {
+.hidden-title {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -152,7 +152,7 @@ body,
   color: var(--accent);
 }
 
-.champ-brief {
+.brief-field {
   border: 1px solid var(--line);
   background: var(--surface);
   padding: 12px 14px;
@@ -164,16 +164,16 @@ body,
   resize: none;
   min-height: 82px;
 }
-.champ-brief:focus-visible {
+.brief-field:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 0;
 }
 
-.rangee-actions {
+.action-row {
   display: flex;
   gap: 10px;
 }
-.bouton {
+.button {
   background: var(--ink);
   color: var(--bg);
   border: 1px solid var(--ink);
@@ -187,34 +187,34 @@ body,
   flex: 1;
   text-align: left;
 }
-.bouton:hover {
+.button:hover {
   background: var(--accent);
   border-color: var(--accent);
 }
-.bouton:disabled {
+.button:disabled {
   opacity: 0.4;
   cursor: default;
   background: var(--ink);
   border-color: var(--ink);
 }
-.bouton-fantome {
+.button-ghost {
   background: none;
   color: var(--muted);
   border: 1px solid var(--line);
   flex: 0 0 auto;
 }
-.bouton-fantome:hover {
+.button-ghost:hover {
   background: none;
   color: var(--ink);
   border-color: var(--ink);
 }
-.bouton:focus-visible,
-.selecteur:focus-visible {
+.button:focus-visible,
+.picker:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-.selecteur {
+.picker {
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--ink);
@@ -231,11 +231,11 @@ body,
   border-top: 1px solid var(--line);
   min-height: 84px;
 }
-.narration-vide {
+.narration-empty {
   color: var(--muted);
 }
 
-.fil {
+.thread {
   border-top: 1px solid var(--line);
   padding-top: 12px;
   overflow: auto;
@@ -245,20 +245,20 @@ body,
   flex-direction: column;
   gap: 9px;
 }
-.fil-message {
+.thread-message {
   font-size: 13px;
   line-height: 1.45;
   color: var(--muted);
 }
-.fil-auteur {
+.thread-author {
   color: var(--ink);
   font-weight: 500;
   letter-spacing: 0.03em;
 }
-.fil-sequence {
+.thread-sequence {
   float: right;
   font-size: 11px;
-  /* `--etat-libere` sur la crème tombe à ~2:1 : sous le seuil AA. */
+  /* The released tone on cream falls to ~2:1: below the AA threshold. */
   color: var(--muted);
 }
 
@@ -270,7 +270,7 @@ body,
   color: var(--etat-erreur);
 }
 
-.compteur-note {
+.counter-note {
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -278,24 +278,24 @@ body,
   padding-top: 4px;
 }
 
-.identite {
+.identity {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
   color: var(--muted);
 }
 
-.artefact h3 {
+.artifact h3 {
   font-size: 15px;
   font-weight: 500;
   letter-spacing: 0.02em;
   padding-bottom: 4px;
 }
-.artefact-origine {
+.artifact-origin {
   font-size: 12px;
   color: var(--muted);
   padding-bottom: 8px;
 }
-.artefact-corps {
+.artifact-body {
   font-family: inherit;
   font-size: 13px;
   font-weight: 300;
@@ -305,7 +305,7 @@ body,
   padding-left: 12px;
 }
 
-.cote-a-cote {
+.side-by-side {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
@@ -323,15 +323,15 @@ body,
   overflow: auto;
 }
 
-/* Deux colonnes de 11 px de monospace ne se lisent pas : sous cette largeur
-   de panneau, la comparaison s'empile plutôt que de s'écraser. */
+/* Two columns of 11 px monospace are unreadable: below this panel width the
+   comparison stacks rather than being squeezed. */
 @media (max-width: 1400px) {
-  .cote-a-cote {
+  .side-by-side {
     grid-template-columns: 1fr;
   }
 }
 
-.panneau-fil {
+.panel-thread {
   display: flex;
   flex-direction: column;
   gap: 9px;
@@ -340,7 +340,7 @@ body,
   color: var(--muted);
 }
 
-.vivant {
+.live {
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -353,35 +353,35 @@ body,
   display: flex;
 }
 
-.zone[data-panneau='true'] {
-  --reserve-bas: 34%;
+.zone[data-panel='true'] {
+  --bottom-reserve: 34%;
 }
 
-.compteurs {
+.counters {
   display: flex;
   border-bottom: 1px solid var(--line);
 }
-.compteur {
+.counter {
   padding: 14px 24px;
   border-right: 1px solid var(--line);
   min-width: 116px;
 }
-.compteur:last-child {
+.counter:last-child {
   border-right: none;
 }
-.compteur-cle {
+.counter-key {
   font-size: 11px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--muted);
 }
-.compteur-valeur {
+.counter-value {
   font-size: 32px;
   font-weight: 400;
   line-height: 1.05;
   letter-spacing: -0.01em;
 }
-.compteur-valeur.petit {
+.counter-value.petit {
   font-size: 19px;
   padding-top: 10px;
 }
@@ -389,11 +389,11 @@ body,
 .canvas {
   flex: 1;
   min-height: 0;
-  /* Réservé au panneau du bas quand il y en a un : sans ça, le graphe passe
-     dessous et se fait couper. */
-  padding-bottom: var(--reserve-bas, 0);
-  /* Le graphe tient dans son cadre : c'est le `viewBox` qui s'en charge, et
-     rien n'a plus à défiler. */
+  /* Reserved for the bottom panel when there is one: without it the graph
+     slips under and gets cut. */
+  padding-bottom: var(--bottom-reserve, 0);
+  /* The graph fits in its frame: the `viewBox` handles that, and nothing has
+     to scroll any more. */
   overflow: hidden;
   position: relative;
 }
@@ -401,8 +401,8 @@ body,
   display: block;
   width: 100%;
   height: 100%;
-  /* Le graphe se dézoome quand il grandit : le passage doit se voir glisser,
-     pas sauter d'une image à l'autre. */
+  /* The graph zooms out as it grows: the change must be seen sliding, not
+     jumping from one frame to the next. */
   transition: all 320ms ease;
 }
 
@@ -412,92 +412,92 @@ body,
   }
 }
 
-.noeud-cadre {
+.node-frame {
   fill: var(--surface);
   stroke: var(--line);
   stroke-width: 1;
 }
-.noeud-label {
-  /* 12 px et un interlettrage plus serré : « Constr. · interface » doit tenir
-     dans un cadre de 140 px sans toucher la marque d'état. */
+.node-label {
+  /* 12 px and tighter tracking: a two-word label must fit a 140 px box
+     without touching the state mark. */
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   fill: var(--muted);
 }
-.noeud-techno {
+.node-tech {
   font-size: 11px;
   font-weight: 300;
   fill: var(--muted);
 }
-.noeud-marque {
+.node-mark {
   fill: none;
   stroke: var(--muted);
   stroke-width: 1.4;
 }
 
-.noeud[data-etat='en-attente-de-dependance'] .noeud-cadre {
+.node[data-state='waiting-for-dependency'] .node-frame {
   stroke-dasharray: 3 3;
 }
-.noeud[data-etat='en-cours'] .noeud-cadre {
+.node[data-state='working'] .node-frame {
   stroke: var(--etat-cours);
   stroke-width: 2;
 }
-.noeud[data-etat='en-cours'] .noeud-label {
+.node[data-state='working'] .node-label {
   fill: var(--etat-cours);
 }
-.noeud[data-etat='en-cours'] .noeud-marque {
+.node[data-state='working'] .node-mark {
   stroke: var(--etat-cours);
 }
-.noeud[data-etat='termine'] .noeud-cadre {
+.node[data-state='finished'] .node-frame {
   stroke: var(--etat-fait);
   stroke-width: 1.4;
 }
-.noeud[data-etat='termine'] .noeud-label {
+.node[data-state='finished'] .node-label {
   fill: var(--etat-fait);
 }
-.noeud[data-etat='termine'] .noeud-marque {
+.node[data-state='finished'] .node-mark {
   stroke: var(--etat-fait);
 }
-.noeud[data-etat='en-erreur'] .noeud-cadre {
+.node[data-state='failed'] .node-frame {
   stroke: var(--etat-erreur);
   stroke-width: 2;
 }
-.noeud[data-etat='en-erreur'] .noeud-label {
+.node[data-state='failed'] .node-label {
   fill: var(--etat-erreur);
 }
-.noeud[data-etat='en-erreur'] .noeud-marque {
+.node[data-state='failed'] .node-mark {
   stroke: var(--etat-erreur);
 }
-.noeud[data-etat='libere'] {
+.node[data-state='released'] {
   opacity: 0.45;
 }
-.noeud[data-etat='libere'] .noeud-label {
+.node[data-state='released'] .node-label {
   text-decoration: line-through;
 }
-.noeud[data-fabrique='true'] .noeud-double {
+.node[data-built='true'] .node-double {
   fill: none;
   stroke: var(--line);
   stroke-width: 1;
 }
 
-.noeud {
+.node {
   cursor: pointer;
 }
-.noeud:hover .noeud-cadre,
-.noeud[data-choisi='true'] .noeud-cadre {
+.node:hover .node-frame,
+.node[data-selected='true'] .node-frame {
   stroke: var(--ink);
 }
-.noeud:focus-visible {
+.node:focus-visible {
   outline: none;
 }
-.noeud:focus-visible .noeud-cadre {
+.node:focus-visible .node-frame {
   stroke: var(--accent);
   stroke-width: 2;
 }
 
-.apparition {
+.appearing {
   animation: apparait 320ms ease-out both;
 }
 @keyframes apparait {
@@ -511,34 +511,34 @@ body,
   }
 }
 
-/* Une arête qui n'a jamais rien porté est en pointillé ; une arête qui a
-   transporté une valeur devient continue. La distinction ne repose donc pas
-   sur la seule couleur, comme pour les états de nœud. */
-.lien {
+/* An edge that never carried anything is dashed; an edge that carried a
+   value becomes solid. So the distinction does not rest on colour alone, as
+   with node states. */
+.link {
   fill: none;
   stroke: var(--line);
   stroke-width: 1;
   stroke-dasharray: 2 4;
 }
-.lien[data-transite='true'] {
+.link[data-transited='true'] {
   stroke: var(--muted);
   stroke-dasharray: none;
 }
-.lien[data-recent='true'] {
+.link[data-recent='true'] {
   stroke: var(--accent);
   stroke-width: 1.6;
   stroke-dasharray: none;
 }
-/* Une naissance, pas une valeur : un agent a fait exister l'autre. Le trait
-   est distinct pour qu'on ne confonde pas filiation et flux de données. */
-.lien[data-filiation='true'] {
+/* A birth, not a value: one agent brought the other into existence. The
+   stroke differs so parenthood is not confused with data flow. */
+.link[data-parenthood='true'] {
   stroke: var(--accent-soft);
   stroke-width: 1;
   stroke-dasharray: 1 5;
   stroke-linecap: round;
 }
 
-.porte {
+.gate {
   position: absolute;
   max-height: 60%;
   overflow: auto;
@@ -554,17 +554,17 @@ body,
   align-items: flex-start;
   z-index: 4;
 }
-.porte-corps {
+.gate-body {
   flex: 1;
   min-width: 0;
 }
-.porte-resume {
+.gate-summary {
   font-size: 14px;
   line-height: 1.5;
   padding-top: 8px;
   max-width: 72ch;
 }
-.porte-objection {
+.gate-objection {
   font-size: 13px;
   line-height: 1.5;
   color: var(--muted);
@@ -573,18 +573,18 @@ body,
   padding-left: 12px;
   max-width: 72ch;
 }
-.porte-actions {
+.gate-actions {
   display: flex;
   gap: 10px;
   flex: 0 0 auto;
 }
-/* Poids strictement égal : aucun des deux n'est le chemin suggéré. */
-.porte-actions .bouton {
+/* Strictly equal weight: neither is the suggested path. */
+.gate-actions .button {
   flex: 0 0 auto;
   min-width: 132px;
   text-align: center;
 }
-.porte-verdict {
+.gate-verdict {
   font-size: 12px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -593,7 +593,7 @@ body,
   padding-top: 12px;
 }
 
-.produit {
+.product {
   position: absolute;
   left: 0;
   right: 0;
@@ -608,94 +608,17 @@ body,
   gap: 12px;
   z-index: 4;
 }
-.produit-aide {
+.product-help {
   font-size: 13px;
   line-height: 1.5;
   color: var(--muted);
   max-width: 72ch;
 }
-.produit-champ {
-  max-width: 78ch;
-}
-.produit-vide {
-  font-size: 13px;
-  color: var(--muted);
-}
-.produit-suite {
-  font-size: 13px;
-  color: var(--muted);
-  padding-top: 4px;
-}
-.produit-suite a {
-  color: var(--accent);
-}
 
-.verdicts {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-width: 78ch;
-}
-.verdicts li {
-  border-left: 2px solid var(--line);
-  padding-left: 12px;
-}
-.verdict-statut {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-/* Le statut porte une forme en plus de sa couleur : carré plein pour
-   interdit, carré creux pour autorisé, barre pour à vérifier. */
-.verdict-marque {
-  width: 9px;
-  height: 9px;
-  border: 1.5px solid var(--muted);
-}
-.verdicts li[data-statut='interdit'] {
-  border-left-color: var(--etat-erreur);
-}
-.verdicts li[data-statut='interdit'] .verdict-statut {
-  color: var(--etat-erreur);
-}
-.verdicts li[data-statut='interdit'] .verdict-marque {
-  background: var(--etat-erreur);
-  border-color: var(--etat-erreur);
-}
-.verdicts li[data-statut='autorise'] {
-  border-left-color: var(--ink);
-}
-.verdicts li[data-statut='autorise'] .verdict-statut {
-  color: var(--ink);
-}
-.verdicts li[data-statut='autorise'] .verdict-marque {
-  border-color: var(--ink);
-}
-.verdicts li[data-statut='a-verifier'] .verdict-marque {
-  height: 2px;
-  border: none;
-  background: var(--muted);
-}
-.verdict-texte {
-  font-size: 14px;
-  line-height: 1.5;
-  padding-top: 4px;
-}
-.verdict-source {
-  font-size: 12px;
-  color: var(--muted);
-  padding-top: 2px;
-}
-
-.panneau {
+.panel {
   position: absolute;
-  /* Au-dessus de la porte : inspecter un nœud ne doit pas se faire à
-     travers le bandeau de décision. */
+  /* Above the gate: inspecting a node must not happen through the decision
+     banner. */
   z-index: 5;
   top: 0;
   right: 0;
@@ -709,27 +632,27 @@ body,
   flex-direction: column;
   gap: 14px;
 }
-.panneau h2 {
+.panel h2 {
   font-size: 24px;
   font-weight: 600;
   letter-spacing: -0.01em;
   text-transform: uppercase;
 }
-.panneau dl {
+.panel dl {
   display: grid;
   grid-template-columns: 92px 1fr;
   gap: 6px 14px;
   font-size: 13px;
   line-height: 1.5;
 }
-.panneau dt {
+.panel dt {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.14em;
   font-size: 11px;
   padding-top: 2px;
 }
-.panneau-fermer {
+.panel-close {
   align-self: flex-start;
   background: none;
   border: 1px solid var(--line);
@@ -741,12 +664,12 @@ body,
   padding: 8px 12px;
   cursor: pointer;
 }
-.panneau-fermer:hover {
+.panel-close:hover {
   color: var(--ink);
   border-color: var(--ink);
 }
 
-.survol {
+.hover-card {
   position: absolute;
   pointer-events: none;
   background: var(--surface);
@@ -757,57 +680,57 @@ body,
   max-width: 260px;
   z-index: 5;
 }
-.survol-role {
+.hover-role {
   color: var(--ink);
 }
-.survol-detail {
+.hover-detail {
   color: var(--muted);
 }
 
 @media (max-width: 900px) {
-  .porte {
+  .gate {
     flex-direction: column;
     gap: 12px;
   }
-  .porte-actions {
+  .gate-actions {
     width: 100%;
   }
-  .porte-actions .bouton {
+  .gate-actions .button {
     flex: 1;
   }
   .app {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(0, 46%) minmax(0, 54%);
   }
-  .conduite {
+  .controls {
     border-right: none;
     border-bottom: 1px solid var(--line);
   }
-  .compteur {
+  .counter {
     min-width: 0;
     flex: 1;
     padding: 12px 14px;
   }
 }
 
-/* La préférence de mouvement réduit est traitée une seule fois, dans
-   usine.css. On neutralise seulement le décalage de l'apparition, pour que
-   les nœuds arrivent sans glisser tout en restant lisibles. */
+/* The reduced-motion preference is handled once, in tokens.css. Here we only
+   neutralise the appearance offset, so nodes arrive without sliding while
+   staying readable. */
 @media (prefers-reduced-motion: reduce) {
-  .apparition {
+  .appearing {
     animation: none;
   }
 }
 
-/* Le plan que l'usine s'est donné, sous la narration. */
-.plan-resume {
+/* The worksite the factory gave itself, under the narration. */
+.worksite-summary {
   margin: 0.5rem 0 0;
   font-size: 0.78rem;
   line-height: 1.5;
   color: var(--muted);
 }
 
-.plan-cle {
+.worksite-tag {
   display: inline-block;
   margin-right: 0.4rem;
   padding: 0.05rem 0.35rem;
@@ -818,9 +741,9 @@ body,
   text-transform: uppercase;
 }
 
-/* Ce que le produit écrit pendant le run a rendu. Sa forme est inconnue :
-   on la montre telle quelle plutôt que de prétendre la mettre en page. */
-.produit-sortie {
+/* What the tool written during the run returned. Its shape is unknown: we
+   show it as is rather than pretending to lay it out. */
+.product-output {
   margin: 0.75rem 0 0;
   padding: 0.75rem;
   max-height: 30vh;

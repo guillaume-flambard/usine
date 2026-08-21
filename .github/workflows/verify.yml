@@ -1,0 +1,45 @@
+name: Verification
+
+# Interface promises are only worth something if something runs them without
+# anyone thinking about it. `pnpm test` alone does not run the browser
+# project: this is where both pass.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Types
+        run: pnpm type-check
+
+      - name: Node tests
+        run: pnpm test
+
+      - name: Browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Browser tests
+        run: pnpm test:browser
+
+      - name: Build
+        run: pnpm build
+
+      - name: Image
+        run: docker build -t usine-agentique .

@@ -1,167 +1,167 @@
-// Les corpus dont l'usine dispose. Ce sont des données réglementaires
-// réelles, pas des exemples : un plan choisit parmi elles, il n'en invente
-// aucune. C'est la limite honnête de l'exercice — l'usine compose et
-// fabrique librement, mais elle ne fabrique pas la loi.
+// The corpora the factory has at hand. Real regulatory data, not examples:
+// agents may pick from them, they never invent them. That is the honest limit
+// of the exercise — the factory composes and builds freely, but it does not
+// manufacture the law.
 
-/** Une règle du corpus : un motif, un verdict, et le texte qui l'adosse. */
-export interface Regle {
-  motif: string
-  statut: 'autorise' | 'interdit' | 'a-verifier'
+/** A corpus rule: a pattern, a verdict, and the text backing it. */
+export interface Rule {
+  pattern: string
+  status: 'allowed' | 'forbidden' | 'to-check'
   source: string
 }
 
 export interface Corpus {
-  /** Identifiant court, celui qu'un plan cite. */
-  cle: string
-  /** Le domaine, tel qu'il s'affiche. */
-  titre: string
-  /** Ce qui s'affiche sous le nœud de la source de vérité. */
-  technologie: string
-  /** Le rôle de la source, en une ligne. */
+  /** Short identifier, the one an agent cites. */
+  key: string
+  /** The domain, as displayed. */
+  title: string
+  /** What is displayed under the truth-source node. */
+  technology: string
+  /** The source's role, in one line. */
   role: string
-  /** Les mots du brief qui désignent ce corpus. */
-  indices: readonly string[]
-  regles: readonly Regle[]
+  /** The words of a brief that point at this corpus. */
+  hints: readonly string[]
+  rules: readonly Rule[]
 }
 
-const ALLEGATIONS_SANTE: readonly Regle[] = [
+const HEALTH_CLAIMS: readonly Rule[] = [
   // Allégations de santé autorisées — Règlement (UE) 432/2012, annexe.
   {
-    motif: 'contribue au fonctionnement normal du système immunitaire',
-    statut: 'autorise',
+    pattern: 'contribue au fonctionnement normal du système immunitaire',
+    status: 'allowed',
     source: 'Règlement (UE) 432/2012, annexe',
   },
   {
-    motif: 'contribue à réduire la fatigue',
-    statut: 'autorise',
+    pattern: 'contribue à réduire la fatigue',
+    status: 'allowed',
     source: 'Règlement (UE) 432/2012, annexe',
   },
   {
-    motif: 'contribue au maintien d’une ossature normale',
-    statut: 'autorise',
+    pattern: 'contribue au maintien d’une ossature normale',
+    status: 'allowed',
     source: 'Règlement (UE) 432/2012, annexe',
   },
   {
-    motif: 'contribue à une fonction musculaire normale',
-    statut: 'autorise',
+    pattern: 'contribue à une fonction musculaire normale',
+    status: 'allowed',
     source: 'Règlement (UE) 432/2012, annexe',
   },
   {
-    motif: 'contribue au maintien d’une vision normale',
-    statut: 'autorise',
+    pattern: 'contribue au maintien d’une vision normale',
+    status: 'allowed',
     source: 'Règlement (UE) 432/2012, annexe',
   },
 
   // Allégations thérapeutiques — interdites aux denrées alimentaires.
-  { motif: 'guérit', statut: 'interdit', source: 'Règlement (CE) 1924/2006, art. 7' },
-  { motif: 'soigne', statut: 'interdit', source: 'Règlement (CE) 1924/2006, art. 7' },
-  { motif: 'traite', statut: 'interdit', source: 'Règlement (CE) 1924/2006, art. 7' },
+  { pattern: 'guérit', status: 'forbidden', source: 'Règlement (CE) 1924/2006, art. 7' },
+  { pattern: 'soigne', status: 'forbidden', source: 'Règlement (CE) 1924/2006, art. 7' },
+  { pattern: 'traite', status: 'forbidden', source: 'Règlement (CE) 1924/2006, art. 7' },
   {
-    motif: 'prévient la maladie',
-    statut: 'interdit',
+    pattern: 'prévient la maladie',
+    status: 'forbidden',
     source: 'Règlement (CE) 1924/2006, art. 7',
   },
   {
-    motif: 'remplace un traitement',
-    statut: 'interdit',
+    pattern: 'remplace un traitement',
+    status: 'forbidden',
     source: 'Règlement (CE) 1924/2006, art. 7',
   },
   {
-    motif: 'fait perdre du poids',
-    statut: 'interdit',
+    pattern: 'fait perdre du poids',
+    status: 'forbidden',
     source: 'Règlement (CE) 1924/2006, art. 12',
   },
   {
-    motif: 'recommandé par les médecins',
-    statut: 'interdit',
+    pattern: 'recommandé par les médecins',
+    status: 'forbidden',
     source: 'Règlement (CE) 1924/2006, art. 12',
   },
 
   // Formulations qui demandent une vérification au cas par cas.
   {
-    motif: 'renforce les défenses naturelles',
-    statut: 'a-verifier',
+    pattern: 'renforce les défenses naturelles',
+    status: 'to-check',
     source: 'Règlement (CE) 1924/2006, art. 10',
   },
   {
-    motif: 'détoxifie',
-    statut: 'a-verifier',
+    pattern: 'détoxifie',
+    status: 'to-check',
     source: 'Règlement (CE) 1924/2006, art. 10',
   },
   {
-    motif: 'anti-âge',
-    statut: 'a-verifier',
+    pattern: 'anti-âge',
+    status: 'to-check',
     source: 'Règlement (CE) 1924/2006, art. 10',
   },
 ]
 
-const PRATIQUES_COMMERCIALES: readonly Regle[] = [
+const COMMERCIAL_PRACTICES: readonly Rule[] = [
   // Pratiques commerciales trompeuses — Code de la consommation.
   {
-    motif: 'prix le plus bas garanti',
-    statut: 'interdit',
+    pattern: 'prix le plus bas garanti',
+    status: 'forbidden',
     source: 'Code de la consommation, art. L121-2',
   },
   {
-    motif: 'sans aucun risque',
-    statut: 'interdit',
+    pattern: 'sans aucun risque',
+    status: 'forbidden',
     source: 'Code de la consommation, art. L121-2',
   },
   {
-    motif: 'remboursé à 100 %',
-    statut: 'interdit',
+    pattern: 'remboursé à 100 %',
+    status: 'forbidden',
     source: 'Code de la consommation, art. L121-4',
   },
   {
-    motif: 'garanti à vie',
-    statut: 'interdit',
+    pattern: 'garanti à vie',
+    status: 'forbidden',
     source: 'Code de la consommation, art. L121-4',
   },
   {
-    motif: 'résultats garantis',
-    statut: 'interdit',
+    pattern: 'résultats garantis',
+    status: 'forbidden',
     source: 'Code de la consommation, art. L121-2',
   },
 
   // Superlatifs : licites seulement si la preuve est jointe.
   {
-    motif: 'leader incontesté',
-    statut: 'a-verifier',
+    pattern: 'leader incontesté',
+    status: 'to-check',
     source: 'Code de la consommation, art. L121-1',
   },
-  { motif: 'numéro un', statut: 'a-verifier', source: 'Code de la consommation, art. L121-1' },
+  { pattern: 'numéro un', status: 'to-check', source: 'Code de la consommation, art. L121-1' },
   {
-    motif: 'le moins cher du marché',
-    statut: 'a-verifier',
+    pattern: 'le moins cher du marché',
+    status: 'to-check',
     source: 'Code de la consommation, art. L121-1',
   },
-  { motif: 'meilleur prix', statut: 'a-verifier', source: 'Code de la consommation, art. L121-1' },
+  { pattern: 'meilleur prix', status: 'to-check', source: 'Code de la consommation, art. L121-1' },
 
   // Mentions licites, sous réserve d'exactitude.
   {
-    motif: 'prix conseillé par le fabricant',
-    statut: 'autorise',
+    pattern: 'prix conseillé par le fabricant',
+    status: 'allowed',
     source: 'Code de la consommation, art. L112-1',
   },
   {
-    motif: 'offre valable jusqu’au',
-    statut: 'autorise',
+    pattern: 'offre valable jusqu’au',
+    status: 'allowed',
     source: 'Code de la consommation, art. L112-1',
   },
   {
-    motif: 'dans la limite des stocks disponibles',
-    statut: 'autorise',
+    pattern: 'dans la limite des stocks disponibles',
+    status: 'allowed',
     source: 'Code de la consommation, art. L121-4',
   },
 ]
 
 export const CORPUS: readonly Corpus[] = [
   {
-    cle: 'allegations-sante',
-    titre: 'Allégations de santé — compléments alimentaires',
-    technologie: 'registre EU',
+    key: 'health-claims',
+    title: 'Allégations de santé — compléments alimentaires',
+    technology: 'registre EU',
     role: 'Source de vérité réglementaire européenne',
-    indices: [
+    hints: [
       'allegation',
       'sante',
       'complement',
@@ -175,14 +175,14 @@ export const CORPUS: readonly Corpus[] = [
       'magnesium',
       'probiotique',
     ],
-    regles: ALLEGATIONS_SANTE,
+    rules: HEALTH_CLAIMS,
   },
   {
-    cle: 'pratiques-commerciales',
-    titre: 'Pratiques commerciales — Code de la consommation',
-    technologie: 'Code de la consommation',
+    key: 'commercial-practices',
+    title: 'Pratiques commerciales — Code de la consommation',
+    technology: 'Code de la consommation',
     role: 'Source de vérité du droit de la consommation',
-    indices: [
+    hints: [
       'publicite',
       'pub',
       'marketing',
@@ -198,11 +198,11 @@ export const CORPUS: readonly Corpus[] = [
       'boutique',
       'annonce',
     ],
-    regles: PRATIQUES_COMMERCIALES,
+    rules: COMMERCIAL_PRACTICES,
   },
 ]
 
-export const corpusParDefaut = (): Corpus => CORPUS[0] as Corpus
+export const defaultCorpus = (): Corpus => CORPUS[0] as Corpus
 
-export const trouverCorpus = (cle: string): Corpus | undefined =>
-  CORPUS.find((corpus) => corpus.cle === cle)
+export const findCorpus = (key: string): Corpus | undefined =>
+  CORPUS.find((corpus) => corpus.key === key)

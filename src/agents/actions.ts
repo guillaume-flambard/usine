@@ -1,161 +1,162 @@
-// Le vocabulaire d'action d'un agent libre.
+// A free agent's action vocabulary.
 //
-// Un agent n'a pas de comportement écrit : il a une mission, et à chaque tour
-// il choisit des actions. Ce fichier définit ce qu'il a le droit de faire, et
-// surtout comment on lit sa réponse — un modèle rend du texte, et ce texte est
-// une donnée hostile jusqu'à preuve du contraire.
+// An agent has no written behaviour: it has a mission, and on each turn it
+// picks actions. This file defines what it is allowed to do, and above all how
+// its answer is read — a model returns text, and that text is hostile data
+// until proven otherwise.
 
-/** Faire exister un agent qui n'existait pas. */
-export interface ActionCreer {
-  type: 'creer'
-  nom: string
-  libelle: string
+/** Bring an agent into existence that did not exist. */
+export interface CreateAction {
+  type: 'create'
+  name: string
+  label: string
   role: string
-  /** Ce qu'on lui demande d'accomplir, en français. */
+  /** What it is asked to accomplish, in French. */
   mission: string
-  injecte: readonly string[]
-  fournit: readonly string[]
+  needs: readonly string[]
+  provides: readonly string[]
 }
 
-/** Poser une question à un agent vivant et attendre sa réponse. */
-export interface ActionDemander {
-  type: 'demander'
-  a: string
+/** Ask a live agent a question and wait for its answer. */
+export interface AskAction {
+  type: 'ask'
+  to: string
   question: string
 }
 
-/** Écrire un outil et le charger à chaud. Le code est du vrai code. */
-export interface ActionFabriquer {
-  type: 'fabriquer'
-  nom: string
-  /** Le nom sous lequel l'outil publiera sa fonction. */
-  fournit: string
-  /** Une expression JavaScript qui s'évalue en fonction. */
+/** Write a tool and load it hot. The code is real code. */
+export interface BuildAction {
+  type: 'build'
+  name: string
+  /** The name under which the tool will publish its function. */
+  provides: string
+  /** A JavaScript expression that evaluates to a function. */
   code: string
 }
 
-/** Publier une valeur sous un nom que cet agent a le droit de publier. */
-export interface ActionPublier {
-  type: 'publier'
-  nom: string
-  texte: string
+/** Publish a value under a name this agent is allowed to publish. */
+export interface PublishAction {
+  type: 'publish'
+  name: string
+  text: string
 }
 
-/** Retirer un agent que celui-ci a créé. */
-export interface ActionRetirer {
-  type: 'retirer'
-  nom: string
+/** Remove an agent this one created. */
+export interface RemoveAction {
+  type: 'remove'
+  name: string
 }
 
-/** Dire quelque chose au fil du run. */
-export interface ActionDire {
-  type: 'dire'
+/** Say something into the run's narration. */
+export interface SayAction {
+  type: 'say'
   message: string
 }
 
-/** Le travail de cet agent est fini. */
-export interface ActionTerminer {
-  type: 'terminer'
-  resume: string
+/** This agent's work is done. */
+export interface DoneAction {
+  type: 'done'
+  summary: string
 }
 
 export type Action =
-  | ActionCreer
-  | ActionDemander
-  | ActionFabriquer
-  | ActionPublier
-  | ActionRetirer
-  | ActionDire
-  | ActionTerminer
+  | CreateAction
+  | AskAction
+  | BuildAction
+  | PublishAction
+  | RemoveAction
+  | SayAction
+  | DoneAction
 
-const chaine = (valeur: unknown, maximum: number): string =>
-  typeof valeur === 'string' ? valeur.slice(0, maximum) : ''
+const text = (value: unknown, maximum: number): string =>
+  typeof value === 'string' ? value.slice(0, maximum) : ''
 
-const liste = (valeur: unknown): readonly string[] =>
-  Array.isArray(valeur)
-    ? valeur.filter((v): v is string => typeof v === 'string').map((v) => v.slice(0, 40))
+const list = (value: unknown): readonly string[] =>
+  Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === 'string').map((v) => v.slice(0, 40))
     : []
 
-const NOM = /^[a-z][a-z0-9-]{1,39}$/
+const NAME = /^[a-z][a-z0-9-]{1,39}$/
 
 /**
- * Reconstruit une action champ par champ. Ce qui ne tient pas la forme est
- * écarté ici et nulle part ailleurs : plus loin, on manipule du code et des
- * chargements à chaud.
+ * Rebuilds an action field by field. What does not hold its shape is discarded
+ * here and nowhere else: further down, we handle code and hot loads.
  */
-export function lireAction(brut: unknown): Action | undefined {
-  if (typeof brut !== 'object' || brut === null) return undefined
-  const objet = brut as Record<string, unknown>
+export function readAction(raw: unknown): Action | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined
+  const object = raw as Record<string, unknown>
 
-  switch (objet.type) {
-    case 'creer': {
-      const nom = chaine(objet.nom, 40)
-      if (!NOM.test(nom)) return undefined
+  switch (object.type) {
+    case 'create': {
+      const name = text(object.name, 40)
+      if (!NAME.test(name)) return undefined
       return {
-        type: 'creer',
-        nom,
-        libelle: chaine(objet.libelle, 28) || nom,
-        role: chaine(objet.role, 140) || 'Rôle non précisé',
-        mission: chaine(objet.mission, 600),
-        injecte: liste(objet.injecte),
-        fournit: liste(objet.fournit).filter((n) => NOM.test(n)),
+        type: 'create',
+        name,
+        label: text(object.label, 28) || name,
+        role: text(object.role, 140) || 'Rôle non précisé',
+        mission: text(object.mission, 600),
+        needs: list(object.needs),
+        provides: list(object.provides).filter((n) => NAME.test(n)),
       }
     }
-    case 'demander': {
-      const a = chaine(objet.a, 40)
-      const question = chaine(objet.question, 600)
-      if (a.length === 0 || question.length === 0) return undefined
-      return { type: 'demander', a, question }
+    case 'ask': {
+      const to = text(object.to, 40)
+      const question = text(object.question, 600)
+      if (to.length === 0 || question.length === 0) return undefined
+      return { type: 'ask', to, question }
     }
-    case 'fabriquer': {
-      const nom = chaine(objet.nom, 40)
-      const fournit = chaine(objet.fournit, 40)
-      const code = chaine(objet.code, 8000)
-      if (!NOM.test(nom) || !NOM.test(fournit) || code.trim().length === 0) return undefined
-      return { type: 'fabriquer', nom, fournit, code }
+    case 'build': {
+      const name = text(object.name, 40)
+      const provides = text(object.provides, 40)
+      const code = text(object.code, 8000)
+      if (!NAME.test(name) || !NAME.test(provides) || code.trim().length === 0) return undefined
+      return { type: 'build', name, provides, code }
     }
-    case 'publier': {
-      const nom = chaine(objet.nom, 40)
-      const texte = chaine(objet.texte, 4000)
-      if (nom.length === 0) return undefined
-      return { type: 'publier', nom, texte }
+    case 'publish': {
+      const name = text(object.name, 40)
+      const value = text(object.text, 4000)
+      if (name.length === 0) return undefined
+      return { type: 'publish', name, text: value }
     }
-    case 'retirer': {
-      const nom = chaine(objet.nom, 40)
-      return nom.length === 0 ? undefined : { type: 'retirer', nom }
+    case 'remove': {
+      const name = text(object.name, 40)
+      return name.length === 0 ? undefined : { type: 'remove', name }
     }
-    case 'dire': {
-      const message = chaine(objet.message, 400)
-      return message.length === 0 ? undefined : { type: 'dire', message }
+    case 'say': {
+      const message = text(object.message, 400)
+      return message.length === 0 ? undefined : { type: 'say', message }
     }
-    case 'terminer':
-      return { type: 'terminer', resume: chaine(objet.resume, 600) }
+    case 'done':
+      return { type: 'done', summary: text(object.summary, 600) }
     default:
       return undefined
   }
 }
 
-/** Extrait le premier objet JSON d'une réponse, préambule éventuel compris. */
-export function objetJson(texte: string): unknown {
-  const debut = texte.indexOf('{')
-  const fin = texte.lastIndexOf('}')
-  if (debut === -1 || fin <= debut) throw new Error('aucun objet JSON dans la réponse')
-  return JSON.parse(texte.slice(debut, fin + 1))
+/** Extracts the first JSON object from an answer, preamble included. */
+export function jsonObject(raw: string): unknown {
+  const start = raw.indexOf('{')
+  const end = raw.lastIndexOf('}')
+  if (start === -1 || end <= start) throw new Error('aucun objet JSON dans la réponse')
+  return JSON.parse(raw.slice(start, end + 1))
 }
 
-export interface Tour {
-  pensee: string
+export interface Turn {
+  thought: string
   actions: readonly Action[]
 }
 
-/** Lit un tour complet. Une action illisible est écartée, pas le tour entier. */
-export function lireTour(texte: string): Tour {
-  const brut = objetJson(texte)
-  if (typeof brut !== 'object' || brut === null) throw new Error("la réponse n'est pas un objet")
-  const objet = brut as Record<string, unknown>
-  const actions = Array.isArray(objet.actions) ? objet.actions : []
+/** Reads a whole turn. An unreadable action is discarded, not the whole turn. */
+export function readTurn(raw: string): Turn {
+  const parsed = jsonObject(raw)
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new Error("la réponse n'est pas un objet")
+  }
+  const object = parsed as Record<string, unknown>
+  const actions = Array.isArray(object.actions) ? object.actions : []
   return {
-    pensee: chaine(objet.pensee, 400),
-    actions: actions.map(lireAction).filter((action): action is Action => action !== undefined),
+    thought: text(object.thought, 400),
+    actions: actions.map(readAction).filter((action): action is Action => action !== undefined),
   }
 }

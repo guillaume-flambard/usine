@@ -13,10 +13,10 @@
     "lint:oxlint": "oxlint . --fix",
     "lint:eslint": "eslint . --fix --cache",
     "format": "prettier --write --experimental-cli src/",
-    "test": "vitest run --project noyau",
-    "test:watch": "vitest --project noyau",
-    "test:navigateur": "vitest run --project navigateur",
-    "test:tout": "vitest run"
+    "test": "vitest run --project node",
+    "test:watch": "vitest --project node",
+    "test:browser": "vitest run --project browser",
+    "test:all": "vitest run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.119.0",

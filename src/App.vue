@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import AppUsine from './ui/AppUsine.vue'
+import FactoryApp from './ui/FactoryApp.vue'
 </script>
 
 <template>
-  <AppUsine />
+  <FactoryApp />
 </template>

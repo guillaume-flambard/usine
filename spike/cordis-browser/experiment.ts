@@ -1,8 +1,9 @@
-// Spike Q1 / Q9 — Cordis dans le bundle navigateur.
-// Vérifie : effet réversible, cascade, coeffect réactif, génération de composant à l'exécution.
+// Spike — Cordis inside a browser bundle.
+// Checks: reversible effect, cascade, reactive coeffect, component generated
+// at runtime.
 import { Context, FiberState } from 'cordis'
 
-interface Composant {
+interface Component {
   name: string
   inject?: string[]
   provide?: string[]
@@ -18,7 +19,7 @@ export interface Check {
 
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
-const nomEtat = (state: FiberState): string =>
+const stateName = (state: FiberState): string =>
   ({
     [FiberState.PENDING]: 'PENDING',
     [FiberState.LOADING]: 'LOADING',
@@ -35,231 +36,227 @@ export async function runExperiment(): Promise<Check[]> {
 
   const ctx = new Context()
 
-  // --- 1. Effet réversible, teardown en ordre inverse -----------------------
+  // --- 1. Reversible effect, teardown in reverse order ----------------------
   const trace: string[] = []
-  const outilA = {
-    name: 'outil-A',
+  const toolA = {
+    name: 'tool-A',
     apply(c: Context) {
       c.effect(() => {
-        trace.push('ouvre:1')
-        return () => trace.push('ferme:1')
-      }, 'ressource-1')
+        trace.push('open:1')
+        return () => trace.push('close:1')
+      }, 'resource-1')
       c.effect(() => {
-        trace.push('ouvre:2')
-        return () => trace.push('ferme:2')
-      }, 'ressource-2')
+        trace.push('open:2')
+        return () => trace.push('close:2')
+      }, 'resource-2')
     },
   }
-  const fiberA = await ctx.plugin(outilA)
-  const ouvert = trace.join(',') === 'ouvre:1,ouvre:2'
-  add('1a', 'Un composant se charge et installe ses effets', ouvert, trace.join(' → '))
+  const fiberA = await ctx.plugin(toolA)
+  const opened = trace.join(',') === 'open:1,open:2'
+  add('1a', 'A component loads and installs its effects', opened, trace.join(' → '))
 
   await fiberA.dispose()
-  const inverse = trace.join(',') === 'ouvre:1,ouvre:2,ferme:2,ferme:1'
-  add('1b', 'dispose() annule les effets en ordre inverse', inverse, trace.join(' → '))
+  const reversed = trace.join(',') === 'open:1,open:2,close:2,close:1'
+  add('1b', 'dispose() undoes the effects in reverse order', reversed, trace.join(' → '))
 
-  // --- 2. Cascade : décharger le maître libère l'enfant ---------------------
+  // --- 2. Cascade: unloading the master releases the child ------------------
   const cascade: string[] = []
-  const enfant = {
-    name: 'enfant',
+  const child = {
+    name: 'child',
     apply(c: Context) {
       c.effect(() => {
-        cascade.push('enfant:ouvre')
-        return () => cascade.push('enfant:ferme')
-      }, 'enfant')
+        cascade.push('child:open')
+        return () => cascade.push('child:close')
+      }, 'child')
     },
   }
-  const maitre = {
-    name: 'maitre',
+  const master = {
+    name: 'master',
     apply(c: Context) {
-      c.plugin(enfant)
+      c.plugin(child)
     },
   }
-  const fiberM = await ctx.plugin(maitre)
+  const fiberM = await ctx.plugin(master)
   await tick()
-  const enfantVivant = cascade.includes('enfant:ouvre')
-  add('2a', 'Le maître spawn un composant enfant', enfantVivant, cascade.join(' → '))
+  const childAlive = cascade.includes('child:open')
+  add('2a', 'The master spawns a child component', childAlive, cascade.join(' → '))
 
   await fiberM.dispose()
   await tick()
-  const enfantLibere = cascade.includes('enfant:ferme')
-  add('2b', 'Décharger le maître cascade sur son enfant', enfantLibere, cascade.join(' → '))
+  const childReleased = cascade.includes('child:close')
+  add('2b', 'Unloading the master cascades to its child', childReleased, cascade.join(' → '))
 
-  // --- 3. Coeffect réactif : activation / désactivation ---------------------
+  // --- 3. Reactive coeffect: activation / deactivation ----------------------
   let activations = 0
-  let desactivations = 0
-  const outilRegistre = {
-    name: 'outil-registre',
-    provide: ['registre'],
+  let deactivations = 0
+  const registryTool = {
+    name: 'registry-tool',
+    provide: ['registry'],
     apply(c: Context) {
-      c.provide('registre', { verifie: (t: string) => t.includes('guérit') })
+      c.provide('registry', { check: (t: string) => t.includes('guérit') })
     },
   }
-  const agentVerif = {
-    name: 'agent-verif',
-    inject: ['registre'],
+  const checkerAgent = {
+    name: 'checker-agent',
+    inject: ['registry'],
     apply(c: Context) {
       activations++
       c.effect(
         () => () => {
-          desactivations++
+          deactivations++
         },
-        'agent-verif',
+        'checker-agent',
       )
     },
   }
 
-  const fiberAgent = await ctx.plugin(agentVerif)
+  const fiberAgent = await ctx.plugin(checkerAgent)
   await tick()
-  const enAttente = activations === 0 && fiberAgent.state === FiberState.PENDING
+  const pending = activations === 0 && fiberAgent.state === FiberState.PENDING
   add(
     '3a',
-    "L'agent reste inactif tant que sa dépendance manque",
-    enAttente,
-    `activations=${activations} state=${nomEtat(fiberAgent.state)}`,
+    'The agent stays inactive while its dependency is missing',
+    pending,
+    `activations=${activations} state=${stateName(fiberAgent.state)}`,
   )
 
-  const fiberOutil = await ctx.plugin(outilRegistre)
+  const fiberTool = await ctx.plugin(registryTool)
   await tick()
-  const active = activations === 1
+  const activated = activations === 1
   add(
     '3b',
-    "L'agent s'active tout seul quand la dépendance arrive",
-    active,
+    'The agent activates by itself when the dependency arrives',
+    activated,
     `activations=${activations}`,
   )
 
-  await fiberOutil.dispose()
+  await fiberTool.dispose()
   await tick()
-  const desactive = desactivations === 1
+  const deactivated = deactivations === 1
   add(
     '3c',
-    "L'agent se désactive tout seul quand la dépendance part",
-    desactive,
-    `desactivations=${desactivations}`,
+    'The agent deactivates by itself when the dependency leaves',
+    deactivated,
+    `deactivations=${deactivations}`,
   )
 
-  const fiberOutil2 = await ctx.plugin(outilRegistre)
+  const fiberTool2 = await ctx.plugin(registryTool)
   await tick()
-  const reactive = activations === 2
+  const reactivated = activations === 2
   add(
     '3d',
-    "L'agent se réactive quand la dépendance revient (HMR à chaud)",
-    reactive,
+    'The agent reactivates when the dependency comes back (hot swap)',
+    reactivated,
     `activations=${activations}`,
   )
 
-  // --- 4. Génération d'un composant à l'exécution (FR-052) ------------------
-  // La spec est produite « par un agent amont » ; le composant n'existe pas avant le run.
-  const spec = { nom: 'agent-genere', message: 'fabriqué pendant le run' }
-  let genereActif = false
+  // --- 4. Generating a component at runtime ---------------------------------
+  // The spec is produced "by an upstream agent"; the component does not exist
+  // before the run.
+  const spec = { name: 'generated-agent', message: 'fabriqué pendant le run' }
+  let generatedActive = false
   let source = ''
-  let genereOk = false
-  let genereDetail = ''
+  let generatedOk = false
+  let generatedDetail = ''
   try {
     source = `return {
-      name: ${JSON.stringify(spec.nom)},
-      inject: ['registre'],
+      name: ${JSON.stringify(spec.name)},
+      inject: ['registry'],
       apply(c) {
         c.effect(() => {
-          rapporte(true, ${JSON.stringify(spec.message)});
-          return () => rapporte(false, 'retiré');
+          report(true, ${JSON.stringify(spec.message)});
+          return () => report(false, 'retiré');
         });
       },
     }`
-    const fabrique = new Function(
-      'rapporte',
-      source,
-    ) as (r: (actif: boolean, m: string) => void) => Composant
-    const composantGenere = fabrique((actif, m) => {
-      genereActif = actif
-      genereDetail = m
+    const factory = new Function('report', source) as (
+      r: (active: boolean, m: string) => void,
+    ) => Component
+    const generated = factory((active, m) => {
+      generatedActive = active
+      generatedDetail = m
     })
-    const fiberGenere = await ctx.plugin(composantGenere)
+    const fiberGenerated = await ctx.plugin(generated)
     await tick()
-    genereOk = genereActif
+    generatedOk = generatedActive
     add(
       '4a',
-      "Un composant fabriqué à l'exécution se charge et tourne",
-      genereOk,
-      genereDetail || 'aucun effet observé',
+      'A component built at runtime loads and runs',
+      generatedOk,
+      generatedDetail || 'no effect observed',
     )
-    await fiberGenere.dispose()
+    await fiberGenerated.dispose()
     await tick()
-    add(
-      '4b',
-      'Le composant fabriqué se retire proprement',
-      genereActif === false,
-      genereDetail,
-    )
+    add('4b', 'The built component withdraws cleanly', generatedActive === false, generatedDetail)
   } catch (error) {
-    add('4a', "Un composant fabriqué à l'exécution se charge et tourne", false, String(error))
-    add('4b', 'Le composant fabriqué se retire proprement', false, 'non atteint')
+    add('4a', 'A component built at runtime loads and runs', false, String(error))
+    add('4b', 'The built component withdraws cleanly', false, 'not reached')
   }
 
-  // --- 4bis. Génération SANS eval, par composition de primitives -------------
-  // Même promesse (le composant n'existait pas avant le run) sans dépendre de 'unsafe-eval'.
-  interface SpecComposant {
-    nom: string
-    dependances: string[]
-    etapes: Array<{ operation: 'annonce' | 'derive'; valeur: string }>
+  // --- 4bis. Generation WITHOUT eval, by composing primitives ---------------
+  // Same promise (the component did not exist before the run) without relying
+  // on 'unsafe-eval'.
+  interface ComponentSpec {
+    name: string
+    dependencies: string[]
+    steps: Array<{ operation: 'announce' | 'derive'; value: string }>
   }
   const primitives = {
-    annonce: (valeur: string, journal: string[]) => () => {
-      journal.push(`annonce:${valeur}`)
-      return () => journal.push(`annonce:${valeur}:retire`)
+    announce: (value: string, log: string[]) => () => {
+      log.push(`announce:${value}`)
+      return () => log.push(`announce:${value}:removed`)
     },
-    derive: (valeur: string, journal: string[]) => () => {
-      journal.push(`derive:${valeur.toUpperCase()}`)
-      return () => journal.push(`derive:${valeur.toUpperCase()}:retire`)
+    derive: (value: string, log: string[]) => () => {
+      log.push(`derive:${value.toUpperCase()}`)
+      return () => log.push(`derive:${value.toUpperCase()}:removed`)
     },
   }
-  const compile = (spec: SpecComposant, journal: string[]): Composant => ({
-    name: spec.nom,
-    inject: spec.dependances,
+  const compile = (spec: ComponentSpec, log: string[]): Component => ({
+    name: spec.name,
+    inject: spec.dependencies,
     apply(c: Context) {
-      for (const etape of spec.etapes) {
-        c.effect(primitives[etape.operation](etape.valeur, journal), etape.operation)
+      for (const step of spec.steps) {
+        c.effect(primitives[step.operation](step.value, log), step.operation)
       }
     },
   })
 
-  const journalCompose: string[] = []
-  const specVenueDunAgent: SpecComposant = {
-    nom: 'agent-compose',
-    dependances: ['registre'],
-    etapes: [
-      { operation: 'annonce', valeur: 'allegations' },
-      { operation: 'derive', valeur: 'verdict' },
+  const composedLog: string[] = []
+  const specFromAnAgent: ComponentSpec = {
+    name: 'composed-agent',
+    dependencies: ['registry'],
+    steps: [
+      { operation: 'announce', value: 'allegations' },
+      { operation: 'derive', value: 'verdict' },
     ],
   }
-  const fiberCompose = await ctx.plugin(compile(specVenueDunAgent, journalCompose))
+  const fiberComposed = await ctx.plugin(compile(specFromAnAgent, composedLog))
   await tick()
   add(
     '4c',
-    'Composant fabriqué par composition, sans eval, se charge et tourne',
-    journalCompose.join(',') === 'annonce:allegations,derive:VERDICT',
-    journalCompose.join(' → '),
+    'A component built by composition, without eval, loads and runs',
+    composedLog.join(',') === 'announce:allegations,derive:VERDICT',
+    composedLog.join(' → '),
   )
-  await fiberCompose.dispose()
+  await fiberComposed.dispose()
   await tick()
   add(
     '4d',
-    'Composant composé se retire proprement',
-    journalCompose.length === 4,
-    journalCompose.join(' → '),
+    'The composed component withdraws cleanly',
+    composedLog.length === 4,
+    composedLog.join(' → '),
   )
 
-  // --- 5. Introspection de la topologie (FR-012) ----------------------------
-  const taille = ctx.registry.size
+  // --- 5. Topology introspection --------------------------------------------
+  const size = ctx.registry.size
   add(
     '5a',
-    'Le runtime expose sa topologie (registry.size)',
-    typeof taille === 'number',
-    `registry.size=${taille}, compteur=${ctx.registry.counter}`,
+    'The runtime exposes its topology (registry.size)',
+    typeof size === 'number',
+    `registry.size=${size}, counter=${ctx.registry.counter}`,
   )
 
-  await fiberOutil2.dispose()
+  await fiberTool2.dispose()
   await fiberAgent.dispose()
 
   return checks

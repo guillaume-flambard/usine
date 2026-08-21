@@ -1,0 +1,57 @@
+/* Memo Labs design system — the token layer and the base, nothing else.
+   The ~1300 lines that dressed the editorial page went with it: they styled
+   no element any more. The application layout lives in app.css. */
+
+:root {
+  --bg: #faf9f7;
+  --surface: #ffffff;
+  --ink: #16130f;
+  --muted: #6b6055;
+  --line: #e7e2da;
+  --accent: #ad4c16;
+  --accent-soft: #e58a4a;
+  --grid: rgba(22, 19, 15, 0.042);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family:
+    'Oswald',
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* A single place for the reduced-motion preference: it covers animations and
+   transitions alike, and the run stays understandable without them. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,10 +1,10 @@
-// Couvre la façade donnée aux composants et le flux d'événements, là où
-// `noyau.spec.ts` ne va pas : lecture de dépendance, narration, fin de
-// travail, désabonnement, forme de la topologie et incidents d'abonnés.
+// Covers the facade handed to components and the event stream, where
+// `kernel.spec.ts` does not go: dependency reads, narration, work completion,
+// unsubscribing, topology shape, and subscriber incidents.
 import { describe, expect, it, vi } from 'vitest'
-import { creerNoyau } from '../noyau'
-import type { Composant, IdComposant } from '../contrat'
-import type { EvenementRun } from '../evenements'
+import { createKernel } from '../kernel'
+import type { Component, ComponentId } from '../contract'
+import type { RunEvent } from '../events'
 
 const tick = async () => {
   for (let index = 0; index < 3; index += 1) {
@@ -12,328 +12,328 @@ const tick = async () => {
   }
 }
 
-function journal() {
-  const noyau = creerNoyau()
-  const evenements: EvenementRun[] = []
-  const desabonner = noyau.abonner((evenement) => evenements.push(evenement))
-  return { noyau, evenements, desabonner }
+function recorded() {
+  const kernel = createKernel()
+  const events: RunEvent[] = []
+  const unsubscribe = kernel.subscribe((event) => events.push(event))
+  return { kernel, events, unsubscribe }
 }
 
-const fournisseur = (nom: string, cle: string, valeur: unknown): Composant => ({
-  nom,
-  fournit: [cle],
-  presentation: { role: `Fournit ${cle}`, technologie: 'registre EU' },
-  applique(contexte) {
-    contexte.fournir(cle, valeur)
+const provider = (name: string, key: string, value: unknown): Component => ({
+  name,
+  provides: [key],
+  display: { role: `Fournit ${key}`, technology: 'registre EU' },
+  apply(context) {
+    context.provide(key, value)
   },
 })
 
-describe('la façade du composant', () => {
-  it('rend la valeur publiée et signale le transit', async () => {
-    const { noyau, evenements } = journal()
-    let recu: unknown
-    await noyau.charger(fournisseur('registre-eu', 'registre', { articles: 12 }))
-    await noyau.charger({
-      nom: 'verificateur',
-      injecte: ['registre'],
-      presentation: { role: 'Lit le registre' },
-      applique(contexte) {
-        recu = contexte.lire('registre')
+describe('the component facade', () => {
+  it('returns the published value and reports the transit', async () => {
+    const { kernel, events } = recorded()
+    let received: unknown
+    await kernel.load(provider('eu-registry', 'registry', { articles: 12 }))
+    await kernel.load({
+      name: 'checker',
+      needs: ['registry'],
+      display: { role: 'Lit le registre' },
+      apply(context) {
+        received = context.read('registry')
       },
     })
     await tick()
 
-    expect(recu).toEqual({ articles: 12 })
-    const transit = evenements.find((e) => e.type === 'valeur-transmise')
+    expect(received).toEqual({ articles: 12 })
+    const transit = events.find((event) => event.type === 'value-passed')
     expect(transit).toBeDefined()
-    if (transit?.type === 'valeur-transmise') {
-      expect(transit.nom).toBe('registre')
-      expect(transit.de).toContain('registre-eu')
-      expect(transit.vers).toContain('verificateur')
+    if (transit?.type === 'value-passed') {
+      expect(transit.name).toBe('registry')
+      expect(transit.from).toContain('eu-registry')
+      expect(transit.to).toContain('checker')
     }
   })
 
-  it('signale le transit même quand la valeur publiée est indéfinie', async () => {
-    const { noyau, evenements } = journal()
-    await noyau.charger(fournisseur('vide', 'registre', undefined))
-    await noyau.charger({
-      nom: 'lecteur',
-      injecte: ['registre'],
-      presentation: { role: 'Lit' },
-      applique(contexte) {
-        contexte.lire('registre')
+  it('reports the transit even when the published value is undefined', async () => {
+    const { kernel, events } = recorded()
+    await kernel.load(provider('empty', 'registry', undefined))
+    await kernel.load({
+      name: 'reader',
+      needs: ['registry'],
+      display: { role: 'Lit' },
+      apply(context) {
+        context.read('registry')
       },
     })
     await tick()
 
-    expect(evenements.some((e) => e.type === 'valeur-transmise')).toBe(true)
+    expect(events.some((event) => event.type === 'value-passed')).toBe(true)
   })
 
-  it('refuse de publier ou de lire un nom non déclaré, et l activation échoue', async () => {
-    for (const cas of ['fournir', 'lire'] as const) {
-      const { noyau, evenements } = journal()
-      await noyau.charger({
-        nom: `indiscipline-${cas}`,
-        presentation: { role: 'Sort de sa déclaration' },
-        applique(contexte) {
-          if (cas === 'fournir') contexte.fournir('inconnu', 1)
-          else contexte.lire('inconnu')
+  it('refuses to provide or read an undeclared name, and activation fails', async () => {
+    for (const move of ['provide', 'read'] as const) {
+      const { kernel, events } = recorded()
+      await kernel.load({
+        name: `undisciplined-${move}`,
+        display: { role: 'Sort de sa déclaration' },
+        apply(context) {
+          if (move === 'provide') context.provide('unknown', 1)
+          else context.read('unknown')
         },
       })
       await tick()
 
-      const erreur = evenements.find((e) => e.type === 'composant-en-erreur')
-      expect(erreur?.type === 'composant-en-erreur' && erreur.erreur.code).toBe(
-        'dependance-inconnue',
+      const failure = events.find((event) => event.type === 'component-failed')
+      expect(failure?.type === 'component-failed' && failure.error.code).toBe(
+        'unknown-dependency',
       )
-      expect(evenements.some((e) => e.type === 'composant-active')).toBe(false)
-      expect(noyau.introspecter().composants[0]?.etat).toBe('en-erreur')
+      expect(events.some((event) => event.type === 'component-activated')).toBe(false)
+      expect(kernel.inspect().components[0]?.state).toBe('failed')
     }
   })
 
-  it('porte la narration et la fin de travail jusqu au flux et à la topologie', async () => {
-    const { noyau, evenements } = journal()
-    await noyau.charger({
-      nom: 'planificateur',
-      presentation: { role: 'Découpe le besoin' },
-      applique(contexte) {
-        contexte.emettre('Découpe le besoin en quatre histoires.')
-        contexte.terminer()
+  it('carries narration and work completion through to the stream and topology', async () => {
+    const { kernel, events } = recorded()
+    await kernel.load({
+      name: 'planner',
+      display: { role: 'Découpe le besoin' },
+      apply(context) {
+        context.emit('Découpe le besoin en quatre histoires.')
+        context.finish()
       },
     })
     await tick()
 
-    const message = evenements.find((e) => e.type === 'message-emis')
-    expect(message?.type === 'message-emis' && message.message).toBe(
+    const message = events.find((event) => event.type === 'message-emitted')
+    expect(message?.type === 'message-emitted' && message.message).toBe(
       'Découpe le besoin en quatre histoires.',
     )
-    expect(evenements.some((e) => e.type === 'travail-termine')).toBe(true)
-    expect(noyau.introspecter().composants[0]?.termine).toBe(true)
+    expect(events.some((event) => event.type === 'work-finished')).toBe(true)
+    expect(kernel.inspect().components[0]?.finished).toBe(true)
   })
 
-  it('nomme la dépendance partie dans la cause de désactivation', async () => {
-    const { noyau, evenements } = journal()
-    await noyau.charger({
-      nom: 'verificateur',
-      injecte: ['registre'],
-      presentation: { role: 'Attend le registre' },
-      applique() {},
+  it('names the departed dependency in the deactivation cause', async () => {
+    const { kernel, events } = recorded()
+    await kernel.load({
+      name: 'checker',
+      needs: ['registry'],
+      display: { role: 'Attend le registre' },
+      apply() {},
     })
-    const idOutil = await noyau.charger(fournisseur('registre-eu', 'registre', {}))
+    const toolId = await kernel.load(provider('eu-registry', 'registry', {}))
     await tick()
-    expect(idOutil).toBeDefined()
+    expect(toolId).toBeDefined()
 
-    await noyau.liberer(idOutil as IdComposant)
+    await kernel.release(toolId as ComponentId)
     await tick()
 
-    const desactive = evenements.find((e) => e.type === 'composant-desactive')
-    expect(desactive?.type === 'composant-desactive' && desactive.cause).toEqual({
-      genre: 'dependance-partie',
-      noms: ['registre'],
+    const deactivated = events.find((event) => event.type === 'component-deactivated')
+    expect(deactivated?.type === 'component-deactivated' && deactivated.cause).toEqual({
+      kind: 'dependency-gone',
+      names: ['registry'],
     })
-    expect(evenements.some((e) => e.type === 'composant-libere')).toBe(true)
+    expect(events.some((event) => event.type === 'component-released')).toBe(true)
   })
 
-  it('décrit chaque nœud avec son rôle, sa technologie et ses noms déclarés', async () => {
-    const { noyau } = journal()
-    await noyau.charger(fournisseur('registre-eu', 'registre', {}))
+  it('describes each node with its role, technology and declared names', async () => {
+    const { kernel } = recorded()
+    await kernel.load(provider('eu-registry', 'registry', {}))
     await tick()
 
-    const noeud = noyau.introspecter().composants[0]
-    expect(noeud?.presentation.role).toBe('Fournit registre')
-    expect(noeud?.presentation.technologie).toBe('registre EU')
-    expect(noeud?.fournit).toEqual(['registre'])
-    expect(noeud?.injecte).toEqual([])
+    const node = kernel.inspect().components[0]
+    expect(node?.display.role).toBe('Fournit registry')
+    expect(node?.display.technology).toBe('registre EU')
+    expect(node?.provides).toEqual(['registry'])
+    expect(node?.needs).toEqual([])
   })
 
-  it('expose le lien de parenté des composants chargés en cascade', async () => {
-    const { noyau } = journal()
-    await noyau.charger({
-      nom: 'maitre',
-      presentation: { role: 'Charge un enfant' },
-      applique(contexte) {
-        void contexte.charger({
-          nom: 'enfant',
-          presentation: { role: 'Chargé par le maître' },
-          applique() {},
+  it('exposes the parent link of components loaded in cascade', async () => {
+    const { kernel } = recorded()
+    await kernel.load({
+      name: 'master',
+      display: { role: 'Charge un enfant' },
+      apply(context) {
+        void context.load({
+          name: 'child',
+          display: { role: 'Chargé par le maître' },
+          apply() {},
         })
       },
     })
     await tick()
 
-    const enfant = noyau.introspecter().composants.find((c) => c.nom === 'enfant')
-    expect(enfant?.parent).toContain('maitre')
+    const child = kernel.inspect().components.find((c) => c.name === 'child')
+    expect(child?.parent).toContain('master')
   })
 
-  it('ne relie pas à lui-même un composant qui publie et consomme le même nom', async () => {
-    const { noyau } = journal()
-    await noyau.charger({
-      nom: 'boucle',
-      fournit: ['memoire'],
-      injecte: ['memoire'],
-      presentation: { role: 'Publie et consomme' },
-      applique(contexte) {
-        contexte.fournir('memoire', {})
+  it('does not link to itself a component that provides and consumes one name', async () => {
+    const { kernel } = recorded()
+    await kernel.load({
+      name: 'loop',
+      provides: ['memory'],
+      needs: ['memory'],
+      display: { role: 'Publie et consomme' },
+      apply(context) {
+        context.provide('memory', {})
       },
     })
     await tick()
 
-    expect(noyau.introspecter().dependances).toHaveLength(0)
+    expect(kernel.inspect().dependencies).toHaveLength(0)
   })
 
-  it('cesse de livrer après désabonnement', async () => {
-    const { noyau, evenements, desabonner } = journal()
-    await noyau.charger(fournisseur('registre-eu', 'registre', {}))
+  it('stops delivering after unsubscribing', async () => {
+    const { kernel, events, unsubscribe } = recorded()
+    await kernel.load(provider('eu-registry', 'registry', {}))
     await tick()
-    const avant = evenements.length
-    expect(avant).toBeGreaterThan(0)
+    const before = events.length
+    expect(before).toBeGreaterThan(0)
 
-    desabonner()
-    await noyau.charger({
-      nom: 'autre',
-      presentation: { role: 'Après désabonnement' },
-      applique() {},
+    unsubscribe()
+    await kernel.load({
+      name: 'other',
+      display: { role: 'Après désabonnement' },
+      apply() {},
     })
     await tick()
 
-    expect(evenements).toHaveLength(avant)
+    expect(events).toHaveLength(before)
   })
 
-  it('isole un abonné qui lève : les autres reçoivent, le composant reste actif', async () => {
-    const noyau = creerNoyau()
-    const recus: EvenementRun[] = []
-    noyau.abonner(() => {
+  it('isolates a throwing subscriber: others receive, the component stays active', async () => {
+    const kernel = createKernel()
+    const received: RunEvent[] = []
+    kernel.subscribe(() => {
       throw new Error('abonné fautif')
     })
-    noyau.abonner((evenement) => recus.push(evenement))
+    kernel.subscribe((event) => received.push(event))
 
-    await noyau.charger({
-      nom: 'sain',
-      presentation: { role: 'Ne fait rien de mal' },
-      applique() {},
+    await kernel.load({
+      name: 'sane',
+      display: { role: 'Ne fait rien de mal' },
+      apply() {},
     })
     await tick()
 
-    expect(noyau.introspecter().composants[0]?.etat).toBe('actif')
-    expect(recus.some((e) => e.type === 'composant-active')).toBe(true)
-    const incident = recus.find((e) => e.type === 'abonne-en-erreur')
-    expect(incident?.type === 'abonne-en-erreur' && incident.message).toBe('abonné fautif')
+    expect(kernel.inspect().components[0]?.state).toBe('active')
+    expect(received.some((event) => event.type === 'component-activated')).toBe(true)
+    const incident = received.find((event) => event.type === 'subscriber-failed')
+    expect(incident?.type === 'subscriber-failed' && incident.message).toBe('abonné fautif')
   })
 
-  it('libère un composant dont le chargement était encore en vol', async () => {
-    const { noyau } = journal()
-    // Volontairement sans `await` : la libération est demandée avant que la
-    // fibre existe.
-    void noyau.charger({
-      nom: 'en-vol',
-      presentation: { role: 'Chargement non attendu' },
-      applique() {},
+  it('releases a component whose load was still in flight', async () => {
+    const { kernel } = recorded()
+    // Deliberately without `await`: the release is requested before the fiber
+    // exists.
+    void kernel.load({
+      name: 'in-flight',
+      display: { role: 'Chargement non attendu' },
+      apply() {},
     })
-    await noyau.libererTout()
+    await kernel.releaseAll()
     await tick()
 
-    expect(noyau.introspecter().composants).toHaveLength(0)
+    expect(kernel.inspect().components).toHaveLength(0)
   })
 
-  it('reste idempotent quand on libère deux fois le même composant', async () => {
-    const { noyau, evenements } = journal()
-    const id = await noyau.charger(fournisseur('registre-eu', 'registre', {}))
+  it('stays idempotent when the same component is released twice', async () => {
+    const { kernel, events } = recorded()
+    const id = await kernel.load(provider('eu-registry', 'registry', {}))
     await tick()
-    await Promise.all([noyau.liberer(id as IdComposant), noyau.liberer(id as IdComposant)])
+    await Promise.all([kernel.release(id as ComponentId), kernel.release(id as ComponentId)])
     await tick()
 
-    expect(evenements.filter((e) => e.type === 'composant-libere')).toHaveLength(1)
+    expect(events.filter((event) => event.type === 'component-released')).toHaveLength(1)
   })
 
-  it('rend inerte la façade conservée après libération', async () => {
-    const { noyau, evenements } = journal()
-    let facade: Parameters<Composant['applique']>[0] | undefined
-    const id = await noyau.charger({
-      nom: 'bavard',
-      presentation: { role: 'Garde sa façade' },
-      applique(contexte) {
-        facade = contexte
+  it('makes a facade kept past release inert', async () => {
+    const { kernel, events } = recorded()
+    let facade: Parameters<Component['apply']>[0] | undefined
+    const id = await kernel.load({
+      name: 'talkative',
+      display: { role: 'Garde sa façade' },
+      apply(context) {
+        facade = context
       },
     })
     await tick()
-    await noyau.liberer(id as IdComposant)
+    await kernel.release(id as ComponentId)
     await tick()
-    const avant = evenements.length
+    const before = events.length
 
-    expect(() => facade?.emettre('trop tard')).not.toThrow()
-    expect(() => facade?.effet(() => () => {}, 'trop tard')).not.toThrow()
-    expect(evenements).toHaveLength(avant)
+    expect(() => facade?.emit('trop tard')).not.toThrow()
+    expect(() => facade?.effect(() => () => {}, 'too late')).not.toThrow()
+    expect(events).toHaveLength(before)
   })
 
-  it('rend le nom réservé quand l activation du fournisseur échoue', async () => {
-    const { noyau } = journal()
-    await noyau.charger({
-      nom: 'fournisseur-fautif',
-      fournit: ['registre'],
-      presentation: { role: 'Échoue avant de publier' },
-      applique() {
+  it("frees the reserved name when the provider's activation fails", async () => {
+    const { kernel } = recorded()
+    await kernel.load({
+      name: 'faulty-provider',
+      provides: ['registry'],
+      display: { role: 'Échoue avant de publier' },
+      apply() {
         throw new Error('boum')
       },
     })
     await tick()
 
-    const remplacant = await noyau.charger(fournisseur('registre-eu', 'registre', {}))
+    const replacement = await kernel.load(provider('eu-registry', 'registry', {}))
     await tick()
-    expect(remplacant).toBeDefined()
+    expect(replacement).toBeDefined()
   })
 
-  it('n émet aucune sortie console', async () => {
-    const espion = vi.spyOn(console, 'log').mockImplementation(() => {})
-    const { noyau } = journal()
-    await noyau.charger(fournisseur('registre-eu', 'registre', {}))
+  it('emits no console output', async () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const { kernel } = recorded()
+    await kernel.load(provider('eu-registry', 'registry', {}))
     await tick()
-    await noyau.libererTout()
+    await kernel.releaseAll()
 
-    expect(espion).not.toHaveBeenCalled()
-    espion.mockRestore()
+    expect(spy).not.toHaveBeenCalled()
+    spy.mockRestore()
   })
 })
 
-describe("l'ordre du flux", () => {
-  it("annonce l'activation avant tout ce que le composant émet", async () => {
-    const { noyau, evenements } = journal()
-    await noyau.charger({
-      nom: 'bavard',
-      presentation: { role: 'Parle et termine dans applique' },
-      applique(contexte) {
-        contexte.emettre('premier mot')
-        contexte.terminer()
+describe('stream ordering', () => {
+  it('announces activation before anything the component emits', async () => {
+    const { kernel, events } = recorded()
+    await kernel.load({
+      name: 'talkative',
+      display: { role: 'Parle et termine dans apply' },
+      apply(context) {
+        context.emit('premier mot')
+        context.finish()
       },
     })
     await tick()
 
-    expect(evenements.map((e) => e.type)).toEqual([
-      'composant-cree',
-      'composant-active',
-      'message-emis',
-      'travail-termine',
+    expect(events.map((event) => event.type)).toEqual([
+      'component-created',
+      'component-activated',
+      'message-emitted',
+      'work-finished',
     ])
   })
 
-  it("garde la narration d'un composant qui échoue, avant son erreur", async () => {
-    const { noyau, evenements } = journal()
-    await noyau.charger({
-      nom: 'bavard-fautif',
-      presentation: { role: 'Parle puis échoue' },
-      applique(contexte) {
-        contexte.emettre('je commence')
+  it('keeps the narration of a failing component, before its error', async () => {
+    const { kernel, events } = recorded()
+    await kernel.load({
+      name: 'talkative-faulty',
+      display: { role: 'Parle puis échoue' },
+      apply(context) {
+        context.emit('je commence')
         throw new Error('boum')
       },
     })
     await tick()
 
-    // Ordre chronologique : le composant a parlé, puis il a échoué. La
-    // narration ne doit pas être rejetée après l'erreur.
-    expect(evenements.map((e) => e.type)).toEqual([
-      'composant-cree',
-      'message-emis',
-      'composant-en-erreur',
+    // Chronological order: the component spoke, then it failed. The narration
+    // must not be replayed after the error.
+    expect(events.map((event) => event.type)).toEqual([
+      'component-created',
+      'message-emitted',
+      'component-failed',
     ])
-    expect(evenements.some((e) => e.type === 'composant-active')).toBe(false)
+    expect(events.some((event) => event.type === 'component-activated')).toBe(false)
   })
 })

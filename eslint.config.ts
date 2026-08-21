@@ -9,8 +9,8 @@ import skipFormatting from 'eslint-config-prettier/flat'
 // configureVueProject({ scriptLangs: ['ts', 'tsx'] })
 // More info at https://github.com/vuejs/eslint-config-typescript/#advanced-setup
 
-const MESSAGE_ISOLEMENT =
-  "Seul src/runtime/ parle au moteur de composition. Passez par l'API publique du noyau (src/runtime/noyau.ts)."
+const ISOLATION_MESSAGE =
+  'Only src/runtime/ talks to the composition engine. Go through the kernel API (src/runtime/kernel.ts).'
 
 export default defineConfigWithVueTs(
   {
@@ -25,17 +25,17 @@ export default defineConfigWithVueTs(
 
   ...pluginOxlint.buildFromOxlintConfigFile('.oxlintrc.json'),
 
-  // Isolement du noyau de composition : `cordis` ne s'importe que sous
-  // `src/runtime/`. Le reste de l'application passe par son API publique.
-  // C'est une règle, pas une convention : sans elle le paradigme s'érode
-  // composant par composant.
+  // Composition kernel isolation: `cordis` is only imported under
+  // `src/runtime/`. The rest of the application goes through its public API.
+  // This is a rule, not a convention: without it the paradigm erodes one
+  // component at a time.
   {
-    name: 'app/isolement-du-runtime',
-    // Toutes les extensions, pas seulement TypeScript : un fichier .mjs
-    // échapperait sinon entièrement à la règle.
+    name: 'app/runtime-isolation',
+    // Every extension, not just TypeScript: an .mjs file would otherwise
+    // escape the rule entirely.
     files: ['**/*.{vue,js,mjs,cjs,jsx,ts,mts,cts,tsx}'],
-    // `spike/` est un banc de preuve hors application : il a le droit de
-    // parler au moteur directement, c'est même sa raison d'être.
+    // `spike/` is a proving ground outside the application: it is allowed to
+    // talk to the engine directly — that is its whole purpose.
     ignores: ['src/runtime/**', 'spike/**'],
     rules: {
       'no-restricted-imports': [
@@ -44,28 +44,28 @@ export default defineConfigWithVueTs(
           paths: [
             {
               name: 'cordis',
-              message: MESSAGE_ISOLEMENT,
+              message: ISOLATION_MESSAGE,
             },
             {
               name: 'cosmokit',
-              message: MESSAGE_ISOLEMENT,
+              message: ISOLATION_MESSAGE,
             },
           ],
           patterns: ['cordis/*', '@cordisjs/*'],
         },
       ],
-      // `no-restricted-imports` ne voit ni `import()` ni `require()` :
-      // sans ceci la règle a une porte de sortie.
+      // `no-restricted-imports` sees neither `import()` nor `require()`:
+      // without this the rule has a way out.
       'no-restricted-syntax': [
         'error',
         {
           selector: 'ImportExpression > Literal[value=/^(cordis|@cordisjs\\/|cosmokit)/]',
-          message: MESSAGE_ISOLEMENT,
+          message: ISOLATION_MESSAGE,
         },
         {
           selector:
             "CallExpression[callee.name='require'] > Literal[value=/^(cordis|@cordisjs\\/|cosmokit)/]",
-          message: MESSAGE_ISOLEMENT,
+          message: ISOLATION_MESSAGE,
         },
       ],
     },
@@ -77,11 +77,11 @@ export default defineConfigWithVueTs(
   {
     name: 'app/pas-devaluation-hors-agent-libre',
     files: ['src/**/*.{vue,ts,mts,tsx}'],
-    ignores: ['src/agents/libre.ts'],
+    ignores: ['src/agents/free-agent.ts'],
     rules: {
-      // `no-restricted-syntax` est déjà employé par la règle d'isolement
-      // du moteur ; le redéclarer ici l'écraserait pour les mêmes fichiers.
-      // `no-new-func` couvre `new Function` comme `Function(...)`.
+      // `no-restricted-syntax` is already used by the engine isolation rule;
+      // redeclaring it here would override it for the same files.
+      // `no-new-func` covers `new Function` as well as `Function(...)`.
       'no-eval': 'error',
       'no-implied-eval': 'error',
       'no-new-func': 'error',
