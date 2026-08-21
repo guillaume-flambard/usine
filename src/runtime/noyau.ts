@@ -458,6 +458,7 @@ export function creerNoyau(): Noyau {
       presentation: { ...composant.presentation },
       injecte: [...(composant.injecte ?? [])],
       fournit,
+      ...(parent !== undefined ? { parent } : {}),
     })
 
     if (fabrication !== undefined && parent !== undefined) {

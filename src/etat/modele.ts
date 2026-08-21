@@ -43,12 +43,19 @@ export interface NoeudVue {
   repli?: string
   /** Séquence de son apparition — c'est l'ordre de révélation. */
   apparuA: number
+  /** Qui l'a fait exister. C'est ce qui rend visible « un agent en crée un autre ». */
+  parent?: IdComposant
 }
 
 export interface AreteVue {
   de: IdComposant
   vers: IdComposant
   nom: string
+  /**
+   * Ce que l'arête raconte : une valeur qui circule, ou une naissance.
+   * Sans la seconde, un agent créé par un autre paraîtrait tombé du ciel.
+   */
+  genre?: 'coeffet' | 'filiation'
   /** Vrai dès qu'une valeur y a réellement transité. */
   aTransite: boolean
   /** Séquence du dernier transit, pour animer la plus récente. */

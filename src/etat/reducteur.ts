@@ -106,6 +106,7 @@ export function reduire(etat: EtatComplet, evenement: EvenementRun): EtatComplet
           injecteQuelqueChose: evenement.injecte.length > 0,
         }),
         apparuA: evenement.sequence,
+        ...(evenement.parent !== undefined ? { parent: evenement.parent } : {}),
       }
       noeuds = [...noeuds, noeud]
       aretes = reconstruireAretes(noeuds, aretes)
@@ -349,8 +350,21 @@ function reconstruireAretes(
       const source = parNom.get(nom)
       if (source === undefined || source === noeud.id) continue
       const avant = precedentes.find((a) => a.de === source && a.vers === noeud.id && a.nom === nom)
-      aretes.push(avant ?? { de: source, vers: noeud.id, nom, aTransite: false })
+      aretes.push(avant ?? { de: source, vers: noeud.id, nom, aTransite: false, genre: 'coeffet' })
     }
+  }
+  // La filiation, quand rien d'autre ne relie l'enfant à son créateur : sans
+  // elle, un agent né d'un autre paraîtrait tombé du ciel.
+  for (const noeud of noeuds) {
+    if (noeud.parent === undefined) continue
+    if (aretes.some((arete) => arete.de === noeud.parent && arete.vers === noeud.id)) continue
+    aretes.push({
+      de: noeud.parent,
+      vers: noeud.id,
+      nom: 'a créé',
+      aTransite: true,
+      genre: 'filiation',
+    })
   }
   return aretes
 }

@@ -356,7 +356,9 @@ onBeforeUnmount(() => {
             {{
               etat.tokens.entree + etat.tokens.sortie > 0
                 ? `${etat.tokens.entree} entrée · ${etat.tokens.sortie} sortie`
-                : 'aucun, mode déterministe'
+                : mode === 'demonstration'
+                  ? 'aucun, démonstration rejouée'
+                  : 'aucun, aucun modèle branché'
             }}
           </p>
         </div>

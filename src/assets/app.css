@@ -522,6 +522,14 @@ body,
   stroke-width: 1.6;
   stroke-dasharray: none;
 }
+/* Une naissance, pas une valeur : un agent a fait exister l'autre. Le trait
+   est distinct pour qu'on ne confonde pas filiation et flux de données. */
+.lien[data-filiation='true'] {
+  stroke: var(--accent-soft);
+  stroke-width: 1;
+  stroke-dasharray: 1 5;
+  stroke-linecap: round;
+}
 
 .porte {
   position: absolute;

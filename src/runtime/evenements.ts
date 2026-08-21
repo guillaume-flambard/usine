@@ -21,6 +21,8 @@ export interface ComposantCree extends Base {
   type: 'composant-cree'
   id: IdComposant
   nom: string
+  /** Qui l'a fait exister. Absent pour ce que l'orchestration charge. */
+  parent?: IdComposant
   presentation: Presentation
   injecte: readonly string[]
   fournit: readonly string[]

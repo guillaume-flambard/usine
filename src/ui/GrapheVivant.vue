@@ -63,6 +63,7 @@ const liens = computed(() => {
           cle: `${lien.de}-${lien.nom}-${lien.vers}`,
           chemin: cheminDeLien(lien.points),
           aTransite: vue?.aTransite === true,
+          filiation: vue?.genre === 'filiation',
           recent:
             vue?.dernierTransit !== undefined &&
             vue.dernierTransit === derniereTransition.value &&
@@ -109,6 +110,7 @@ const description = computed(() => {
           :d="lien.chemin"
           :data-transite="lien.aTransite"
           :data-recent="lien.recent"
+          :data-filiation="lien.filiation"
         />
       </g>
       <NoeudGraphe
