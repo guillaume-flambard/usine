@@ -13,6 +13,15 @@ dont Cordis est l'implémentation. Toute décision se juge à l'aune de ça : si
 changement rend cette démonstration moins visible, il coûte plus qu'il ne
 rapporte.
 
+## Manifest
+
+`name · path · family · status · stack · Vault note`
+
+`usine · ~/usine · Memo Labs · active · Vue 3 / TS / Vite / Cordis + services/{api,relay} · memory usine-project`
+
+> Root citizen, outside `~/projects` by design (flagship product, own repo). Cross-listed in
+> `~/projects/PROJECTS.md` under "External repos".
+
 ## Commandes
 
 ```sh
