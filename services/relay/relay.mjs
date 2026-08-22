@@ -1,4 +1,16 @@
-// Reasoning relay. It exists for one reason: to keep the OpenRouter key
+// Reasoning relay — **gelé, et remplacé**.
+//
+// Ce fichier sert la production actuelle (conteneur unique, nginx + node) et
+// rien d'autre. Le service qui le remplace est `services/api`, en FastAPI, au
+// contrat HTTP identique ; il porte en plus la persistance des runs, la
+// mémoire, les sources, MCP, l'évaluation et les traces.
+//
+// **Ne pas faire évoluer celui-ci.** Deux relais au même contrat finiront par
+// diverger, et la divergence se découvrira en production. Toute correction va
+// dans `services/api` ; ce fichier disparaît au basculement des trois
+// conteneurs (histoire 10.3).
+//
+// It exists for one reason: to keep the OpenRouter key
 // server-side. A key in a client bundle is read in the network tab and drained.
 //
 // No dependency: Node alone. What comes in is bounded, what goes out is
@@ -18,7 +30,13 @@ export const LIMITS = {
   // A single run makes a dozen calls in under a minute — one per agent turn,
   // plus the answers. Six per minute refused most of a legitimate run.
   perMinute: 40,
-  perDay: 400,
+  // A run costs roughly forty calls. Two runs per visitor and per day is the
+  // whole point of this bound: without it the day's capacity belongs to
+  // whoever arrives first, and everyone after them sees a dead page.
+  perVisitorPerDay: 90,
+  // Raised with the per-visitor bound in place: the global cap no longer has
+  // to do the work of protecting the site from a single curious visitor.
+  perDay: 4_000,
 }
 
 /** Only these roles may ask to reason. */
@@ -37,21 +55,56 @@ const SYSTEM_PROMPT =
  */
 export function createRateLimiter(limits = LIMITS, clock = () => Date.now()) {
   const hits = new Map()
-  let day = { date: '', total: 0 }
+  let day = { date: '', total: 0, perVisitor: new Map() }
 
-  return function allow(address) {
-    const now = clock()
+  /** Rolls the day over. Yesterday's counters are not carried, nor kept. */
+  const today = (now) => {
     const date = new Date(now).toISOString().slice(0, 10)
-    if (date !== day.date) day = { date, total: 0 }
-    if (day.total >= limits.perDay) return 'quota du jour atteint'
+    if (date !== day.date) day = { date, total: 0, perVisitor: new Map() }
+    return day
+  }
+
+  /** What is left, without consuming anything. The page reads this. */
+  function remaining(address) {
+    const current = today(clock())
+    const spent = current.perVisitor.get(address) ?? 0
+    return {
+      visitor: Math.max(0, limits.perVisitorPerDay - spent),
+      global: Math.max(0, limits.perDay - current.total),
+    }
+  }
+
+  function allow(address) {
+    const now = clock()
+    const current = today(now)
+    if (current.total >= limits.perDay) return 'capacité du jour atteinte pour le site'
+
+    const spent = current.perVisitor.get(address) ?? 0
+    if (spent >= limits.perVisitorPerDay) return 'capacité du jour atteinte pour vous'
 
     const recent = (hits.get(address) ?? []).filter((t) => now - t < 60_000)
     if (recent.length >= limits.perMinute) return 'trop de demandes, réessayez dans une minute'
     recent.push(now)
     hits.set(address, recent)
-    day.total += 1
+    current.total += 1
+    current.perVisitor.set(address, spent + 1)
     return undefined
   }
+
+  allow.remaining = remaining
+  return allow
+}
+
+/**
+ * Who is asking. nginx forwards the visitor's address; without it the relay
+ * would see one address for the whole planet and every per-visitor bound
+ * would be shared by everyone.
+ */
+const addressOf = (request) => {
+  const forwarded = String(request.headers['x-forwarded-for'] ?? '')
+    .split(',')[0]
+    .trim()
+  return forwarded.length > 0 ? forwarded : (request.socket?.remoteAddress ?? '?')
 }
 
 const readBody = (request, maximum) =>
@@ -98,8 +151,18 @@ export function createHandler({
 
     if (path === '/health') {
       // `ready` says whether there is a key, never which one: this is what the
-      // browser reads to pick its mode.
-      return json(response, 200, { ready: key.length > 0, model })
+      // browser reads to pick its mode. `remaining` is what it reads to say so
+      // honestly before the visitor clicks — a capacity discovered on the
+      // fortieth call is a capacity discovered too late.
+      const left = allow.remaining(addressOf(request))
+      return json(response, 200, {
+        ready: key.length > 0,
+        model,
+        remaining: left,
+        // A run's rough cost, so the page can turn calls into runs without
+        // hard-coding a number that would drift from the budgets.
+        callsPerRun: 45,
+      })
     }
     if (request.method !== 'POST' || path !== '/reason') {
       return json(response, 404, { error: 'route inconnue' })
@@ -120,10 +183,7 @@ export function createHandler({
     const role = String(body?.role ?? '')
     if (!ROLES.has(role)) return json(response, 400, { error: `rôle inconnu : ${role}` })
 
-    const address = String(request.headers['x-forwarded-for'] ?? '')
-      .split(',')[0]
-      .trim()
-    const refusal = allow(address.length > 0 ? address : (request.socket?.remoteAddress ?? '?'))
+    const refusal = allow(addressOf(request))
     if (refusal !== undefined) return json(response, 429, { error: refusal })
 
     const instruction = String(body?.instruction ?? '').slice(0, limits.maxInstruction)

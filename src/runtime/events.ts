@@ -15,6 +15,16 @@ import type {
 interface Base {
   /** Strictly increasing, gapless, assigned by the kernel. */
   sequence: number
+  /**
+   * Milliseconds since the run started, assigned by the kernel.
+   *
+   * A duration, never a date. AD-33 forbids an absolute date — it would make
+   * two replays of the same archive differ — but the elapsed time is recorded
+   * once and travels with the event, so a replay reads it instead of reading
+   * a clock. It is what turns a measurement into a duration and an archive
+   * into a trace.
+   */
+  at: number
 }
 
 export interface ComponentCreated extends Base {
@@ -49,10 +59,20 @@ export interface ComponentFailed extends Base {
   error: ComponentError
 }
 
+/**
+ * What an agent said, and — when it matters — what kind of thing it said.
+ *
+ * `kind` exists so that a measurement never has to match on French prose. An
+ * evaluation that counted refusals by looking for a word would break the day
+ * someone rephrased a message, and would break silently.
+ */
+export type MessageKind = 'refusal' | 'malformed' | 'rollback'
+
 export interface MessageEmitted extends Base {
   type: 'message-emitted'
   id: ComponentId
   message: string
+  kind?: MessageKind
 }
 
 export interface WorkFinished extends Base {
@@ -79,6 +99,42 @@ export interface ComponentBuilt extends Base {
   /** The component that built it. */
   parent: ComponentId
   build: Build
+}
+
+/**
+ * A live component was replaced by a new version, and the new one took.
+ *
+ * A visible fact deserves its own variant: this is the one the whole product
+ * turns on, and deriving it from a build event plus a release event would
+ * leave the interface guessing which pair belonged together. A replacement
+ * that was rolled back does not produce this event — it did not happen.
+ */
+export interface ComponentReplaced extends Base {
+  type: 'component-replaced'
+  /** The component that took over. */
+  id: ComponentId
+  /** The one it replaced, already released by the time this is emitted. */
+  previous: ComponentId
+  /** The name they share. */
+  name: string
+}
+
+/**
+ * An agent posted the application's screen.
+ *
+ * The markup travels in the event rather than living beside the stream,
+ * because AD-33 makes the stream the archive format: anything the interface
+ * needs and that is not here would be missing from a replayed run, and the
+ * screen is the first thing a replay would lose.
+ */
+export interface ScreenPosted extends Base {
+  type: 'screen-posted'
+  /** The agent that posted it. */
+  id: ComponentId
+  /** Raw markup, as written. Sanitising happens where it is rendered. */
+  markup: string
+  /** Starts at 1, and only a repost moves it. */
+  revision: number
 }
 
 export interface GateReached extends Base {
@@ -140,6 +196,8 @@ export type RunEvent =
   | ValuePassed
   | ArtifactPublished
   | ComponentBuilt
+  | ComponentReplaced
+  | ScreenPosted
   | TokensSpent
   | QuestionAsked
   | AnswerGiven
@@ -155,4 +213,4 @@ export type Subscriber = (event: RunEvent) => void
  * Distributive: without this, `Omit` would apply to the whole union and keep
  * only the common keys — the variants would stop being checked.
  */
-export type WithoutSequence<T = RunEvent> = T extends RunEvent ? Omit<T, 'sequence'> : never
+export type WithoutSequence<T = RunEvent> = T extends RunEvent ? Omit<T, 'sequence' | 'at'> : never

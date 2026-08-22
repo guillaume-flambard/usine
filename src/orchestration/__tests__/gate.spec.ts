@@ -15,8 +15,10 @@ describe('the gate halts and waits', () => {
 
     expect(pilot.phase()).toBe('Décision')
     expect(pilot.store.state.value.gate?.decision).toBeUndefined()
-    // Nothing is delivered while nobody has decided.
-    expect(pilot.product()).toBeUndefined()
+    // The application, however, is already serving — and that is the point.
+    // The gate settles the fate of something in use, not the appearance of
+    // something withheld.
+    expect(pilot.behaviours().length).toBeGreaterThan(0)
   })
 
   it('shows what was actually produced, and what is held against it', async () => {
@@ -47,20 +49,27 @@ describe('no delay crosses the gate', () => {
 
     expect(pilot.store.state.value.gate?.decision).toBeUndefined()
     expect(pilot.phase()).toBe('Décision')
-    expect(pilot.product()).toBeUndefined()
+    // Ten minutes of waiting cost the visitor nothing: what was serving
+    // before the gate is still serving.
+    expect(pilot.behaviours().length).toBeGreaterThan(0)
   })
 })
 
 describe('approving', () => {
-  it('carries the run through to delivery', async () => {
+  it('leaves the application serving, and answers with the last version', async () => {
     const pilot = await runToGate()
+    const before = pilot.behaviours()[0]?.version
     expect(pilot.approve()).toBe(true)
 
-    await until(() => pilot.product() !== undefined)
-    expect(pilot.store.state.value.gate?.decision).toBe('approved')
-    // Delivery is the product become usable: the function the run wrote,
-    // runnable from the page.
-    expect(typeof pilot.product()?.run).toBe('function')
+    await until(() => pilot.store.state.value.gate?.decision === 'approved')
+    const [behaviour] = pilot.behaviours()
+
+    // Approving takes nothing away and adds nothing: it settles the fate of
+    // what the visitor already had under their hands.
+    expect(behaviour?.version).toBe(before)
+    await expect(behaviour?.call('Ce produit guérit tout.')).resolves.toMatchObject({
+      output: expect.stringContaining('interdit'),
+    })
   })
 
   it('traces the decision in the log', async () => {
@@ -89,12 +98,17 @@ describe('rejecting', () => {
     expect(pilot.store.state.value.gate?.decision).toBe('rejected')
     expect(pilot.phase()).toBe('Écarté')
     expect(pilot.isDone()).toBe(true)
-    expect(pilot.product()).toBeUndefined()
+    // Rejecting takes the application away — it was serving, and now it is
+    // not. That is what the gate must say before the click, not after.
+    expect(pilot.behaviours()).toEqual([])
   })
 
   it('shows the retraction instead of freezing the graph', async () => {
     const pilot = await runToGate()
-    const part = () => pilot.store.state.value.nodes.find((n) => n.build !== undefined)
+    // The last built part: earlier versions were released by their own
+    // replacement, which is exactly what a hot replacement looks like in the
+    // graph.
+    const part = () => pilot.store.state.value.nodes.filter((n) => n.build !== undefined).at(-1)
     expect(part()?.state).toBe('finished')
 
     await pilot.reject()

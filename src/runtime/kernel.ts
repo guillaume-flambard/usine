@@ -20,7 +20,7 @@ import type {
   Topology,
   TopologyNode,
 } from './contract'
-import type { RunEvent, Subscriber, WithoutSequence } from './events'
+import type { MessageKind, RunEvent, Subscriber, WithoutSequence } from './events'
 
 /** A component's shape as Cordis expects it. Internal, never exported. */
 interface CordisPlugin {
@@ -115,12 +115,16 @@ export function createKernel(): Kernel {
   /** Each component's Cordis context, to reload a child in the right place. */
   const contextByEntry = new Map<ComponentId, Context>()
   const replacementsInFlight = new Set<ComponentId>()
+  /** The screen's revision. Owned by the kernel so no agent can rewind it. */
+  let screenRevision = 0
   /** Human decisions in suspense. Nothing crosses them on its own. */
   const gates = new Map<ComponentId, (decision: Decision) => void>()
   /** What has already been settled. A decision is not taken twice. */
   const decisions = new Map<ComponentId, Decision>()
   let sequence = 0
   let counter = 0
+  /** L'instant zéro du run. Lu une fois, jamais relu pendant un rejeu. */
+  const startedAt = Date.now()
 
   /**
    * `WithoutSequence` is distributive: the parameter is the union of variants
@@ -133,7 +137,7 @@ export function createKernel(): Kernel {
       return
     }
     sequence += 1
-    broadcast({ ...event, sequence } as RunEvent)
+    broadcast({ ...event, sequence, at: Date.now() - startedAt } as RunEvent)
   }
 
   /**
@@ -159,7 +163,7 @@ export function createKernel(): Kernel {
     if (event.type === 'subscriber-failed') return
     for (const message of incidents) {
       sequence += 1
-      broadcast({ type: 'subscriber-failed', message, sequence })
+      broadcast({ type: 'subscriber-failed', message, sequence, at: Date.now() - startedAt })
     }
   }
 
@@ -278,9 +282,9 @@ export function createKernel(): Kernel {
             }
             return value
           },
-          emit(message: string) {
+          emit(message: string, kind?: MessageKind) {
             if (!usable()) return
-            emit({ type: 'message-emitted', id, message })
+            emit({ type: 'message-emitted', id, message, ...(kind !== undefined ? { kind } : {}) })
           },
           finish() {
             if (!usable()) return
@@ -290,6 +294,12 @@ export function createKernel(): Kernel {
           publishArtifact(artifact: Artifact) {
             if (!usable()) return
             emit({ type: 'artifact-published', id, artifact })
+          },
+          postScreen(markup: string) {
+            if (!usable()) return screenRevision
+            screenRevision += 1
+            emit({ type: 'screen-posted', id, markup, revision: screenRevision })
+            return screenRevision
           },
           countTokens(input: number, output: number, failure?: string) {
             if (!usable()) return
@@ -525,7 +535,17 @@ export function createKernel(): Kernel {
     const fresh = await loadInto(parentContext, replacement, parent, build)
     // A version that loads but then falls into failure has not "taken".
     const failed = fresh !== undefined && entries.get(fresh)?.state === 'failed'
-    if (fresh !== undefined && !failed) return fresh
+    if (fresh !== undefined && !failed) {
+      // Emitted only here, once the new version has taken. A rollback leaves
+      // no replacement event, because no replacement happened.
+      emit({
+        type: 'component-replaced',
+        id: fresh,
+        previous: id,
+        name: replacement.name,
+      })
+      return fresh
+    }
 
     if (fresh !== undefined) await entries.get(fresh)?.release()
     const restored = await loadInto(parentContext, previous, parent)

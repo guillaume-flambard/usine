@@ -43,3 +43,9 @@ __screenshots__/
 # Secrets: never committed. The relay key lives here for local runs only.
 .env
 .env.*
+
+# Le service Python garde son environnement hors du dépôt.
+services/api/.venv/
+services/api/**/__pycache__/
+services/api/.pytest_cache/
+services/api/.ruff_cache/

@@ -52,7 +52,6 @@ describe('the served security policy', () => {
   it('closes the classic vectors', () => {
     for (const expected of [
       "object-src 'none'",
-      "frame-src 'none'",
       "base-uri 'none'",
       "form-action 'none'",
       "frame-ancestors 'none'",
@@ -61,10 +60,21 @@ describe('the served security policy', () => {
     }
   })
 
+  it('opens frames only to ourselves, and to nothing else', () => {
+    // The single loosening the live application asked for. The frame it
+    // allows is a page we serve, sandboxed without `allow-same-origin`.
+    expect(directive('frame-src')).toBe("frame-src 'self'")
+  })
+
   it('redeclares the headers in every block, for lack of inheritance', () => {
     // nginx does not inherit `add_header` as soon as a block declares one:
     // forgetting them would serve the assets with no policy.
-    const blocks = nginx.split('location ').slice(1)
+    const blocks = nginx
+      .split('location ')
+      .slice(1)
+      // The frame serves its own policy, stricter than the host's; it is the
+      // one block that must *not* carry `$policy`.
+      .filter((block) => !block.startsWith('= /sandbox.html'))
     expect(blocks).toHaveLength(3)
     for (const block of blocks) {
       expect(block).toContain('add_header Content-Security-Policy $policy')
@@ -89,5 +99,27 @@ describe('the served security policy', () => {
   it('does not let the index become immutable', () => {
     const root = nginx.split('location /assets/')[1]?.split('location /')[1] ?? ''
     expect(root).toContain('no-cache')
+  })
+})
+
+describe("the isolated frame's own policy", () => {
+  const frame =
+    nginx.match(/location = \/sandbox\.html \{[\s\S]*?Content-Security-Policy "([^"]+)"/)?.[1] ??
+    ''
+
+  it('is stricter than the host page, not laxer', () => {
+    expect(frame).toContain("default-src 'none'")
+    // No evaluation: the code an agent writes runs in the isolated thread, in
+    // the host, never here. The frame only ever renders markup.
+    expect(frame).not.toContain('unsafe-eval')
+    // And it talks to nobody: everything it needs comes by message.
+    expect(frame).toContain("connect-src 'none'")
+  })
+
+  it('names the host explicitly, because an opaque origin has no `self`', () => {
+    // The frame is sandboxed without `allow-same-origin`, so `'self'` would
+    // match nothing and its own bridge would be blocked.
+    expect(frame).toContain('script-src $scheme://$host')
+    expect(frame).not.toContain("script-src 'self'")
   })
 })

@@ -7,8 +7,16 @@
 // Nothing is measured while no transport is installed, and the shipped build
 // installs none: see `deployment/README.md`.
 
-/** The only four facts measured. */
-export type Event = 'run-started' | 'gate-reached' | 'payoff-shown' | 'check-submitted'
+/**
+ * The only four facts measured.
+ *
+ * `product-served` replaced `payoff-shown` on 2026-08-21, and the change is
+ * not cosmetic: the application now serves *before* the gate, so the fact
+ * worth counting is when it became usable, not when a decision released it.
+ * The natural order of a run is therefore run-started, product-served,
+ * check-submitted, gate-reached.
+ */
+export type Event = 'run-started' | 'product-served' | 'check-submitted' | 'gate-reached'
 
 export interface Transport {
   /** Sends a counter. No payload beyond the name. */
@@ -48,7 +56,7 @@ export const runStarted = (): void => {
   countOnce('run-started')
 }
 export const gateReached = (): void => countOnce('gate-reached')
-export const payoffShown = (): void => countOnce('payoff-shown')
+export const productServed = (): void => countOnce('product-served')
 export const checkSubmitted = (): void => countOnce('check-submitted')
 
 /**

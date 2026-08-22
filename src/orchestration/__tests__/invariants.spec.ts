@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { createKernel } from '../../runtime/kernel'
 import { createStore } from '../../state/store'
 import { startFactory } from '../factory'
+import { spawnVmWorker } from '../../agents/__tests__/vm-worker'
 import type { Component, ComponentId } from '../../runtime/contract'
 import { BRIEF, until } from './helpers'
 import { scriptedModel } from '../../agents/__tests__/scripted-model'
@@ -54,6 +55,8 @@ async function startedRun() {
   const launch = await startFactory(kernel, {
     brief: BRIEF,
     reasoner: scriptedModel(),
+    spawnWorker: spawnVmWorker,
+      sources: [],
     stepMs: 10,
     settleTimeoutMs: 3000,
   })
@@ -154,6 +157,8 @@ describe('reversibility, observable', () => {
     const restart = await startFactory(kernel, {
       brief: BRIEF,
       reasoner: scriptedModel(),
+    spawnWorker: spawnVmWorker,
+      sources: [],
       stepMs: 10,
       settleTimeoutMs: 3000,
     })

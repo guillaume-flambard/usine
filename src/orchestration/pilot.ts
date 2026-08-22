@@ -10,14 +10,19 @@ import { liveLayout, topologySignature, type Layout } from '../state/layout'
 import { createStore, type RunStore } from '../state/store'
 import { createKernel, type Kernel } from '../runtime/kernel'
 import { deterministicReasoner, type Reasoner, type ReasoningOrigin } from '../runtime/reasoner'
-import type { Budget } from '../agents/free-agent'
-import { runProduct, startFactory } from './factory'
-
-/** A run's product: a published function whose name nobody knew. */
-export interface DeliveredProduct {
-  name: string
-  run: (input: unknown) => unknown
-}
+import type { Budget, Worksite } from '../agents/free-agent'
+import type { SpawnWorker } from '../app/isolate'
+import type { SourceFetcher } from '../app/sources'
+import { liveBehaviours, startFactory } from './factory'
+import { behaviourKey, type Behaviour } from '../app/behaviour'
+import { createSession, type Session } from '../app/session'
+import {
+  archiveOf,
+  behavioursFromArchive,
+  replayInto,
+  type RunArchive,
+} from '../app/replay'
+import type { RunEvent } from '../runtime/events'
 
 export type RunPhase =
   | 'Au repos'
@@ -54,13 +59,57 @@ export interface Pilot {
    */
   reject(): Promise<boolean>
   /**
-   * The delivered product, once the run went all the way. It is the function
-   * the built part publishes — the application consumes it, it does not take
-   * part in the composition.
+   * The application's live behaviours. Available **during** the run, not only
+   * after a decision: the whole product rests on the visitor using what the
+   * agents are still working on.
    */
-  product(): DeliveredProduct | undefined
+  behaviours(): readonly Behaviour[]
+  /** The screen as last posted by an agent, and its revision. */
+  screen(): { markup: string; revision: number }
+  /**
+   * What the visitor did with the application. It belongs to the run, not to
+   * a component: no replacement may cost it anything.
+   */
+  session(): Session
   /** The current run's kernel, for introspection. Absent at rest. */
   kernel(): Kernel | undefined
+  /**
+   * The run as it can be stored: its brief and its whole event stream. Absent
+   * until something has happened.
+   */
+  archive(): RunArchive | undefined
+  /**
+   * Replays a stored run. No kernel, no model, no network — the same reducer,
+   * the same views, and behaviours recompiled in the same isolated thread.
+   */
+  replay(archive: RunArchive, paceMs?: number): Promise<void>
+  /**
+   * Déclare les sources branchables, et comment on va les chercher.
+   *
+   * Appelé par la page après son sondage du service. Sans cet appel, un run
+   * ne joint rien : c'est ce qui garde la promesse du mode déterministe.
+   */
+  connectSources(
+    sources: readonly { name: string; description: string }[],
+    fetcher?: SourceFetcher,
+  ): void
+  /** True while a replayed run is on screen. The page must say so. */
+  isReplay(): boolean
+  /**
+   * Tours que le modèle a rendus illisibles malgré la forme demandée.
+   *
+   * Affiché plutôt que tu : un taux de non-conformité mesure ce que le
+   * fournisseur et le prompt valent ensemble, et invisible il se découvre en
+   * regardant un run au hasard.
+   */
+  malformedTurns(): number
+  /**
+   * Le code d'un comportement, tel qu'il a été chargé.
+   *
+   * Lu dans le flux plutôt que dans le runtime : un run rejoué doit pouvoir
+   * être emporté comme un run vivant, et il n'a pas de runtime.
+   */
+  sourceOf(name: string): string | undefined
 }
 
 const EMPTY_LAYOUT: Layout = {
@@ -73,6 +122,12 @@ const EMPTY_LAYOUT: Layout = {
 export interface PilotOptions {
   /** What bounds a free run: agents, depth, turns, tokens. */
   budget?: Budget
+  /** How an isolated thread is made. Absent in the product; supplied by tests. */
+  spawnWorker?: SpawnWorker
+  /** Comment on va chercher une source. Absent, le service s'en charge. */
+  fetchSource?: SourceFetcher
+  /** Les sources disponibles. Absentes, elles sont demandées au service. */
+  sources?: readonly { name: string; description: string }[]
   /** How long a worksite may stay in motion. */
   settleTimeoutMs?: number
   /** The step between two settle checks. Tests shorten it. */
@@ -82,10 +137,20 @@ export interface PilotOptions {
 export function createPilot(options: PilotOptions = {}): Pilot {
   const store = createStore()
   let currentKernel: Kernel | undefined
+  let currentWorksite: Worksite | undefined
+  let currentSession: Session = createSession()
+  /** Everything the run emitted, kept so it can be stored and replayed. */
+  let recorded: RunEvent[] = []
+  let currentBrief = ''
+  let replayed: readonly Behaviour[] | undefined
+  let replayAbort: AbortController | undefined
   let disconnect: (() => void) | undefined
+  let stopCounting: (() => void) | undefined
   let lastError: string | undefined
   let starting = false
   let currentReasoner: Reasoner = deterministicReasoner()
+  let declaredSources: readonly { name: string; description: string }[] = []
+  let declaredFetcher: SourceFetcher | undefined
 
   // The layout is only recomputed when the topology changes: a message or a
   // node state change has no reason to move a node.
@@ -117,7 +182,11 @@ export function createPilot(options: PilotOptions = {}): Pilot {
     // "Incident" and declaring the run done would leave live buttons on a run
     // announced as finished.
     if (nodes.some((n) => n.state === 'failed')) return 'Incident'
-    if (nodes.every((n) => n.state === 'finished')) return 'Terminé'
+    // Finished *or* released. A hot replacement leaves the previous version
+    // released in the graph — that is the trace it is supposed to leave — so
+    // demanding that every node be finished would keep a completed run
+    // announcing itself as still building, for ever.
+    if (nodes.every((n) => n.state === 'finished' || n.state === 'released')) return 'Terminé'
     // While the master is alone, nothing has been created yet: saying
     // "Construction" would suggest agents are working.
     if (nodes.length > 1) return 'Construction'
@@ -127,8 +196,14 @@ export function createPilot(options: PilotOptions = {}): Pilot {
   async function stop() {
     disconnect?.()
     disconnect = undefined
+    stopCounting?.()
+    stopCounting = undefined
+    replayAbort?.abort()
+    replayAbort = undefined
+    replayed = undefined
     await currentKernel?.releaseAll()
     currentKernel = undefined
+    currentWorksite = undefined
   }
 
   return {
@@ -138,16 +213,73 @@ export function createPilot(options: PilotOptions = {}): Pilot {
     isDone: () => ['Terminé', 'Écarté', 'Libéré', 'Incident'].includes(phase()),
     error: () => lastError,
     kernel: () => currentKernel,
-    product() {
-      // Only after approval: the product is delivered once the gate is crossed,
-      // and rejecting takes it back.
-      if (store.state.value.gate?.decision !== 'approved') return undefined
-      // Nor from a run that broke down or was released: serving the product of
-      // a run the graph shows as failed would be incoherent.
-      if (phase() === 'Incident' || phase() === 'Libéré') return undefined
-      // The product's name is not known in advance: we look for whatever
-      // executable was published, whatever name its authors chose.
-      return currentKernel === undefined ? undefined : runProduct(currentKernel)
+    behaviours() {
+      // A replayed run has no kernel: its behaviours were recompiled from the
+      // stream. Everything downstream — the frame, the counter, the session —
+      // cannot tell the difference, and must not be able to.
+      if (replayed !== undefined) return replayed
+      // No gate condition. The application serves while it is being built —
+      // that is the point, and making it wait for a decision would put the
+      // product back where it was: at the end.
+      //
+      // A released run is the one exception: there is nothing left to call.
+      if (currentKernel === undefined || phase() === 'Libéré') return []
+      return liveBehaviours(currentKernel)
+    },
+    archive() {
+      return recorded.length === 0 ? undefined : archiveOf(currentBrief, recorded)
+    },
+    connectSources(sources, fetcher) {
+      declaredSources = sources
+      declaredFetcher = fetcher
+    },
+    isReplay: () => replayed !== undefined,
+    malformedTurns: () => currentWorksite?.malformed ?? 0,
+    sourceOf(name) {
+      // Le dernier « component-built » d'un composant portant ce nom : c'est
+      // la version qui sert, les précédentes ayant été relâchées.
+      // Par `behaviourKey`, jamais par une chaîne recomposée : la règle de
+      // nommage vit à un seul endroit, sinon un changement de préfixe casserait
+      // ici en silence.
+      const key = behaviourKey(name)
+      const holders = new Set(
+        recorded
+          .filter((event) => event.type === 'component-created')
+          .filter((event) => event.provides.includes(key))
+          .map((event) => event.id),
+      )
+      let found: string | undefined
+      for (const event of recorded) {
+        if (event.type !== 'component-built') continue
+        if (!holders.has(event.id)) continue
+        found = event.build.source
+      }
+      return found
+    },
+    async replay(archive, paceMs = 40) {
+      await stop()
+      store.reset()
+      currentSession = createSession()
+      currentBrief = archive.brief
+      recorded = [...archive.events]
+      lastError = undefined
+
+      // The behaviours are rebuilt first: a visitor who reaches the end of the
+      // replay must find the application ready, not still compiling.
+      replayed = await behavioursFromArchive(archive)
+      replayAbort = new AbortController()
+      await replayInto(archive, store.receive, {
+        paceMs,
+        signal: replayAbort.signal,
+      })
+    },
+    screen() {
+      // From the read model, not from the worksite: a replayed run has no
+      // worksite, and the screen must come from the same place either way.
+      return store.state.value.screen
+    },
+    session() {
+      return currentSession
     },
     stop,
     async start(brief: string) {
@@ -157,18 +289,39 @@ export function createPilot(options: PilotOptions = {}): Pilot {
       try {
         await stop()
         store.reset()
+        // A new run is a new session. Keeping the previous one would inflate
+        // the counter with interactions that belonged to another application.
+        currentSession = createSession()
+        recorded = []
+        currentBrief = brief
         lastError = undefined
         currentKernel = createKernel()
         disconnect = store.connect(currentKernel)
-        await startFactory(currentKernel, {
+        // The session counts replacements from the runtime's own event, not
+        // from anything an agent says: a counter the agents could inflate
+        // would be worth nothing.
+        const session = currentSession
+        stopCounting = currentKernel.subscribe((event) => {
+          // Recorded before anything else looks at it: the archive must be the
+          // stream, not a summary of it (AD-33).
+          recorded.push(event)
+          if (event.type === 'component-replaced') session.noteReplacement()
+        })
+        const launch = await startFactory(currentKernel, {
           brief,
           reasoner: currentReasoner,
           ...(options.budget !== undefined ? { budget: options.budget } : {}),
+          ...(options.spawnWorker !== undefined ? { spawnWorker: options.spawnWorker } : {}),
+          sources: options.sources ?? declaredSources,
+          ...(options.fetchSource ?? declaredFetcher) !== undefined
+            ? { fetchSource: (options.fetchSource ?? declaredFetcher) as SourceFetcher }
+            : {},
           ...(options.settleTimeoutMs !== undefined
             ? { settleTimeoutMs: options.settleTimeoutMs }
             : {}),
           ...(options.stepMs !== undefined ? { stepMs: options.stepMs } : {}),
         })
+        currentWorksite = launch.worksite
       } catch (cause) {
         lastError = cause instanceof Error ? cause.message : String(cause)
         await stop()

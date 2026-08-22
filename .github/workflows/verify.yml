@@ -21,6 +21,11 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      # Le service compagnon a ses propres tests, et `pnpm lint` les lint.
+      # Sans uv, la vérification échouait sur une commande absente plutôt que
+      # sur un défaut du code.
+      - uses: astral-sh/setup-uv@v5
+
       - run: pnpm install --frozen-lockfile
 
       - name: Lint
@@ -37,6 +42,9 @@ jobs:
 
       - name: Browser tests
         run: pnpm test:browser
+
+      - name: Service tests
+        run: pnpm test:api
 
       - name: Build
         run: pnpm build

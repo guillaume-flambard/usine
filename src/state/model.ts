@@ -11,6 +11,7 @@ import type {
   DecisionSubject,
   Display,
 } from '../runtime/contract'
+import type { MessageKind } from '../runtime/events'
 
 /**
  * The six states a node can show. The engine only knows four: `finished` and
@@ -31,6 +32,8 @@ export interface NodeView {
   needs: readonly string[]
   provides: readonly string[]
   state: DisplayState
+  /** The version this node replaced, when it took another's place. */
+  replaces?: ComponentId
   /** Why it last deactivated, if it did. */
   cause?: DeactivationCause
   /** The error that put it in fault, if any. */
@@ -84,6 +87,8 @@ export interface LogMessage {
   id: ComponentId
   author: string
   message: string
+  /** Ce que le message est, quand ça compte. Voir `MessageKind`. */
+  kind?: MessageKind
 }
 
 export interface LogIncident {
@@ -118,6 +123,18 @@ export interface RunState {
   tokens: { input: number; output: number }
   /** Number of nodes neither released nor failed. */
   liveAgents: number
+  /**
+   * The application's screen, as last posted. Empty until an agent posts one.
+   * It lives here rather than in the worksite so a replayed run has it too.
+   */
+  screen: { markup: string; revision: number }
+  /**
+   * Hot replacements that took, and restarts. The second is there so the
+   * first cannot be read as a boast: a counter that can only go up in one
+   * direction says nothing.
+   */
+  replacements: number
+  restarts: number
   /** Last sequence reduced. Used to spot a stream that skips. */
   lastSequence: number
 }

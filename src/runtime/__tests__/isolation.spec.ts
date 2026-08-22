@@ -84,7 +84,21 @@ describe('confinement of code evaluation', () => {
     expect(evaluates(await messages('src/state/sneaky.ts', "eval('1 + 1')\n"))).toBe(true)
   })
 
-  it('lets the free agent evaluate: that is the whole point', async () => {
+  it('lets the isolated thread evaluate: that is the whole point', async () => {
+    expect(
+      evaluates(
+        await messages(
+          'src/app/behaviour-worker.ts',
+          "const f = new Function('return 1')\nvoid f\n",
+        ),
+      ),
+    ).toBe(false)
+  })
+
+  it('refuses evaluation in the free agent — it left for the isolated thread', async () => {
+    // The agent decides *that* code runs; it is no longer where code runs.
+    // Evaluating on the page's thread would give a model's code the document,
+    // the local storage and the relay's route.
     expect(
       evaluates(
         await messages(
@@ -92,6 +106,6 @@ describe('confinement of code evaluation', () => {
           "const f = new Function('return 1')\nvoid f\n",
         ),
       ),
-    ).toBe(false)
+    ).toBe(true)
   })
 })

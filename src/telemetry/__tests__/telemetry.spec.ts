@@ -5,7 +5,7 @@ import {
   gateReached,
   installTelemetry,
   newRun,
-  payoffShown,
+  productServed,
   runStarted,
   type Event,
 } from '../index'
@@ -32,10 +32,10 @@ describe('telemetry', () => {
   it('counts exactly the four facts', () => {
     connect()
     runStarted()
-    gateReached()
-    payoffShown()
+    productServed()
     checkSubmitted()
-    expect(log).toEqual(['run-started', 'gate-reached', 'payoff-shown', 'check-submitted'])
+    gateReached()
+    expect(log).toEqual(['run-started', 'product-served', 'check-submitted', 'gate-reached'])
   })
 
   it('does not count the same fact twice within a run', () => {
@@ -105,7 +105,7 @@ describe('telemetry', () => {
     expect(counters.sort()).toEqual([
       'checkSubmitted',
       'gateReached',
-      'payoffShown',
+      'productServed',
       'runStarted',
     ])
   })

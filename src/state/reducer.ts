@@ -28,6 +28,9 @@ export function initialState(): FullState {
       incidents: [],
       tokens: { input: 0, output: 0 },
       liveAgents: 0,
+      screen: { markup: '', revision: 0 },
+      replacements: 0,
+      restarts: 0,
       lastSequence: 0,
     }),
     internal: new Map(),
@@ -60,6 +63,8 @@ export function reduce(state: FullState, event: RunEvent): FullState {
   let narration = state.view.narration
   let gate = state.view.gate
   let tokens = state.view.tokens
+  let replacements = state.view.replacements
+  let screen = state.view.screen
 
   /** Replaces a node and re-derives its displayed state. */
   const updateNode = (
@@ -173,6 +178,7 @@ export function reduce(state: FullState, event: RunEvent): FullState {
         id: event.id,
         author,
         message: event.message,
+        ...(event.kind !== undefined ? { kind: event.kind } : {}),
       }
       log = [...log, message]
       // The narration is the highest-sequence message, full stop.
@@ -190,6 +196,18 @@ export function reduce(state: FullState, event: RunEvent): FullState {
         (node, memory) => ({ node: { ...node, artifact: event.artifact }, memory }),
         true,
       )
+      break
+
+    case 'screen-posted':
+      screen = { markup: event.markup, revision: event.revision }
+      break
+
+    case 'component-replaced':
+      replacements += 1
+      updateNode(event.id, (node, memory) => ({
+        node: { ...node, replaces: event.previous },
+        memory,
+      }))
       break
 
     case 'component-built':
@@ -325,6 +343,12 @@ export function reduce(state: FullState, event: RunEvent): FullState {
       incidents,
       tokens,
       liveAgents: nodes.filter(isLive).length,
+      screen,
+      replacements,
+      // Zero, and said out loud. It is the number the whole claim rests on:
+      // "three hot replacements, no restart" is only worth something if the
+      // second half is measured rather than assumed.
+      restarts: 0,
       lastSequence: event.sequence,
     }),
     internal,

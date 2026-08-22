@@ -129,9 +129,18 @@ function answer(context: string): string {
     if (context.includes('« rapport » est publié')) {
       return turn('le produit tient', [{ type: 'done', summary: 'Vérificateur livré.' }])
     }
-    return turn('je vérifie une règle auprès du juriste, puis j’écris', [
+    return turn('je vérifie une règle auprès du juriste, je pose l’écran, puis j’écris', [
       { type: 'ask', to: 'juriste', question: 'Faut-il citer un texte pour chaque verdict ?' },
-      { type: 'build', name: 'verificateur', provides: 'verificateur', code: CHECKER_CODE },
+      {
+        type: 'screen',
+        markup:
+          '<h1>Vérificateur d’allégations</h1>' +
+          '<label for="t">Collez un texte marketing</label>' +
+          '<textarea id="t" data-field="texte" rows="4"></textarea>' +
+          '<button data-invoke="verificateur">Vérifier</button>' +
+          '<div data-output="verificateur"></div>',
+      },
+      { type: 'build', name: 'verificateur', code: CHECKER_CODE },
       {
         type: 'publish',
         name: 'rapport',

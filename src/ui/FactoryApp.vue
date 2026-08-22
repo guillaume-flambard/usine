@@ -2,19 +2,22 @@
 // The shell: two panes, 100vh, the page never scrolls.
 // Everything that makes the run live is in the pilot, outside this component:
 // that is what makes the wiring testable without a browser.
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { createPilot } from '../orchestration/pilot'
 import { CONTACT, EXAMPLES } from '../examples'
-import { DEMO_BRIEF, demoReasoner } from '../examples/demo'
+import { demoReasoner } from '../examples/demo'
 import type { NodeView } from '../state/model'
 import LiveGraph from './LiveGraph.vue'
 import NodePanel from './NodePanel.vue'
 import HumanGate from './HumanGate.vue'
-import DeliveredProduct from './DeliveredProduct.vue'
+import LiveApplication from './LiveApplication.vue'
 import ModelSwitch, { type ModelSource } from './ModelSwitch.vue'
-import { relayAvailable, relayReasoner } from '../runtime/reasoner/relay'
+import { relayReasoner, relayState, type RelayState } from '../runtime/reasoner/relay'
+import { fetchRun, linkFor, requestedRun, storeRun } from '../app/archive-client'
+import { availableSources, serviceFetcher } from '../app/sources'
+import { takeawayHtml, takeawayOf } from '../app/takeaway'
 import type { ReasoningOrigin } from '../runtime/reasoner'
-import { gateReached, newRun, payoffShown, runStarted, checkSubmitted } from '../telemetry'
+import { gateReached, newRun, productServed, runStarted, checkSubmitted } from '../telemetry'
 
 const pilot = createPilot()
 // With no model, the factory can invent nothing. Rather than a blank screen it
@@ -22,7 +25,10 @@ const pilot = createPilot()
 pilot.connect(demoReasoner())
 const state = pilot.store.state
 
-const brief = ref(DEMO_BRIEF)
+// Empty, deliberately. A prefilled brief submitted as it stands would ruin
+// the only proof the visitor has that nothing was recorded in advance: the
+// examples write into the field, visibly, and the visitor still submits.
+const brief = ref('')
 
 /** The demo only knows how to replay one need; the screen does not hide it. */
 const briefReplayable = computed(
@@ -39,9 +45,91 @@ const starting = ref(false)
 const error = ref<string | undefined>()
 const selected = ref<string | undefined>()
 const modeHelp = ref(false)
+/**
+ * Whether the graph is unfolded. It starts open — during the build it is the
+ * only thing to look at — and folds itself the first time the application
+ * serves, because from then on the application deserves the room.
+ */
+const threadEl = ref<HTMLElement | null>(null)
+const graphOpen = ref(true)
+let graphFoldedOnce = false
+
+/** Le lien de partage, une fois le run conservé. */
+const shareLink = ref<string | undefined>()
+const sharing = ref(false)
+
+/**
+ * Conserve le run et rend son lien.
+ *
+ * C'est ce qui transforme une démonstration en pièce à conviction : le
+ * destinataire du lien rejoue le run à l'identique et **se sert de
+ * l'application**, sans clé et sans modèle.
+ */
+/**
+ * Emporte l'application : un fichier autonome qui s'ouvre hors ligne.
+ *
+ * C'est le geste qui transforme une démonstration en livrable. Le fichier
+ * reprend l'isolement du produit — ses comportements tournent dans un Worker,
+ * pas dans le document — parce qu'un fichier qui exécuterait le code d'un
+ * modèle dans sa propre page serait un cadeau empoisonné.
+ */
+function takeAway() {
+  const made = takeawayOf(brief.value, screen.value.markup, behaviours.value, pilot.sourceOf)
+  if (made === undefined) {
+    error.value = "Il n'y a pas encore d'application à emporter."
+    return
+  }
+  const file = new Blob([takeawayHtml(made)], { type: 'text/html;charset=utf-8' })
+  const address = URL.createObjectURL(file)
+  const link = document.createElement('a')
+  link.href = address
+  link.download = 'application-usine.html'
+  link.click()
+  URL.revokeObjectURL(address)
+}
+
+async function shareRun() {
+  const archive = pilot.archive()
+  if (archive === undefined || sharing.value) return
+  sharing.value = true
+  try {
+    const id = await storeRun(archive)
+    shareLink.value = id === undefined ? undefined : linkFor(id)
+    if (id === undefined) error.value = "Le run n'a pas pu être conservé."
+  } finally {
+    sharing.value = false
+  }
+}
 const mode = ref<ReasoningOrigin>(pilot.reasoningMode())
 const source = ref<ModelSource>('none')
 const relayReady = ref(false)
+/** Les sources que le service sert. Vide tant qu'il n'a pas répondu. */
+const wired = ref<readonly { name: string; description: string }[]>([])
+/**
+ * What the relay says is left, in runs. Undefined until the probe answers —
+ * not zero: "your capacity is spent" and "we have not asked yet" are
+ * different facts, and telling the second as the first is a lie.
+ */
+const capacity = ref<RelayState['runs'] | undefined>()
+
+/**
+ * What the visitor is told before clicking. Capacity is not a technical
+ * detail here: a run that dies halfway because the day is spent is worse than
+ * a replay that says what it is.
+ */
+/**
+ * Why the page is replaying rather than running live. A replay announced with
+ * no reason reads as a limitation of the product; the reason is usually that
+ * the day's capacity is spent, which is a different thing entirely.
+ */
+const replayReason = computed(() => {
+  if (source.value === 'key' || source.value === 'relay') return 'Le modèle n’a pas répondu.'
+  if (capacity.value === undefined) return 'Aucun modèle n’est branché.'
+  if (capacity.value.visitor <= 0) return 'Votre capacité du jour est atteinte.'
+  if (capacity.value.site <= 0) return 'La capacité du jour du site est atteinte.'
+  return 'Aucun modèle n’est branché.'
+})
+
 
 /**
  * The site's model. The key is not here: it lives on the relay, and the
@@ -103,13 +191,36 @@ const phase = computed(() => {
   return pilot.phase()
 })
 
-/** The run's product: a function published under a name nobody had chosen. */
-const product = computed(() => {
+/**
+ * The application's live behaviours. Read on every event, because a
+ * replacement changes what answers without changing anything else on screen.
+ */
+const behaviours = computed(() => {
   void state.value.lastSequence
-  return pilot.product()
+  return pilot.behaviours()
 })
 
+/** The screen an agent posted, if one exists yet. */
+const screen = computed(() => {
+  void state.value.lastSequence
+  return pilot.screen()
+})
+
+/**
+ * The application exists as soon as it can answer something: a screen and at
+ * least one behaviour. Showing the frame before that would be a promise the
+ * run has not yet kept.
+ */
+const product = computed(
+  () => screen.value.revision > 0 && behaviours.value.length > 0,
+)
+
 /** The agents this run brought into existence. None existed before the brief. */
+const malformed = computed(() => {
+  void state.value.lastSequence
+  return pilot.malformedTurns()
+})
+
 const agentsCreated = computed(
   () => state.value.nodes.filter((node) => node.name !== 'master-agent').length,
 )
@@ -139,9 +250,16 @@ watch(
 )
 
 watch(
-  () => product.value !== undefined,
-  (delivered) => {
-    if (delivered) payoffShown()
+  () => product.value,
+  (serving) => {
+    if (!serving) return
+    productServed()
+    // Folded once, and once only: a visitor who reopens the graph keeps it
+    // open, and no later event snatches it back.
+    if (!graphFoldedOnce) {
+      graphFoldedOnce = true
+      graphOpen.value = false
+    }
   },
 )
 
@@ -206,11 +324,50 @@ onMounted(() => {
   window.addEventListener('keydown', onEscape)
   // Probe the relay once: if it carries a key, the visitor sees real reasoning
   // without having to supply anything.
-  void relayAvailable().then((ready) => {
-    relayReady.value = ready
-    if (ready && source.value === 'none') connectSiteRelay()
+  // Un lien de rejeu prime sur tout : le visiteur est venu voir *ce* run.
+  const asked = requestedRun()
+  if (asked !== undefined) {
+    void fetchRun(asked).then(async (archive) => {
+      if (archive === undefined) {
+        error.value = "Ce run n'existe plus, ou son lien est invalide."
+        return
+      }
+      brief.value = archive.brief
+      started.value = true
+      await pilot.replay(archive)
+    })
+    return
+  }
+
+  void relayState().then((state) => {
+    // Only a relay that answered can say anything about capacity. An absent
+    // relay leaves it unknown rather than reporting zero, which would blame
+    // the visitor for a run they never made.
+    if (state.ready) capacity.value = state.runs
+    const usable = state.ready && state.runs.visitor > 0 && state.runs.site > 0
+    relayReady.value = usable
+    if (usable && source.value === 'none') connectSiteRelay()
+    // Les sources ne sont demandées que si le service répond. Sondées de
+    // toute façon, elles feraient partir une requête là où la page promet de
+    // ne joindre personne.
+    if (!state.ready) return
+    void availableSources().then((sources) => {
+      wired.value = sources
+      pilot.connectSources(sources, serviceFetcher())
+    })
   })
 })
+
+// Le fil suit ce qui arrive : sans ça, la dernière chose dite sort de l'écran
+// et il faut faire défiler pour lire un run en cours.
+watch(
+  () => state.value.lastSequence,
+  async () => {
+    await nextTick()
+    const thread = threadEl.value
+    if (thread !== null) thread.scrollTop = thread.scrollHeight
+  },
+)
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onEscape)
@@ -221,155 +378,152 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="app">
+    <!--
+      Une colonne, une conversation.
+      La version d'avant empilait quatorze blocs : mode, aide au mode, connexion
+      du modèle, capacité, sources, lancement, exemples, partage, lien, suite,
+      incident, narration, chantier, journal. Chaque fonctionnalité s'était vu
+      attribuer sa boîte, et l'écran ne disait plus quoi regarder.
+      Ce qui reste : ce que les agents disent, et de quoi les faire parler. Tout
+      le reste est une ligne d'état qui se déplie si on la lui demande.
+    -->
     <section class="controls">
       <header class="brand">
         <span class="brand-square" aria-hidden="true"></span>
         <span class="brand-name">Memo&nbsp;Labs</span>
-        <span class="brand-lab">Lab · usine agentique</span>
-      </header>
-
-      <div class="mode">
-        <span class="mode-dot" :data-connected="mode === 'llm'" aria-hidden="true"></span>
-        <span>{{
-          mode === 'llm'
-            ? source === 'relay'
-              ? 'Modèle du site — run vivant'
-              : 'Modèle branché — run vivant'
-            : 'Démonstration rejouée'
-        }}</span>
+        <span class="brand-lab">usine agentique</span>
         <button
-          class="mode-help"
+          class="status-toggle"
           :aria-expanded="modeHelp"
-          aria-controls="mode-explanation"
+          aria-controls="status-detail"
           @click="modeHelp = !modeHelp"
         >
-          {{ modeHelp ? 'masquer' : "qu'est-ce que ça veut dire ?" }}
+          {{ modeHelp ? 'masquer' : 'détail' }}
         </button>
-      </div>
-      <p v-if="modeHelp" id="mode-explanation" class="mode-explanation">
-        <template v-if="mode === 'llm'">
-          Aucun agent n’est écrit d’avance. Un modèle{{
-            source === 'relay' ? ' hébergé par le site, sans clé de votre part' : ''
-          }}
-          décide lesquels existent, ce qu’ils se demandent, et le code des outils qu’ils écrivent.
-          Le graphe que vous voyez n’a jamais existé avant votre besoin.
+      </header>
+
+      <!-- Une ligne, pas cinq boîtes. Chaque fait y est un mot, et le point
+           coloré dit le mode sans avoir à le lire. -->
+      <p class="status" aria-live="polite">
+        <span class="mode-dot" :data-connected="mode === 'llm'" aria-hidden="true"></span>
+        <span>{{ mode === 'llm' ? (source === 'relay' ? 'modèle du site' : 'modèle branché') : 'run rejoué' }}</span>
+        <template v-if="started">
+          <span class="status-sep" aria-hidden="true">·</span>
+          <span>{{ phase.toLowerCase() }}</span>
+          <span class="status-sep" aria-hidden="true">·</span>
+          <span>{{ state.liveAgents }} agents</span>
+          <span class="status-sep" aria-hidden="true">·</span>
+          <span>{{ elapsed }}</span>
+          <template v-if="state.tokens.input + state.tokens.output > 0">
+            <span class="status-sep" aria-hidden="true">·</span>
+            <span>{{ state.tokens.input + state.tokens.output }} tokens</span>
+          </template>
         </template>
-        <template v-else>
-          Aucun modèle n’est branché. Les décisions des agents — qui existe, qui interroge qui, le
-          code des outils — sont <strong>préparées d’avance</strong> et rejouées. Tout le reste est
-          réel : les agents naissent, se parlent, et le code est évalué puis exécuté sur ce que vous
-          taperez. Branchez un modèle pour un run que personne n’a préparé.
+        <template v-else-if="capacity">
+          <span class="status-sep" aria-hidden="true">·</span>
+          <span>{{ capacity.visitor }} run(s) pour vous</span>
         </template>
       </p>
-      <div class="mode-connect">
+
+      <div v-if="modeHelp" id="status-detail" class="status-detail">
+        <p v-if="mode === 'llm'">
+          Aucun agent n’est écrit d’avance. Un modèle{{ source === 'relay' ? ' hébergé par le site, sans clé de votre part' : '' }}
+          décide lesquels existent, ce qu’ils se demandent, et le code qu’ils écrivent.
+        </p>
+        <p v-else>
+          {{ replayReason }} Les décisions sont enregistrées et rejouées ; tout le reste est réel —
+          le code est évalué dans un fil isolé, remplacé à chaud, et exécuté sur ce que vous taperez.
+        </p>
+        <p v-if="wired.length > 0">
+          Sources branchables : {{ wired.map((s) => s.name).join(', ') }}.
+        </p>
+        <p v-if="malformed > 0">{{ malformed }} tour(s) rendus hors forme par le modèle.</p>
         <ModelSwitch
           :mode="mode"
           :source="source"
           :relay-ready="relayReady"
-          @connect-key="connectKey"
-          @connect-relay="connectSiteRelay"
+          @use-relay="connectSiteRelay"
+          @use-key="connectKey"
           @disconnect="disconnectModel"
         />
       </div>
 
-      <div class="pane">
+      <!-- La conversation. Du plus ancien au plus récent, comme on lit. -->
+      <div ref="threadEl" class="thread" aria-live="polite">
+        <p v-if="state.log.length === 0" class="thread-empty">
+          Écrivez un besoin. Rien n’existe encore : les agents, leurs outils et l’application
+          naîtront de ce que vous taperez.
+        </p>
+        <p v-for="message in state.log" :key="message.sequence" class="thread-message">
+          <span class="thread-author">{{ message.author }}</span>
+          {{ message.message }}
+        </p>
+        <p v-if="error" class="thread-incident" role="alert">{{ error }}</p>
+        <p v-else-if="state.incidents.length" class="thread-incident" role="status">
+          {{ state.incidents.length }} incident(s) — {{ state.incidents.at(-1)?.error.message }}
+        </p>
+      </div>
+
+      <!-- Le composeur, en bas, là où l'on écrit. -->
+      <div class="composer">
         <h1 class="hidden-title">L'usine agentique — du besoin au produit</h1>
-        <label class="eyebrow" for="brief">Le besoin — l'usine n'existe pas encore</label>
-        <textarea id="brief" v-model="brief" class="brief-field"></textarea>
-        <!-- A need the demo cannot replay will produce nothing: saying so
-             before the click beats an empty graph. -->
-        <p v-if="mode === 'demo' && !briefReplayable" class="worksite-summary">
-          <span class="worksite-tag">Note</span>
-          Ce besoin n’est pas celui de la démonstration. Sans modèle branché, l’usine n’aura rien à
-          faire naître.
-        </p>
-
-        <div class="action-row">
-          <button class="button" :disabled="starting" @click="restart">
-            <span aria-hidden="true">▶</span>
-            {{ started ? "Relancer l'usine" : "Lancer l'usine" }}
-          </button>
-          <select
-            class="picker"
-            value=""
-            aria-label="Partir d'un exemple"
-            @change="pickExample(($event.target as HTMLSelectElement).value)"
-          >
-            <option value="" disabled>Partir d'un exemple…</option>
-            <option v-for="example in EXAMPLES" :key="example.key" :value="example.key">
+        <label class="hidden-title" for="brief">Le besoin</label>
+        <textarea
+          id="brief"
+          v-model="brief"
+          class="brief-field"
+          rows="2"
+          placeholder="Décrivez un besoin. L’usine n’existe pas encore."
+          @keydown.meta.enter="restart"
+          @keydown.ctrl.enter="restart"
+        ></textarea>
+        <div class="composer-row">
+          <span v-if="brief.trim().length === 0 && !started" class="examples">
+            <button
+              v-for="example in EXAMPLES"
+              :key="example.key"
+              type="button"
+              class="picker"
+              @click="pickExample(example.key)"
+            >
               {{ example.title }}
-            </option>
-          </select>
-        </div>
-
-        <p v-if="error" class="incident" role="alert">{{ error }}</p>
-        <p v-else-if="state.incidents.length" class="incident" role="status">
-          {{ state.incidents.length }} incident(s) —
-          {{ state.incidents[state.incidents.length - 1]?.error.message }}
-        </p>
-
-        <p class="narration" :class="{ 'narration-empty': !state.narration }" aria-live="polite">
-          {{ state.narration?.message ?? "L'usine attend un brief." }}
-        </p>
-
-        <!-- The worksite is the only thing that explains the graph: it did not
-             exist before the brief, and it differs from one brief to the next. -->
-        <p v-if="agentsCreated > 0" class="worksite-summary">
-          <span class="worksite-tag">Chantier</span>
-          {{ agentsCreated }} agents créés pendant ce run · aucun n'existait avant votre besoin
-        </p>
-
-        <div class="thread">
-          <p
-            v-for="message in [...state.log].reverse()"
-            :key="message.sequence"
-            class="thread-message"
-          >
-            <span class="thread-author">{{ message.author }}</span>
-            <span class="thread-sequence">#{{ message.sequence }}</span>
-            <br />
-            {{ message.message }}
-          </p>
+            </button>
+          </span>
+          <span v-else class="composer-hint">
+            {{ mode === 'demo' && !briefReplayable ? 'Sans modèle branché, ce besoin ne produira rien.' : '⌘↵' }}
+          </span>
+          <button class="button" :disabled="starting || brief.trim().length === 0" @click="restart">
+            {{ started ? 'Relancer' : "Lancer l'usine" }}
+          </button>
         </div>
       </div>
     </section>
 
     <main class="live" aria-label="Le run en direct">
-      <div class="counters">
-        <div class="counter">
-          <p class="counter-key">Agents</p>
-          <p class="counter-value">{{ state.liveAgents }}</p>
-        </div>
-        <div class="counter">
-          <p class="counter-key">Phase</p>
-          <p class="counter-value small">{{ phase }}</p>
-        </div>
-        <div class="counter">
-          <p class="counter-key">Tokens</p>
-          <p class="counter-value">{{ state.tokens.input + state.tokens.output }}</p>
-          <p class="counter-note">
-            <!-- The label follows what was actually spent, not the current
-                 mode: disconnecting after a run does not erase the spend. -->
-            {{
-              state.tokens.input + state.tokens.output > 0
-                ? `${state.tokens.input} entrée · ${state.tokens.output} sortie`
-                : mode === 'demo'
-                  ? 'aucun, démonstration rejouée'
-                  : 'aucun, aucun modèle branché'
-            }}
-          </p>
-        </div>
-        <div class="counter">
-          <p class="counter-key">Temps</p>
-          <p class="counter-value">{{ elapsed }}</p>
-        </div>
-      </div>
-
       <!-- The panel overlays the graph, never the counters: they stay readable
            while a node is inspected. An open panel eats the bottom of the
            screen, so the graph folds above it instead of being cut by it. -->
       <div class="zone" :data-panel="Boolean(product || (state.gate && !product))">
+        <!-- The application is the protagonist; the graph is the evidence.
+             A graph fascinates for twenty seconds, an application is used —
+             so once something serves, the graph folds to the one line that
+             says what it proved, and unfolds on demand. -->
+        <button
+          v-if="product"
+          class="graph-summary"
+          :aria-expanded="graphOpen"
+          aria-controls="live-graph"
+          @click="graphOpen = !graphOpen"
+        >
+          <span class="worksite-tag">Chantier</span>
+          {{ agentsCreated }} agents · {{ state.replacements }} remplacement(s) à chaud ·
+          {{ state.restarts }} redémarrage
+          <span class="graph-summary-more">{{ graphOpen ? 'replier' : 'voir le graphe' }}</span>
+        </button>
+
         <LiveGraph
+          v-show="graphOpen"
+          id="live-graph"
           :state="state"
           :layout="layout"
           :selected="selected"
@@ -377,21 +531,33 @@ onBeforeUnmount(() => {
           @select="selected = selected === $event ? undefined : $event"
         />
 
-        <!-- Both occupy the same bottom of the screen: the delivered product
-             takes the gate's place once the decision is made. -->
+        <!-- The two now coexist, and they must. The gate used to replace the
+             product because the product only existed after a decision; since
+             the application serves during the run, hiding the gate behind it
+             would make the decision unreachable. The gate sits above what it
+             decides the fate of. -->
         <HumanGate
-          v-if="state.gate && !product"
+          v-if="state.gate && state.gate.decision === undefined"
           :gate="state.gate"
+          :serving="product"
           @approve="approve"
           @reject="reject"
         />
 
-        <DeliveredProduct
+        <LiveApplication
           v-if="product"
-          :run="product.run"
-          :name="product.name"
+          :archive="Boolean(pilot.archive())"
+          :replay="pilot.isReplay()"
+          :sharing="sharing"
+          :share-link="shareLink"
+          @share="shareRun"
+          @take-away="takeAway"
+          :behaviours="behaviours"
+          :screen="screen"
+          :session="pilot.session()"
+          :pulse="state.lastSequence"
           :contact="CONTACT"
-          @submitted="checkSubmitted"
+          @interaction="checkSubmitted"
         />
 
         <NodePanel

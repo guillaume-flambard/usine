@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-20-2026 17:55
-last_updated: 08-20-2026 17:55
+last_updated: 08-21-2026 22:30
 project: usine
 project_key: NOKEY
 tracking_system: file-system
@@ -85,3 +85,43 @@ development_status:
   6-4-accessibilité-et-mouvement-réduit: review
   6-5-la-mise-en-ligne: review
   epic-6-retrospective: optional
+
+  epic-7: in-progress
+  7-1-le-cadre-isolé-et-son-pont: review
+  7-2-un-agent-écrit-l-écran: review
+  7-3-le-fil-isolé: review
+  7-4-l-application-sert-avant-la-porte: review
+  7-5-la-session-qui-survit: review
+  7-6-remplacer-un-comportement-pendant-qu-il-sert: review
+  7-7-le-compteur-de-ce-qui-a-été-évité: review
+  7-8-le-chemin-court-vers-le-premier-écran: review
+  7-9-la-capacité-par-visiteur-et-affichée: review
+  7-10-le-rejeu-chemin-de-premier-rang: review
+  7-11-la-porte-statue-sur-ce-qui-sert: review
+  7-12-la-progression-de-l-écran: review
+  epic-7-retrospective: optional
+
+  epic-8: in-progress
+  8-1-la-route-sortante-sur-liste-blanche: review
+  8-2-brancher-un-comportement-sur-une-source: review
+  8-3-emporter-l-application: review
+  8-4-exporter-et-partager-un-run: review
+  8-5-la-sortie-d-un-run-réussi: review
+  epic-8-retrospective: optional
+
+  epic-9: in-progress
+  9-1-le-vocabulaire-d-actions-devient-un-schéma-d-outils-standard: review
+  9-2-le-run-laisse-une-trace-opentelemetry: review
+  9-3-un-harnais-d-évaluation-sur-des-runs-enregistrés: review
+  9-4-où-l-usine-se-place-dans-la-stack: review
+  epic-9-retrospective: optional
+
+  epic-10: in-progress
+  10-1-le-relais-devient-un-service-fastapi-à-contrat-identique: review
+  10-2-les-runs-sont-persistés-et-rejouables-par-lien: review
+  10-3-trois-conteneurs-décrits-dans-le-dépôt: in-progress
+  10-4-la-mémoire-du-run-adossée-à-la-base: review
+  10-5-l-exécution-d-outil-en-bac-à-sable-côté-serveur: review
+  10-6-le-client-mcp-vit-dans-le-backend: review
+  10-7-le-harnais-d-évaluation-tourne-sur-les-runs-stockés: review
+  epic-10-retrospective: optional

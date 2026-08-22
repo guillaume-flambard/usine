@@ -15,6 +15,13 @@ export interface RunStore {
   connect(kernel: Kernel): Teardown
   /** Starts from an empty state, without touching the connection. */
   reset(): void
+  /**
+   * Reduces one event that came from somewhere other than a kernel — a run
+   * read back from storage. There is no second path through the reducer: a
+   * replayed run and a live one produce the same read model, or the replay
+   * would stop being a proof of anything.
+   */
+  receive(event: RunEvent): void
 }
 
 export function createStore(): RunStore {
@@ -30,6 +37,7 @@ export function createStore(): RunStore {
 
   return {
     state: readonly(inner),
+    receive: apply,
     connect(kernel: Kernel): Teardown {
       // A second connection without disconnecting would reduce every event
       // twice: duplicate nodes, duplicate log.

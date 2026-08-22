@@ -71,13 +71,14 @@ export default defineConfigWithVueTs(
     },
   },
 
-  // La fabrication par défaut ne doit jamais évaluer de code : sous une
-  // politique de sécurité stricte, `unsafe-eval` est refusé. Seule la voie
-  // par évaluation, cantonnée à un fichier, a le droit d'y toucher.
+  // L'évaluation du code écrit par un modèle est cantonnée au fil isolé, et à
+  // lui seul. Elle a lieu là où l'on peut arrêter une boucle infinie et où les
+  // capacités réseau et stockage ont été retirées — pas dans la page hôte, où
+  // elle verrait le document, le stockage local et la route du relais.
   {
-    name: 'app/pas-devaluation-hors-agent-libre',
+    name: 'app/pas-devaluation-hors-du-fil-isole',
     files: ['src/**/*.{vue,ts,mts,tsx}'],
-    ignores: ['src/agents/free-agent.ts'],
+    ignores: ['src/app/behaviour-worker.ts'],
     rules: {
       // `no-restricted-syntax` is already used by the engine isolation rule;
       // redeclaring it here would override it for the same files.

@@ -24,14 +24,43 @@ export interface AskAction {
   question: string
 }
 
-/** Write a tool and load it hot. The code is real code. */
+/** Write a behaviour of the application and load it hot. The code is real. */
 export interface BuildAction {
   type: 'build'
+  /** The name the screen calls. It is also the behaviour's own coeffect. */
   name: string
-  /** The name under which the tool will publish its function. */
-  provides: string
   /** A JavaScript expression that evaluates to a function. */
   code: string
+  /**
+   * Une source à laquelle brancher ce comportement, par son nom.
+   *
+   * Jamais une adresse : le nom est résolu côté service, dans une liste que
+   * nous tenons. Branché, le comportement reçoit `{entree, donnees}` en JSON.
+   */
+  source?: string
+}
+
+/**
+ * Replace a live behaviour with a new version, while it serves.
+ *
+ * This is the action the whole product turns on. It is deliberately separate
+ * from `build`: writing something that did not exist and improving something
+ * a visitor is using are not the same gesture, and an agent that confuses the
+ * two should be refused rather than guessed at.
+ */
+export interface ReplaceAction {
+  type: 'replace'
+  /** A behaviour this agent built. It may not replace another's. */
+  name: string
+  code: string
+  /** La source, comme pour `build`. Absente, le comportement est débranché. */
+  source?: string
+}
+
+/** Post or repost the application's screen. Markup only, never logic. */
+export interface ScreenAction {
+  type: 'screen'
+  markup: string
 }
 
 /** Publish a value under a name this agent is allowed to publish. */
@@ -63,6 +92,8 @@ export type Action =
   | CreateAction
   | AskAction
   | BuildAction
+  | ReplaceAction
+  | ScreenAction
   | PublishAction
   | RemoveAction
   | SayAction
@@ -106,12 +137,18 @@ export function readAction(raw: unknown): Action | undefined {
       if (to.length === 0 || question.length === 0) return undefined
       return { type: 'ask', to, question }
     }
-    case 'build': {
+    case 'build':
+    case 'replace': {
       const name = text(object.name, 40)
-      const provides = text(object.provides, 40)
       const code = text(object.code, 8000)
-      if (!NAME.test(name) || !NAME.test(provides) || code.trim().length === 0) return undefined
-      return { type: 'build', name, provides, code }
+      if (!NAME.test(name) || code.trim().length === 0) return undefined
+      const kind = object.type === 'build' ? ('build' as const) : ('replace' as const)
+      const source = text(object.source, 40)
+      return { type: kind, name, code, ...(NAME.test(source) ? { source } : {}) }
+    }
+    case 'screen': {
+      const markup = text(object.markup, 40000)
+      return markup.trim().length === 0 ? undefined : { type: 'screen', markup }
     }
     case 'publish': {
       const name = text(object.name, 40)
@@ -145,6 +182,34 @@ export function jsonObject(raw: string): unknown {
 export interface Turn {
   thought: string
   actions: readonly Action[]
+}
+
+/**
+ * Lit un tour rendu en appels d'outils.
+ *
+ * C'est la voie fiable : le nom de l'action arrive dans son propre champ, hors
+ * du corps JSON, donc aucun ordre de clés ne peut le brouiller. Le texte libre
+ * du modèle devient sa pensée.
+ */
+export function readCalls(
+  thought: string,
+  calls: readonly { name: string; arguments: string }[],
+): Turn {
+  const actions: Action[] = []
+  for (const call of calls) {
+    let parsed: unknown
+    try {
+      parsed = call.arguments.trim().length === 0 ? {} : JSON.parse(call.arguments)
+    } catch {
+      // Des arguments illisibles font tomber l'action, pas le tour : les
+      // autres appels du même tour restent bons.
+      continue
+    }
+    if (typeof parsed !== 'object' || parsed === null) continue
+    const action = readAction({ ...(parsed as Record<string, unknown>), type: call.name })
+    if (action !== undefined) actions.push(action)
+  }
+  return { thought: text(thought, 400), actions }
 }
 
 /** Reads a whole turn. An unreadable action is discarded, not the whole turn. */

@@ -1,9 +1,10 @@
 // The reversed trade-off, verified in a real browser: the agents write code
-// and that code must run. Under the old strict policy this test would fail —
-// which is exactly what it is here to make visible.
+// and that code must run — in a real worker, which is the only place a
+// runaway call can be stopped. Under the old strict policy this test would
+// fail, which is exactly what it is here to make visible.
 import { describe, expect, it } from 'vitest'
 import { createKernel } from '../../runtime/kernel'
-import { runProduct, startFactory } from '../../orchestration/factory'
+import { liveBehaviours, startFactory } from '../../orchestration/factory'
 import { DEMO_BRIEF, demoReasoner } from '../../examples/demo'
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
@@ -14,18 +15,20 @@ describe('code evaluation in the browser', () => {
     await startFactory(kernel, {
       brief: DEMO_BRIEF,
       reasoner: demoReasoner(20),
+      sources: [],
       stepMs: 20,
       settleTimeoutMs: 6000,
     })
     const deadline = Date.now() + 12_000
     while (Date.now() < deadline && kernel.pendingGates().length === 0) await wait(20)
 
-    const product = runProduct(kernel)
-    expect(product, 'no tool was written').toBeDefined()
+    const [behaviour] = liveBehaviours(kernel)
+    expect(behaviour, 'no behaviour was written').toBeDefined()
 
-    const output = product?.run(
+    const answer = await behaviour?.call(
       'Ce complément guérit les carences. Il contribue à réduire la fatigue.',
-    ) as { verdict: string; source: string }[]
+    )
+    const output = JSON.parse(answer?.output ?? '[]') as { verdict: string; source: string }[]
     expect(output).toHaveLength(2)
     expect(output[0]?.verdict).toBe('interdit')
     expect(output[0]?.source).toContain('1924/2006')
@@ -49,6 +52,7 @@ describe('code evaluation in the browser', () => {
       await startFactory(kernel, {
         brief: DEMO_BRIEF,
         reasoner: demoReasoner(10),
+      sources: [],
         stepMs: 20,
         settleTimeoutMs: 4000,
       })
