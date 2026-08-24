@@ -143,8 +143,16 @@ Un détail qui compte : les mesures lisent un champ `kind` sur les messages, pas
 leur prose. Une évaluation qui compterait les refus en cherchant un mot
 casserait le jour où quelqu'un reformule une phrase, et casserait en silence.
 
-**Traces OpenTelemetry : au plan, pas faites.** C'est la couche où 89 % des
-équipes en production sont, et nous n'y sommes pas.
+**Traces OpenTelemetry : amorcées.** `services/api/usine_api/tracing.py` convertit
+un run conservé en spans OTLP-JSON (un span par composant, un par remplacement,
+tokens en attributs) sans importer de SDK, servi sur `GET /runs/{id}/trace`.
+
+> **Cible atelier (2026-08-24, `7-MIGRATION.md`).** L'éval et l'observabilité
+> passent au **premier plan** : ce sont le signal recruteur n°1 (`6-FAISABILITE.md`)
+> **et** la mesure « quelle branche est meilleure » — l'atelier diffe deux
+> rapports (`evaluation.py` `measure`/`Report`) entre le tronc et la branche
+> forkée. À faire : les surfacer dans l'UI (tableau de métriques, diff de
+> branches), tranche « signaux recruteurs ».
 
 ## Garde-fous
 

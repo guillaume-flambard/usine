@@ -1,5 +1,11 @@
 # L'angle — la prouesse et son application
 
+> **Superseded le 2026-08-24 par `docs/7-MIGRATION.md`.** L'angle « l'application
+> qui mue » a servi à identifier la prouesse (hot-swap réversible + continuité
+> d'état). La cible produit est désormais **l'atelier de pré-prod qui forke la
+> timeline** : mêmes primitives, récit et marché différents. Ce document reste
+> pour l'historique et pour son analyse concurrentielle, toujours valable.
+
 > Écrit le 2026-08-24, après une deep search sur le marché concurrentiel (quinze
 > app builders, treize ingénieurs agentiques, les agents généralistes et le
 > front « self-evolving », la lignée live-programming de Smalltalk à Cordis).
