@@ -43,6 +43,15 @@ export type RunPhase =
  */
 export interface Trunk {
   readonly store: RunStore
+  /**
+   * Les comportements du tronc **recompilés à N** depuis le flux — de quoi
+   * montrer son application vivante à N à côté de la branche. Le tronc est un
+   * recording : ces comportements n'ont pas de kernel, ils répondent, on ne les
+   * remplace pas (AD-37/48).
+   */
+  readonly behaviours: readonly Behaviour[]
+  /** L'écran tel qu'il était à N, réduit depuis le préfixe. */
+  readonly screen: { markup: string; revision: number }
 }
 
 /**
@@ -64,6 +73,12 @@ export interface Branch {
   readonly kernel: Kernel
   /** Les comportements vivants à N, prêts à être appelés ou remplacés. */
   readonly behaviours: readonly Behaviour[]
+  /**
+   * L'écran de la branche : réensemencé depuis celui du tronc à N (le store de
+   * branche ne re-réduit pas le préfixe, il ne le porte donc pas). L'application
+   * de la branche part de l'écran qu'elle avait à N, puis diverge.
+   */
+  readonly screen: { markup: string; revision: number }
   /**
    * Le flux propre de la branche, estampillé `branchId` : `branch-forked`
    * d'abord (AD-44), puis chaque événement que son kernel émet ensuite. C'est ce
@@ -375,6 +390,14 @@ export function createPilot(options: PilotOptions = {}): Pilot {
       // Le tronc : un store sans kernel, nourri par le préfixe `[1..N]` (AD-48).
       const trunkStore = createStore()
       await replayInto(archive, trunkStore.receive, { stopAt: at })
+      // Les comportements du tronc recompilés à N : de quoi montrer son
+      // application vivante à côté de la branche. Un recording, pas un kernel.
+      const trunkBehaviours = await behavioursFromArchive(
+        archive,
+        options.spawnWorker,
+        at,
+      )
+      const trunkScreen = trunkStore.state.value.screen
 
       // La branche : un store nourri **uniquement** par le flux de son kernel
       // (AD-38). Il ne re-réduit pas le préfixe d'archive — sinon les composants
@@ -434,12 +457,20 @@ export function createPilot(options: PilotOptions = {}): Pilot {
       }
 
       return {
-        trunk: { store: trunkStore },
+        trunk: {
+          store: trunkStore,
+          behaviours: trunkBehaviours,
+          // Une copie : le store peut repartir, le fork garde l'écran figé à N.
+          screen: { ...trunkScreen },
+        },
         branch: {
           branchId,
           store: branchStore,
           kernel: hydrated.kernel,
           behaviours: hydrated.behaviours,
+          // Réensemencé depuis le tronc à N : la branche part du même écran,
+          // puis diverge.
+          screen: { ...trunkScreen },
           // Une copie : le flux interne continue de grandir, l'appelant en reçoit
           // un instantané figé qu'il ne peut pas muter.
           stream: () => [...branchStream],

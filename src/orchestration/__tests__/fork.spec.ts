@@ -334,6 +334,38 @@ describe('pilot.fork — tronc + branche coexistants (AD-37/38/48)', () => {
     await fork.branch.kernel.releaseAll()
   })
 
+  it('enrichit le fork : comportements du tronc recompilés à N + écrans (story 6a)', async () => {
+    const pilot = forkPilot()
+    // Un run avec écran : alpha posé, écran posé, alpha vivant à N.
+    const withScreen: RunArchive = {
+      version: 1,
+      brief: 'un run avec écran',
+      events: stream(
+        created('alpha#1', 'alpha-v1', [behaviourKey('alpha')]), // 1
+        built('alpha#1', ALPHA_V1), // 2
+        activated('alpha#1'), // 3
+        () => ({
+          type: 'screen-posted' as const,
+          id: MASTER,
+          markup: '<h1>Écran à N</h1>',
+          revision: 1,
+        }), // 4
+      ),
+    }
+    const fork = await pilot.fork(withScreen, 4)
+
+    // Le tronc : ses comportements recompilés à N répondent (un recording).
+    const trunkAlpha = fork.trunk.behaviours.find((b) => b.name === 'alpha')
+    expect(trunkAlpha?.version).toBe(1)
+    expect((await trunkAlpha?.call('salut'))?.output).toBe('alpha-v1:salut')
+    // L'écran du tronc à N, et celui de la branche réensemencé dessus.
+    expect(fork.trunk.screen.revision).toBe(1)
+    expect(fork.trunk.screen.markup).toContain('Écran à N')
+    expect(fork.branch.screen).toEqual(fork.trunk.screen)
+
+    await fork.branch.kernel.releaseAll()
+  })
+
   it('rejeu inchangé : un flux sans branchId se réduit exactement comme avant', async () => {
     // Le tronc rejoue le préfixe (aucun événement n'a de branchId) et produit le
     // même read model qu'attendu : l'ajout de `branchId?` et de `BranchForked`

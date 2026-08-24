@@ -171,9 +171,10 @@ export function liveBehaviourSources(
 export async function behavioursFromArchive(
   archive: RunArchive,
   spawn?: SpawnWorker,
+  stopAt?: number,
 ): Promise<readonly Behaviour[]> {
   const live: Behaviour[] = []
-  for (const spec of liveBehaviourSources(archive.events)) {
+  for (const spec of liveBehaviourSources(archive.events, stopAt)) {
     if (spec.source === undefined) continue
     const made = await createIsolate(spec.source, spawn)
     if (!('isolate' in made)) continue
