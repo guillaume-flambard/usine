@@ -898,6 +898,12 @@ button.picker:hover {
   margin: 0 0 8px;
 }
 
+/* Le signal n°1 : lu comme une mesure, pas comme de la prose. */
+.status-eval {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Le fil prend la place qui reste, et défile seul. */
 .thread {
   flex: 1 1 auto;

@@ -14,6 +14,7 @@ import LiveApplication from './LiveApplication.vue'
 import ModelSwitch, { type ModelSource } from './ModelSwitch.vue'
 import { relayReasoner, relayState, type RelayState } from '../runtime/reasoner/relay'
 import { fetchRun, linkFor, requestedRun, storeRun } from '../app/archive-client'
+import { fetchEvaluation, formatEvaluation, type Evaluation } from '../app/eval-client'
 import { availableSources, serviceFetcher } from '../app/sources'
 import type { Interaction } from '../app/session'
 import { takeawayHtml, takeawayOf } from '../app/takeaway'
@@ -54,6 +55,20 @@ const starting = ref(false)
 const error = ref<string | undefined>()
 const selected = ref<string | undefined>()
 const modeHelp = ref(false)
+
+/**
+ * Le rapport d'éval, lu une fois au montage. Undefined tant que le service
+ * n'a pas répondu — et il le reste s'il est absent : l'éval n'est montrée que
+ * si elle est payée par des runs réellement conservés.
+ */
+const evaluation = ref<Evaluation | undefined>()
+
+/**
+ * La ligne de mesures, ou rien. Le signal recruteur n°1 rendu visible : une
+ * ligne dans le repli d'état, jamais un tableau de bord. Rien à montrer tant
+ * qu'aucun run n'a été conservé (`runs === 0`) — pas de zéros décoratifs.
+ */
+const measurements = computed(() => formatEvaluation(evaluation.value))
 /**
  * Whether the graph is unfolded. It starts open — during the build it is the
  * only thing to look at — and folds itself the first time the application
@@ -331,6 +346,14 @@ function onEscape(event: KeyboardEvent) {
 
 onMounted(() => {
   window.addEventListener('keydown', onEscape)
+  // Le rapport d'éval, une fois : il porte sur l'ensemble des runs conservés,
+  // pas sur un run précis. On ne le lit donc PAS quand la page rejoue un run
+  // partagé — le visiteur est venu voir *ce* run, pas une moyenne d'atelier —
+  // sinon on afficherait des chiffres qui n'ont rien à voir avec ce qu'il
+  // regarde. Silencieux aussi si le service est absent.
+  if (requestedRun() === undefined) {
+    void fetchEvaluation().then((report) => (evaluation.value = report))
+  }
   // Probe the relay once: if it carries a key, the visitor sees real reasoning
   // without having to supply anything.
   // Un lien de rejeu prime sur tout : le visiteur est venu voir *ce* run.
@@ -449,6 +472,7 @@ onBeforeUnmount(() => {
           Sources branchables : {{ wired.map((s) => s.name).join(', ') }}.
         </p>
         <p v-if="malformed > 0">{{ malformed }} tour(s) rendus hors forme par le modèle.</p>
+        <p v-if="measurements" class="status-eval">{{ measurements }}</p>
         <ModelSwitch
           :mode="mode"
           :source="source"
