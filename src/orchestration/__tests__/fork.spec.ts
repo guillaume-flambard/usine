@@ -291,6 +291,49 @@ describe('pilot.fork — tronc + branche coexistants (AD-37/38/48)', () => {
     await fork.branch.kernel.releaseAll()
   })
 
+  it('branch.replace : remplace un comportement maison sur la branche, le tronc inchangé (CAP-5)', async () => {
+    const pilot = forkPilot()
+    const fork = await pilot.fork(scenario(), 12)
+
+    // API ergonomique : on remplace par nom + code, sans atteindre le kernel.
+    const took = await fork.branch.replace('alpha', ALPHA_V3)
+    expect(took).toBe(true)
+
+    // La nouvelle version répond sur la branche...
+    const alpha = liveBehaviours(fork.branch.kernel).find((b) => b.name === 'alpha')
+    expect(alpha?.version).toBe(3)
+    expect((await alpha?.call('salut'))?.output).toBe('alpha-v3:salut')
+    // ...la branche compte le remplacement, le tronc ne bouge pas (AD-38).
+    expect(fork.branch.store.state.value.replacements).toBe(1)
+    expect(fork.trunk.store.state.value.replacements).toBe(1)
+
+    await fork.branch.kernel.releaseAll()
+  })
+
+  it('branch.replace : refuse un nom inconnu (false), sans rien changer', async () => {
+    const pilot = forkPilot()
+    const fork = await pilot.fork(scenario(), 12)
+
+    expect(await fork.branch.replace('inexistant', ALPHA_V3)).toBe(false)
+    expect(fork.branch.store.state.value.replacements).toBe(0)
+
+    await fork.branch.kernel.releaseAll()
+  })
+
+  it('branch.replace : un code qui ne compile pas rend false, la version précédente sert encore', async () => {
+    const pilot = forkPilot()
+    const fork = await pilot.fork(scenario(), 12)
+
+    expect(await fork.branch.replace('alpha', '(input) => (')).toBe(false)
+    // v2 sert toujours : le remplacement n'a jamais atteint le kernel.
+    const alpha = liveBehaviours(fork.branch.kernel).find((b) => b.name === 'alpha')
+    expect(alpha?.version).toBe(2)
+    expect((await alpha?.call('salut'))?.output).toBe('alpha-v2:salut')
+    expect(fork.branch.store.state.value.replacements).toBe(0)
+
+    await fork.branch.kernel.releaseAll()
+  })
+
   it('rejeu inchangé : un flux sans branchId se réduit exactement comme avant', async () => {
     // Le tronc rejoue le préfixe (aucun événement n'a de branchId) et produit le
     // même read model qu'attendu : l'ajout de `branchId?` et de `BranchForked`

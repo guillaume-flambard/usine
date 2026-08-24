@@ -15,7 +15,7 @@ import type { Budget, Worksite } from '../agents/free-agent'
 import type { SpawnWorker } from '../app/isolate'
 import type { SourceFetcher } from '../app/sources'
 import { liveBehaviours, startFactory } from './factory'
-import { behaviourKey, type Behaviour } from '../app/behaviour'
+import { behaviourComponent, behaviourKey, type Behaviour } from '../app/behaviour'
 import { createSession, type Interaction, type Session } from '../app/session'
 import {
   archiveOf,
@@ -71,6 +71,15 @@ export interface Branch {
    * par id + N sans recopier le préfixe.
    */
   stream(): readonly RunEvent[]
+  /**
+   * Remplace à chaud un comportement de la branche par une nouvelle version, à
+   * partir de N (AD-31/37), sans jamais toucher le tronc. Rend `true` si la
+   * nouvelle version a pris ; `false` si le nom est inconnu, si le code ne
+   * compile pas, ou si le remplacement est retombé — auquel cas la version
+   * précédente continue de servir (le rollback est celui, déjà éprouvé, du
+   * kernel).
+   */
+  replace(name: string, code: string): Promise<boolean>
 }
 
 /** Ce que rend un fork : un tronc et une branche, deux read models isolés. */
@@ -390,6 +399,40 @@ export function createPilot(options: PilotOptions = {}): Pilot {
         ...(options.fetchSource !== undefined ? { fetchSource: options.fetchSource } : {}),
       })
 
+      // La version vivante de chaque comportement de la branche, suivie ici : un
+      // remplacement qui prend la fait monter d'un cran, comme pendant un run.
+      const versions = new Map(hydrated.behaviours.map((live) => [live.name, live.version]))
+
+      async function replaceOnBranch(name: string, code: string): Promise<boolean> {
+        const current = versions.get(name)
+        if (current === undefined) return false
+        const version = current + 1
+        // Compilé avant de toucher le kernel : un code qui ne s'évalue pas en
+        // fonction est refusé ici, pas plus tard comme un composant tombé.
+        const made = await behaviourComponent(
+          { name, version, code, author: 'branche' },
+          options.spawnWorker,
+          options.fetchSource,
+        )
+        if (!('component' in made)) return false
+        // Le composant vivant qui porte ce comportement, par sa clé de coeffet.
+        const key = behaviourKey(name)
+        const holder = hydrated.kernel
+          .inspect()
+          .components.find((component) => component.state === 'active' && component.provides.includes(key))
+        if (holder === undefined) return false
+        const id = await hydrated.kernel.replace(holder.id, made.component, {
+          specification: `comportement : ${name}\nversion : ${version}\nbranche`,
+          source: code,
+          route: 'evaluation',
+        })
+        // `undefined` = la nouvelle version est retombée ; le kernel a remis la
+        // précédente (AD-31). On ne fait pas monter le compteur de version.
+        if (id === undefined) return false
+        versions.set(name, version)
+        return true
+      }
+
       return {
         trunk: { store: trunkStore },
         branch: {
@@ -400,6 +443,7 @@ export function createPilot(options: PilotOptions = {}): Pilot {
           // Une copie : le flux interne continue de grandir, l'appelant en reçoit
           // un instantané figé qu'il ne peut pas muter.
           stream: () => [...branchStream],
+          replace: replaceOnBranch,
         },
       }
     },
