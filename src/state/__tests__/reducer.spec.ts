@@ -279,4 +279,13 @@ describe('artifacts and builds', () => {
     expect(node(state, 'part')?.builtBy).toBe('builder')
     expect(node(state, 'builder')?.build).toBeUndefined()
   })
+
+  it('counts each visitor interaction, so a replayed run is not shown mutating over nothing', () => {
+    expect(initialState().view.interactions).toBe(0)
+    const state = replay([
+      ev({ type: 'visitor-interacted', name: 'detecteur', input: 'a', version: 1, output: 'ok' }),
+      ev({ type: 'visitor-interacted', name: 'detecteur', input: 'b', version: 1, output: 'ok' }),
+    ])
+    expect(state.view.interactions).toBe(2)
+  })
 })

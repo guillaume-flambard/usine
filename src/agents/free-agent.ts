@@ -13,6 +13,7 @@ import { TOOLS } from './turn-schema'
 import { behaviourComponent } from '../app/behaviour'
 import type { SpawnWorker } from '../app/isolate'
 import type { SourceFetcher } from '../app/sources'
+import type { Interaction } from '../app/session'
 import { createRecall, type Recall } from './recall'
 
 export interface Mission {
@@ -36,6 +37,13 @@ export interface Budget {
   maxDepth: number
   maxTurns: number
   maxTokens: number
+  /**
+   * How many reactive turns the whole run may take in answer to the visitor.
+   * A bound, not a decoration: activity that never ends would be a lie, so
+   * once it is spent the application stops mutating even as the visitor keeps
+   * using it — the interaction is still recorded, nothing answers it.
+   */
+  maxReactions: number
 }
 
 export const BUDGET: Budget = {
@@ -43,6 +51,7 @@ export const BUDGET: Budget = {
   maxDepth: 3,
   maxTurns: 3,
   maxTokens: 120_000,
+  maxReactions: 6,
 }
 
 /** The shared state of a free run. One object, mutated by the agents. */
@@ -88,6 +97,21 @@ export interface Worksite {
    * has no `Worker` and would otherwise prove nothing about the orchestration.
    */
   spawnWorker?: SpawnWorker
+  /** Reactive turns still allowed across the whole run. */
+  reactionsLeft: number
+  /**
+   * Who answers a visitor interaction, by behaviour name. An authoring agent
+   * registers one when it finishes building: the behaviour outlives the turn
+   * that wrote it, and only its author may replace it.
+   */
+  responders: Map<string, (interaction: Interaction) => Promise<void>>
+  /**
+   * Wakes the agent that authored the named behaviour so it can answer this
+   * interaction with one bounded reactive turn. Does nothing when nobody
+   * authored it, when the reaction budget is spent, or while a turn for that
+   * same behaviour is still in flight — a burst of clicks must not stack turns.
+   */
+  observe(interaction: Interaction): void
 }
 
 export const createWorksite = (
@@ -95,21 +119,39 @@ export const createWorksite = (
   reasoner: Reasoner,
   budget: Budget = BUDGET,
   spawnWorker?: SpawnWorker,
-): Worksite => ({
-  budget,
-  names: new Set(['master-agent']),
-  agentsCreated: 0,
-  tokens: 0,
-  brief,
-  reasoner,
-  publications: new Map(),
-  behaviours: new Map(),
-  screen: { markup: '', revision: 0 },
-  malformed: 0,
-  sources: [],
-  recall: createRecall(),
-  ...(spawnWorker !== undefined ? { spawnWorker } : {}),
-})
+): Worksite => {
+  const responders = new Map<string, (interaction: Interaction) => Promise<void>>()
+  /** Behaviours whose reactive turn is running right now: no second one stacks. */
+  const reacting = new Set<string>()
+
+  const worksite: Worksite = {
+    budget,
+    names: new Set(['master-agent']),
+    agentsCreated: 0,
+    tokens: 0,
+    brief,
+    reasoner,
+    publications: new Map(),
+    behaviours: new Map(),
+    screen: { markup: '', revision: 0 },
+    malformed: 0,
+    sources: [],
+    recall: createRecall(),
+    reactionsLeft: budget.maxReactions,
+    responders,
+    observe(interaction) {
+      const responder = responders.get(interaction.name)
+      if (responder === undefined) return
+      if (worksite.reactionsLeft <= 0) return
+      if (reacting.has(interaction.name)) return
+      worksite.reactionsLeft -= 1
+      reacting.add(interaction.name)
+      void responder(interaction).finally(() => reacting.delete(interaction.name))
+    },
+    ...(spawnWorker !== undefined ? { spawnWorker } : {}),
+  }
+  return worksite
+}
 
 // Ce que l'agent doit savoir, et rien de plus.
 //
@@ -133,6 +175,14 @@ Règles :
 - **Une source rend l'application utile.** Si le besoin demande une donnée réelle, nomme une source de la liste dans ton comportement : ton code reçoit alors une chaîne JSON portant l'entrée du visiteur, les données de la source, et la panne si elle n'a pas répondu. Tu nommes une source ; tu ne fournis jamais une adresse.
 - Publie avant de terminer. Termine dès que ta mission est remplie.`
 
+// Ce qu'on dit à un agent quand le visiteur vient de se servir de ce qu'il a
+// écrit. Court : il a déjà tout son contexte, il lui manque seulement quoi faire
+// de cette interaction-là.
+export const REACTIVE_INSTRUCTIONS = `Le visiteur se sert en ce moment de l'application, et vient d'appeler un comportement que tu as écrit. Réagis à ce qu'il a fait.
+- Améliore ce comportement avec « replace » seulement si son usage montre un vrai manque — une entrée mal traitée, une réponse pauvre, une panne. Le visiteur ne perd rien : sa session vit hors du comportement, et un remplacement raté laisse la version en place.
+- Si le comportement a bien répondu, ne change rien : termine par « done ».
+- N'écris pas d'écran, ne crée pas d'agent : tu réponds à un geste, tu ne relances pas un chantier.`
+
 /**
  * Where the application stands, said to every agent on every turn.
  *
@@ -152,7 +202,7 @@ function applicationStatus(worksite: Worksite): string {
   if (behaviours.length === 0) {
     return "État de l'application : un écran existe mais AUCUN COMPORTEMENT ne répond. Les commandes de l'écran sont inertes."
   }
-  return `État de l'application : écran posé, comportements en service : ${behaviours.join(', ')}. Le visiteur peut s'en servir maintenant ; « replace » l'améliore sans rien lui faire perdre.`
+  return `État de l'application : écran posé, comportements en service : ${behaviours.join(', ')}. Le visiteur s'en sert maintenant ; « replace » l'améliore sans rien lui faire perdre — y compris en réponse à ce qu'il en fait.`
 }
 
 /** Ce qu'un agent peut brancher. Demandé au service, jamais écrit ici. */
@@ -376,6 +426,45 @@ export async function runLoop(
     context.provide(name, { from: mission.name, text: `${mission.role} — sans production.` })
     worksite.publications.set(name, `${mission.role} — sans production.`)
   }
+
+  // One reactive turn, in answer to a visitor interaction on a behaviour this
+  // agent wrote. It reuses `think` and `execute` unchanged, so a `replace` here
+  // is the very same ownership-checked, rollback-covered replacement as during
+  // construction — only its cause differs: the visitor, not the schedule.
+  async function reactiveTurn(interaction: Interaction): Promise<void> {
+    const outcome =
+      interaction.output !== undefined
+        ? `réponse : ${summarise(interaction.output)}`
+        : `échec : ${interaction.failure ?? 'sans détail'}`
+    const line = `Le visiteur a appelé « ${interaction.name} » avec « ${interaction.input} » ; ${outcome}${
+      interaction.version !== undefined ? ` (v${interaction.version})` : ''
+    }.`
+    const readValues = mission.needs.map((name) => ({ name, text: summarise(context.read(name)) }))
+    const turn = await think(
+      context,
+      worksite,
+      REACTIVE_INSTRUCTIONS,
+      turnContext(mission, worksite, readValues, [line], worksite.reactionsLeft),
+    )
+    if (turn === undefined) return
+    if (turn.thought.length > 0) context.emit(turn.thought)
+    for (const action of turn.actions) {
+      const result = await execute(action, context, mission, worksite, children, filled)
+      if (result.refused === true) context.emit(result.observation, result.kind ?? 'refusal')
+      if (result.done) break
+    }
+  }
+
+  // Registered once the loop is over, for every behaviour this agent authored:
+  // the component stays loaded after `finish`, so it can still replace what it
+  // wrote. Cleared when the component is released, so a retracted run answers
+  // nothing.
+  for (const [name, live] of worksite.behaviours) {
+    if (live.author !== mission.name) continue
+    worksite.responders.set(name, reactiveTurn)
+    context.effect(() => () => worksite.responders.delete(name), `responder:${name}`)
+  }
+
   if (options.finishWhenDone !== false) context.finish()
 }
 

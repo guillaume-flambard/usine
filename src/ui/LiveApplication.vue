@@ -9,7 +9,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { createFrameHost, type FrameHost } from '../app/frame-host'
 import type { Behaviour } from '../app/behaviour'
-import type { Session } from '../app/session'
+import type { Interaction, Session } from '../app/session'
 
 const props = defineProps<{
   behaviours: readonly Behaviour[]
@@ -27,7 +27,7 @@ const props = defineProps<{
   shareLink?: string
 }>()
 
-const emit = defineEmits<{ interaction: []; share: []; takeAway: [] }>()
+const emit = defineEmits<{ interaction: [Interaction]; share: []; takeAway: [] }>()
 
 const frame = ref<HTMLIFrameElement | null>(null)
 const refused = ref<readonly string[]>([])
@@ -46,8 +46,10 @@ onMounted(() => {
     },
     onInteraction: () => {
       interactions.value = props.session.counts.interactions
-      emit('interaction')
     },
+    // The exchange itself, carried back to the run: an agent may answer it by
+    // recomposing the behaviour the visitor just used.
+    onObservation: (interaction) => emit('interaction', interaction),
   })
   host.sync()
 })
@@ -65,7 +67,7 @@ onBeforeUnmount(() => host?.dispose())
 
 <template>
   <section class="live-app">
-    <p class="eyebrow">Application — écrite pendant ce run</p>
+    <p class="eyebrow">Application — vivante, elle se refait pendant que vous vous en servez</p>
 
     <!--
       `allow-scripts` and nothing else. Without `allow-same-origin` the frame
@@ -93,8 +95,9 @@ onBeforeUnmount(() => host?.dispose())
     </p>
 
     <p class="live-help">
-      Rien de ce que vous voyez ici n’existait avant votre brief. Servez-vous-en pendant que les
-      agents continuent : ce que vous faites est conservé quand ils remplacent une version.
+      Rien de ce que vous voyez ici n’existait avant votre brief. Servez-vous-en : les agents la
+      remodèlent autour de ce que vous en faites, et ce que vous avez fait est conservé à chaque
+      changement.
     </p>
 
     <!-- Ce qu'on emporte vit avec ce qu'on emporte, pas dans une barre latérale

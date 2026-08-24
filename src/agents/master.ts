@@ -52,7 +52,7 @@ const MASTER_MISSION = (brief: string) =>
     "**Le visiteur regarde un écran vide en ce moment même.** Ton premier tour n'est pas un tour de réflexion : il doit faire apparaître quelque chose d'utilisable le plus vite possible.",
     "Au premier tour, fais UNE seule chose : crée l'agent qui posera l'écran et le premier comportement, en le disant explicitement dans sa mission. Ne crée pas trois agents pour délibérer d'abord — l'analyse vient après, quand quelque chose sert déjà.",
     "Un run n'a de produit que si un agent a posé un « screen » ET écrit un « build ». Un texte qui décrit l'application n'est pas l'application.",
-    "Une fois l'application vivante, tu peux faire naître d'autres agents pour l'améliorer : ils remplaceront des comportements à chaud, sans que le visiteur perde ce qu'il a fait.",
+    "Une fois l'application vivante, tu peux faire naître d'autres agents pour l'améliorer : ils remplaceront des comportements à chaud, en réponse à ce que le visiteur en fait, sans qu'il perde ce qu'il a fait.",
     'Tu ne fais pas le travail toi-même : tu amorces, puis tu termines.',
   ].join('\n')
 

@@ -135,6 +135,13 @@ export interface RunState {
    */
   replacements: number
   restarts: number
+  /**
+   * How many times the visitor used the live application. Reduced from the
+   * stream, not read off the session, so a replayed run shows the same count:
+   * a reactive recomposition displayed with zero interactions behind it would
+   * be a lie.
+   */
+  interactions: number
   /** Last sequence reduced. Used to spot a stream that skips. */
   lastSequence: number
 }

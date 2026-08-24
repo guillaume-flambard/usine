@@ -234,4 +234,25 @@ describe('composition kernel', () => {
     const sequences = events.map((event) => event.sequence)
     expect(sequences).toEqual(sequences.map((_, index) => index + 1))
   })
+
+  it('mints a visitor interaction into the stream, input and all, with no absolute date', async () => {
+    const { kernel, events } = recorded()
+    kernel.noteVisitorInteraction({
+      name: 'detecteur',
+      input: 'Ce produit guérit tout.',
+      version: 1,
+      output: '[{"interdit":true}]',
+    })
+
+    const event = events.find((e) => e.type === 'visitor-interacted')
+    expect(event).toBeDefined()
+    if (event?.type !== 'visitor-interacted') throw new Error('pas d’événement visiteur')
+    // The input travels verbatim: a replay reads it instead of a live click.
+    expect(event.input).toBe('Ce produit guérit tout.')
+    expect(event.version).toBe(1)
+    // Sequenced like any event, and its `at` is an elapsed duration, not a date.
+    expect(event.sequence).toBe(1)
+    expect(event.at).toBeGreaterThanOrEqual(0)
+    expect(event.at).toBeLessThan(Date.now())
+  })
 })

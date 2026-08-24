@@ -2,16 +2,19 @@
 
 Une page où un visiteur écrit un besoin et regarde des agents — qui n'existaient
 pas — faire naître une application utilisable en quelques secondes, puis **la
-remplacer à chaud pendant qu'il s'en sert**, sans qu'il perde ce qu'il a fait.
+remplacer à chaud pendant qu'il s'en sert, en réponse à ce qu'il en fait**, sans
+qu'il perde ce qu'il a fait.
 
 C'est la pièce phare de Memo Labs, sur `usine.memolabs.dev`.
 
 Le produit ne démontre pas « une IA qui écrit du code ». Il démontre **un
 système qui se modifie pendant qu'il sert** — la thèse de *A Programming
 Paradigm for Spatiotemporal Composability* (Shi, Zhang, Cui — PKU / DeepSeek-AI),
-dont Cordis est l'implémentation. Toute décision se juge à l'aune de ça : si un
-changement rend cette démonstration moins visible, il coûte plus qu'il ne
-rapporte.
+dont Cordis est l'implémentation. Le hot-swap n'est pas le décor du chantier :
+c'est **la valeur que l'utilisateur final ressent en usage** — l'outil mue
+autour de lui, et son travail survit à chaque changement (l'angle est dans
+`docs/5-ANGLE.md`). Toute décision se juge à l'aune de ça : si un changement rend
+cette démonstration moins visible, il coûte plus qu'il ne rapporte.
 
 ## Manifest
 

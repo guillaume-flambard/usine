@@ -45,7 +45,14 @@ Rapport complet : `_bmad-output/planning-artifacts/prds/prd-usine-2026-08-20/spi
 
 **Contrainte découverte** : sous `Content-Security-Policy: default-src 'self'`, `new Function` échoue. La voie **par composition** est donc la voie par défaut ; la voie par évaluation est réservée au mode LLM branché, comme arbitrage explicite.
 
-**Ce qui n'est pas prouvé** : la tenue à 40 nœuds vivants, le HMR réel, et le comportement en cas d'échec d'activation.
+**Ce qui n'est pas prouvé** : la tenue à 40 nœuds vivants.
+
+**Prouvé depuis (2026-08-24)** : la boucle réactive minimale — une interaction
+du visiteur devient un événement `visitor-interacted` dans le flux, réveille
+l'agent qui a écrit le comportement, et déclenche un remplacement à chaud **en
+réponse** ; l'échec d'activation laisse la version précédente servir ; un rejeu
+reproduit la recomposition depuis le seul flux. Reste hors périmètre : la tenue
+du HMR à l'échelle.
 
 ## Les deux modes d'exécution
 
@@ -58,8 +65,13 @@ Ce qui a été **jeté** : le run choréographié par timers de `src/usine/run.t
 
 1. **Le brief** : un champ pré-rempli, modifiable.
 2. **Lancer l'usine** : un bouton. Premier signe de vie en moins de 1,5 s.
-3. **Regarder le graphe pousser** : le planificateur découpe, l'architecte tranche, les outils apparaissent, les constructeurs travaillent en parallèle, le sceptique attaque, la porte humaine attend. Chaque nœud affiche son état réel ; les artefacts produits sont consultables en cliquant.
-4. **Le payoff réel** : le vérificateur d'allégations apparaît. On colle une copie marketing, il classe chaque allégation (autorisé / interdit / à vérifier) et cite le règlement. Pas de verdict sans source.
+3. **L'application apparaît, et on s'en sert** : en quelques secondes un écran et un premier comportement sont posés. Le visiteur s'en sert **pendant** que le run continue — il ne regarde pas un chantier, il utilise un outil.
+4. **Elle mue autour de l'usage** : à mesure que le visiteur tape, les agents refont les comportements à chaud, en réponse à ce qu'il en fait, sans qu'il perde sa session. Le graphe reste consultable comme preuve (nœuds, états réels, artefacts), mais replié : l'application est le protagoniste.
+
+> **Révisé le 2026-08-24.** L'ancien user flow plaçait « le payoff » — un
+> vérificateur figé — à la fin. Le produit est brief-agnostique et vivant : la
+> valeur est la mue en usage, pas un livrable terminal. La conformité des
+> allégations reste un brief exemplaire, pas l'aboutissement obligé.
 
 ## Les étapes de build
 
@@ -72,10 +84,14 @@ Faisabilité navigateur vérifiée, coeffect réactif prouvé, cascade et réver
 Moteur de run, flux d'événements typés, graphe projeté depuis la topologie réelle, narration, artefacts consultables, porte humaine.
 **Porte** : un run complet réel, de bout en bout, sans LLM.
 
-### Phase 2 — Le payoff
+### Phase 2 — L'application vivante et réactive
 
-Vérificateur d'allégations fonctionnel, déterministe, sourcé.
-**Porte** : un visiteur colle son propre texte et obtient un verdict juste et sourcé.
+L'application sert pendant le run ; les agents la refont à chaud, et — depuis le
+2026-08-24 — **en réponse à ce que le visiteur en fait**, sans qu'il perde sa
+session. La conformité des allégations reste un cas d'usage exemplaire, réel,
+déterministe et sourcé, mais brief-agnostique.
+**Porte** : un visiteur se sert de l'application, la voit muer autour de ce qu'il
+tape, et ne perd rien à aucun remplacement.
 
 ### Phase 3 — LLM branchable
 

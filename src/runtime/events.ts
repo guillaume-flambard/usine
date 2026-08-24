@@ -179,6 +179,29 @@ export interface AnswerGiven extends Base {
   answer: string
 }
 
+/**
+ * The visitor used the live application, and what came back.
+ *
+ * This is the cause the product now records, not only the effect. A reactive
+ * replacement is an agent's answer to one of these; putting the interaction in
+ * the stream — verbatim input included — is what lets a replay reproduce the
+ * same recomposition, since the stream is the archive format (AD-33). It
+ * references no live object and carries only the exchange, as strings.
+ */
+export interface VisitorInteracted extends Base {
+  type: 'visitor-interacted'
+  /** The behaviour the visitor invoked. */
+  name: string
+  /** The input, verbatim, so a replay is faithful. */
+  input: string
+  /** Which version answered, when one did. */
+  version?: number
+  /** Present when it answered. */
+  output?: string
+  /** Present instead when it refused, threw, or was stopped. */
+  failure?: string
+}
+
 /** Emitted when a subscriber throws: the run continues, the incident shows. */
 export interface SubscriberFailed extends Base {
   type: 'subscriber-failed'
@@ -204,6 +227,7 @@ export type RunEvent =
   | GateReached
   | GateWithdrawn
   | DecisionMade
+  | VisitorInteracted
   | SubscriberFailed
 
 export type Subscriber = (event: RunEvent) => void

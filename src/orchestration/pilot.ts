@@ -15,7 +15,7 @@ import type { SpawnWorker } from '../app/isolate'
 import type { SourceFetcher } from '../app/sources'
 import { liveBehaviours, startFactory } from './factory'
 import { behaviourKey, type Behaviour } from '../app/behaviour'
-import { createSession, type Session } from '../app/session'
+import { createSession, type Interaction, type Session } from '../app/session'
 import {
   archiveOf,
   behavioursFromArchive,
@@ -71,6 +71,14 @@ export interface Pilot {
    * a component: no replacement may cost it anything.
    */
   session(): Session
+  /**
+   * Hands a visitor interaction to the live run: it enters the stream as its
+   * own event, and wakes whichever agent authored the behaviour so it can
+   * answer — a replacement that is a response to what the visitor did, not the
+   * agent's own schedule. A no-op on a replay: a replayed run reproduces the
+   * recomposition from the stream, it must never mutate anew.
+   */
+  observe(interaction: Interaction): void
   /** The current run's kernel, for introspection. Absent at rest. */
   kernel(): Kernel | undefined
   /**
@@ -280,6 +288,22 @@ export function createPilot(options: PilotOptions = {}): Pilot {
     },
     session() {
       return currentSession
+    },
+    observe(interaction) {
+      // A replay never re-mutates: it reproduces the recomposition from the
+      // stream. And with no kernel there is no run to answer.
+      if (replayed !== undefined || currentKernel === undefined) return
+      // Minted first, synchronously: the interaction's sequence lands below any
+      // component-replaced the reactive turn produces, so the stream shows the
+      // cause before the effect.
+      currentKernel.noteVisitorInteraction({
+        name: interaction.name,
+        input: interaction.input,
+        ...(interaction.version !== undefined ? { version: interaction.version } : {}),
+        ...(interaction.output !== undefined ? { output: interaction.output } : {}),
+        ...(interaction.failure !== undefined ? { failure: interaction.failure } : {}),
+      })
+      currentWorksite?.observe(interaction)
     },
     stop,
     async start(brief: string) {

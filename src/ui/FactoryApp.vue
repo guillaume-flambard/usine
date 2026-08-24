@@ -15,6 +15,7 @@ import ModelSwitch, { type ModelSource } from './ModelSwitch.vue'
 import { relayReasoner, relayState, type RelayState } from '../runtime/reasoner/relay'
 import { fetchRun, linkFor, requestedRun, storeRun } from '../app/archive-client'
 import { availableSources, serviceFetcher } from '../app/sources'
+import type { Interaction } from '../app/session'
 import { takeawayHtml, takeawayOf } from '../app/takeaway'
 import type { ReasoningOrigin } from '../runtime/reasoner'
 import { gateReached, newRun, productServed, runStarted, checkSubmitted } from '../telemetry'
@@ -24,6 +25,14 @@ const pilot = createPilot()
 // replays prepared answers — and the screen never pretends otherwise.
 pilot.connect(demoReasoner())
 const state = pilot.store.state
+
+// The visitor used the live application. Two things follow: the telemetry note,
+// and — the point of the product — the interaction goes back to the run, where
+// the agent that wrote the behaviour may answer by recomposing it.
+function onVisitorInteraction(interaction: Interaction): void {
+  checkSubmitted()
+  pilot.observe(interaction)
+}
 
 // Empty, deliberately. A prefilled brief submitted as it stands would ruin
 // the only proof the visitor has that nothing was recorded in advance: the
@@ -428,7 +437,9 @@ onBeforeUnmount(() => {
       <div v-if="modeHelp" id="status-detail" class="status-detail">
         <p v-if="mode === 'llm'">
           Aucun agent n’est écrit d’avance. Un modèle{{ source === 'relay' ? ' hébergé par le site, sans clé de votre part' : '' }}
-          décide lesquels existent, ce qu’ils se demandent, et le code qu’ils écrivent.
+          décide lesquels existent, ce qu’ils se demandent, et le code qu’ils écrivent — puis
+          l’application qu’ils posent se refait autour de ce que vous en faites, sans vous faire
+          perdre votre place.
         </p>
         <p v-else>
           {{ replayReason }} Les décisions sont enregistrées et rejouées ; tout le reste est réel —
@@ -452,7 +463,7 @@ onBeforeUnmount(() => {
       <div ref="threadEl" class="thread" aria-live="polite">
         <p v-if="state.log.length === 0" class="thread-empty">
           Écrivez un besoin. Rien n’existe encore : les agents, leurs outils et l’application
-          naîtront de ce que vous taperez.
+          naîtront de ce que vous taperez — puis se referont autour de ce que vous en ferez.
         </p>
         <p v-for="message in state.log" :key="message.sequence" class="thread-message">
           <span class="thread-author">{{ message.author }}</span>
@@ -466,7 +477,7 @@ onBeforeUnmount(() => {
 
       <!-- Le composeur, en bas, là où l'on écrit. -->
       <div class="composer">
-        <h1 class="hidden-title">L'usine agentique — du besoin au produit</h1>
+        <h1 class="hidden-title">L'usine agentique — l'application qui se refait sous vous</h1>
         <label class="hidden-title" for="brief">Le besoin</label>
         <textarea
           id="brief"
@@ -557,7 +568,7 @@ onBeforeUnmount(() => {
           :session="pilot.session()"
           :pulse="state.lastSequence"
           :contact="CONTACT"
-          @interaction="checkSubmitted"
+          @interaction="onVisitorInteraction"
         />
 
         <NodePanel

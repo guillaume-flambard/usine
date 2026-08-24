@@ -20,7 +20,13 @@ import type {
   Topology,
   TopologyNode,
 } from './contract'
-import type { MessageKind, RunEvent, Subscriber, WithoutSequence } from './events'
+import type {
+  MessageKind,
+  RunEvent,
+  Subscriber,
+  VisitorInteracted,
+  WithoutSequence,
+} from './events'
 
 /** A component's shape as Cordis expects it. Internal, never exported. */
 interface CordisPlugin {
@@ -92,6 +98,17 @@ export interface Kernel {
   decide(id: ComponentId, decision: Decision): boolean
   /** The gates waiting for a decision, right now. */
   pendingGates(): readonly ComponentId[]
+  /**
+   * Records that the visitor used the live application. The kernel is the only
+   * place allowed to mint an event, so a visitor interaction — which the host
+   * observes from outside any component — enters the stream here. Minted
+   * synchronously, so its sequence precedes any replacement an agent makes in
+   * response to it: that ordering is what backs the "in answer to what you did"
+   * claim.
+   */
+  noteVisitorInteraction(
+    observation: Omit<VisitorInteracted, 'type' | 'sequence' | 'at'>,
+  ): void
   /** Subscribes to the stream. Returns the unsubscribe function. */
   subscribe(subscriber: Subscriber): Teardown
 }
@@ -675,6 +692,9 @@ export function createKernel(): Kernel {
       return true
     },
     pendingGates: () => [...gates.keys()],
+    noteVisitorInteraction(observation) {
+      emit({ type: 'visitor-interacted', ...observation })
+    },
     subscribe(subscriber: Subscriber): Teardown {
       subscribers.add(subscriber)
       return () => {

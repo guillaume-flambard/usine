@@ -20,7 +20,7 @@ Ce qu'on **jette** : le run scripté par timers (la version « démo/théâtrale
 ## UI
 - **100vh, app plein écran** — PAS la page éditoriale qui scrolle. Layout app : **prompt/chat à gauche, panneau vivant (graphe + agents qui parlent) à droite** (esprit Claude Desktop).
 - **Design system Memo Labs** conservé : crème `#faf9f7`, encre `#16130f`, terracotta `#ad4c16`, Oswald, coins carrés, minimaliste. (Voir `3-CLAUDE-DESIGN-BRIEF.md` + `src/assets/usine.css` déjà porté.)
-- Le **payoff reste réel** (type ClaimCheck : classifieur qui tourne vraiment).
+- **L'application est réelle et vivante** — *révisé le 2026-08-24* : plus un « payoff » figé à la fin du run, mais une application posée tôt, utilisée pendant le run, et refaite à chaud **en réponse à ce que le visiteur en fait**. Code réel, sources réelles. Brief-agnostique : un classifieur de conformité (type ClaimCheck) reste un cas d'usage exemplaire, pas la forme obligée du produit.
 
 ## Stack
 - **Vue 3 + TypeScript** (scaffoldé via `create-vue`), **Vite**, **pnpm partout**. ESLint/oxlint + Prettier. Strict TS.

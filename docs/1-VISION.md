@@ -1,7 +1,21 @@
 # Memo Labs — L'usine agentique · Vision
 
+> **Repositionné le 2026-08-24 (voir `5-ANGLE.md`).** L'angle n'est plus « une
+> usine qui construit un produit, et le produit sort à la fin ». C'est
+> **l'application qui mue sous l'utilisateur** : elle apparaît en quelques
+> secondes, il s'en sert pendant que le run continue, et les agents la refont
+> **autour de ce qu'il en fait** — sans qu'il perde ce qu'il a fait. Le hot-swap
+> n'est plus le décor du chantier ; c'est la valeur ressentie en usage. Les
+> passages ci-dessous qui parlent d'un « payoff à la fin » sont conservés pour
+> l'historique, mais lus à travers ce cadre.
+
 ## Le pitch en une phrase
-Un système agentique qui, à partir d'un besoin métier dans un secteur défini, **s'auto-orchestre de bout en bout** — il se dote d'une mémoire, écrit les specs, se crée ses outils, spawn d'autres agents qui se connectent, code, vérifie, livre — **et on regarde toute l'usine tourner en direct, en graphe.** À la fin, un vrai produit sort.
+Un système agentique qui, à partir d'un besoin, **s'auto-orchestre de bout en
+bout** — il se dote d'une mémoire, écrit les specs, se crée ses outils, spawn
+d'autres agents qui se connectent, code, vérifie — **et pose en quelques
+secondes une application utilisable qu'il continue de refaire à chaud, en
+réponse à ce que l'utilisateur en fait, sans jamais lui faire perdre sa
+session.**
 
 ## L'insight (pourquoi ça)
 - Le marché ne paie plus "écrire du code" : il paie **le jugement** et **l'orchestration d'agents** (agentic engineering vs vibe coding). C'est le titre que les entreprises recherchent.
@@ -24,20 +38,36 @@ Un **agent maître** reçoit un brief ("construis un outil de conformité des al
 Tout est visible comme un **graphe vivant** : les agents se spawnent, les outils se créent, les arêtes de dépendance poussent, les états de cycle de vie s'allument. Agents qui créent des agents et des outils qui se connectent.
 
 ## Les trois couches
-1. **La vitrine générale wahou** = le flagship Memo Labs. L'usine construit un produit de A à Z en direct. Théâtrale, impressionnante, assumée comme spectacle.
-2. **La substance réelle dans la niche** : le produit livré à la fin (le "Claim Check" compléments) **fonctionne pour de vrai**, adossé au vrai sku-regulator. Le wahou devant, la substance dans la niche.
-3. **Des démos par niche** ensuite : le même moteur pointé sur d'autres secteurs (conformité, deal-screening, clinique…), chacune un produit réel.
+
+> **Révisé le 2026-08-24.** La valeur n'est plus « un produit livré à la fin » :
+> c'est l'application qui sert **pendant** le run et se refait autour de l'usage.
+> Le produit reste **brief-agnostique** (voir `5-ANGLE.md`, décision) — pas de
+> vérificateur figé connu d'avance. Les couches ci-dessous se relisent ainsi.
+
+1. **La preuve en usage** = le flagship Memo Labs. L'usine pose une application
+   utilisable en direct, et l'utilisateur la voit muer sous ses doigts en
+   réponse à ce qu'il tape. Le spectacle du graphe reste, mais au second plan :
+   le protagoniste est l'application, pas le chantier.
+2. **La substance** : ce que l'application fait **fonctionne pour de vrai** —
+   code évalué dans un fil isolé, sources réelles branchées, rien de simulé. La
+   conformité des allégations reste un cas d'usage exemplaire (adossé au corpus
+   réel), mais un cas parmi d'autres, pas la fin obligée du run.
+3. **Des démos par niche** ensuite : le même moteur pointé sur d'autres besoins
+   (conformité, deal-screening, clinique…), chacune une application réelle qui
+   mue autour de son utilisateur.
 
 ## Le principe : impressionnant ET pas creux
 
 **Révisé le 2026-08-20.** La version initiale acceptait un milieu simulé pour la vitrine publique. `0-DECISIONS.md` l'a rejeté : le milieu est réel lui aussi.
 
 - Le **milieu** est une **vraie composition** : de vrais composants Cordis qui se chargent, se câblent, fabriquent des composants à l'exécution et se libèrent proprement. Ce qui est déterministe en mode par défaut, c'est le *jugement* des agents — pas leur existence, pas leur travail.
-- Le **payoff final** (le check de conformité) tourne vraiment.
+- La **mue est réelle et ressentie** : l'application sert pendant le run, et un remplacement à chaud répond à une interaction réelle du visiteur (l'événement `visitor-interacted` est dans le flux, avant le `component-replaced` qu'il cause). Ce que le visiteur a fait est conservé hors de tout ce qui est remplaçable.
 - Rien n'est simulé, et ça reste **gratuit et instantané** : zéro clé, zéro token par visiteur. C'est ce qui fait qu'un recruteur ou un client dit « ok, c'est pas du vent ».
 
 ## La décision (arrêtée)
-- **Flagship = l'usine construisant le produit compléments de A à Z** (le flagship ET la première démo niche = le même run). Choix explicite.
+- **Flagship = l'usine posant une application vivante à partir d'un besoin
+  quelconque**, et la refaisant à chaud autour de l'usage. Brief-agnostique : le
+  besoin conformité en est un exemple fort, pas le seul (révisé le 2026-08-24).
 - **Puis** une démo par type de niche, réutilisant le moteur.
 
 ## L'identité
