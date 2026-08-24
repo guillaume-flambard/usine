@@ -1,0 +1,79 @@
+- id: "1"
+  title: Rejeu borné jusqu'à un événement N
+  description: >-
+    Ajouter `stopAt` à `replayInto` (src/app/replay.ts) pour rejouer un flux
+    conservé jusqu'à un `sequence` N et rapporter le point atteint (CAP-2,
+    AD-33/36). Enabling, faible risque.
+  invoke_dev_with: >-
+    Tests d'abord. Réutiliser replayInto/readArchive existants ; ne rien muter
+    du préfixe. Code en anglais, doc/commentaires en français.
+- id: "2"
+  title: Hydrater un kernel vivant depuis un préfixe de flux
+  description: >-
+    Le substrat neuf load-bearing (CAP-1, AD-49) : matérialiser un kernel à N en
+    ré-instanciant les composants vivants avec identité et parentage, pour que
+    `kernel.replace` (AD-31, restore-with-children) tienne sur la branche.
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Tests d'abord, c'est la pièce la plus dure. Aujourd'hui behavioursFromArchive
+    reconstruit SANS kernel — ici il faut un kernel vivant. Réutiliser
+    kernel.performReplacement et le contrat de composant. Seul src/runtime importe
+    cordis. Prouver : liveBehaviours == read model réduit sur [1..N] ; un replace
+    hydraté émet component-replaced ; un échec restaure la version précédente avec
+    ses enfants.
+- id: "3"
+  title: Identité de branche dans le flux
+  description: >-
+    branchId opaque minté par le runtime (AD-43), clé d'événement (branchId,
+    sequence) (AD-44), premier événement branch-forked {trunkId, N}, préfixe =
+    tableau partagé re-réduit (AD-45), at élapsé-depuis-le-fork + offset (AD-46).
+    Modèle d'événement fondateur du fork (CAP-4).
+  spec_checkpoint: true
+  invoke_dev_with: >-
+    Tests d'abord. Étendre RunEvent/le réducteur sans casser les runs non-forkés.
+    at reste un élapsé, jamais une date absolue. Référencer un recording immuable
+    par id+N est permis (nuance AD-33) ; ne jamais référencer un objet vivant.
+- id: "4"
+  title: Mode fork du pilote et double store isolé
+  description: >-
+    pilot.fork(archive, N) expose un tronc (store SANS kernel, recording, AD-48)
+    et une branche (kernel hydraté + store isolé) ; deux read models qui
+    n'interfèrent pas ; télémétrie/capacité relais cloisonnées par branche
+    (CAP-3, AD-37/38).
+  spec_checkpoint: true
+  invoke_dev_with: >-
+    Tests d'abord. Réutiliser createPilot/createStore/createKernel (aucun
+    singleton). Le tronc ne re-mute jamais. S'appuyer sur les stories 1-3.
+- id: "5"
+  title: Hot-swap d'un comportement maison sur la branche
+  description: >-
+    Remplacer à chaud, à partir de N, un comportement dont la source est dans le
+    flux, sur la branche uniquement ; le tronc continue de servir l'ancienne
+    version ; un remplacement raté laisse la précédente servir (CAP-5, AD-31/37).
+  invoke_dev_with: >-
+    Tests d'abord. Réutiliser le chemin execute('replace') + kernel.replace.
+    Prouver la divergence : branche en vN, tronc intact ; rollback couvert.
+- id: "6"
+  title: Scène à deux panneaux et porte par branche
+  description: >-
+    Tronc et branche côte à côte (chacun son graphe/son application), chacune sa
+    porte valide/rejette ; rejeter = teardown entier (kernel+store+session,
+    AD-47) avec rétractation visible, tronc intact (CAP-6, AD-38/39).
+  spec_checkpoint: true
+  invoke_dev_with: >-
+    Tests d'abord (dont browser). Tenir les quatre zones : la divergence se
+    montre DANS la scène, pas dans une cinquième zone (cf. open question du SPEC,
+    trancher avec DESIGN.md). Composants déjà prop-driven (LiveGraph,
+    LiveApplication, HumanGate) — les instancier deux fois.
+- id: "7"
+  title: Comparaison mesurée des branches
+  description: >-
+    Un bandeau diffe deux RunMeasure (services/api/.../evaluation.py,
+    measure -> RunMeasure) entre tronc et branche ; aucune préférence codée en
+    dur (CAP-7, AD-40).
+  invoke_dev_with: >-
+    Tests d'abord. measure rend RunMeasure (pas Report, agrégat de population).
+    Un tronc importé n'a pas nos événements de cycle de vie — hors périmètre v1
+    (run maison), mais garder la mesure agnostique. Réutiliser le client d'éval
+    (src/app/eval-client.ts) et son patron de donnée hostile.
