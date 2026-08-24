@@ -25,9 +25,11 @@ const props = defineProps<{
   replay: boolean
   sharing: boolean
   shareLink?: string
+  /** Y a-t-il de quoi forker ce run — le voir diverger en deux futurs ? */
+  forkable?: boolean
 }>()
 
-const emit = defineEmits<{ interaction: [Interaction]; share: []; takeAway: [] }>()
+const emit = defineEmits<{ interaction: [Interaction]; share: []; takeAway: []; fork: [] }>()
 
 const frame = ref<HTMLIFrameElement | null>(null)
 const refused = ref<readonly string[]>([])
@@ -107,6 +109,7 @@ onBeforeUnmount(() => host?.dispose())
       <button v-if="archive && !replay" class="picker" :disabled="sharing" @click="emit('share')">
         {{ sharing ? 'Conservation…' : 'Lien de rejeu' }}
       </button>
+      <button v-if="forkable" class="picker fork-start" @click="emit('fork')">Forker ce run</button>
       <a class="product-contact" :href="`mailto:${contact}`">Écrire à Memo Labs</a>
     </div>
     <p v-if="shareLink" class="live-help"><code>{{ shareLink }}</code> — il rejoue ce run à l’identique, application comprise.</p>

@@ -2,7 +2,7 @@
 // The shell: two panes, 100vh, the page never scrolls.
 // Everything that makes the run live is in the pilot, outside this component:
 // that is what makes the wiring testable without a browser.
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { createPilot } from '../orchestration/pilot'
 import { CONTACT, EXAMPLES } from '../examples'
 import { demoReasoner } from '../examples/demo'
@@ -11,6 +11,9 @@ import LiveGraph from './LiveGraph.vue'
 import NodePanel from './NodePanel.vue'
 import HumanGate from './HumanGate.vue'
 import LiveApplication from './LiveApplication.vue'
+import ForkView from './ForkView.vue'
+import type { Fork } from '../orchestration/pilot'
+import type { RunArchive } from '../app/replay'
 import ModelSwitch, { type ModelSource } from './ModelSwitch.vue'
 import { relayReasoner, relayState, type RelayState } from '../runtime/reasoner/relay'
 import { fetchRun, linkFor, requestedRun, storeRun } from '../app/archive-client'
@@ -324,6 +327,66 @@ async function reject() {
   await pilot.reject()
 }
 
+// Le fork courant : tronc + branche, deux futurs côte à côte. Absent hors fork
+// — la scène normale ne bouge alors pas d'un pixel.
+const fork = ref<Fork | undefined>()
+// L'archive forkée et le point N, figés au moment du fork : le bandeau mesure le
+// préfixe du tronc contre le flux de la branche.
+const forkArchive = ref<RunArchive | undefined>()
+const forkAt = ref(0)
+// Le verdict du dernier remplacement de branche : rien si la version a pris, un
+// mot si le code n'a pas compilé (la précédente sert toujours).
+const branchNotice = ref<string | undefined>()
+
+async function onFork() {
+  const archive = pilot.archive()
+  if (archive === undefined || fork.value !== undefined) return
+  try {
+    forkArchive.value = archive
+    forkAt.value = state.value.lastSequence
+    branchNotice.value = undefined
+    // `markRaw` : le Fork porte des objets vivants (kernels, stores qui gèrent
+    // leur propre réactivité par des refs internes). Le rendre réactif ferait
+    // « déballer » ces refs imbriquées — `branch.store.state` cesserait d'être
+    // un ref et `.value` deviendrait undefined. On le garde brut.
+    fork.value = markRaw(await pilot.fork(archive, forkAt.value))
+  } catch (cause) {
+    // Le fork n'a pas pu rendre les deux applications : on le dit plutôt que de
+    // montrer un panneau vide (Block If de la story).
+    error.value = `Le fork a échoué : ${cause instanceof Error ? cause.message : String(cause)}`
+    fork.value = undefined
+    forkArchive.value = undefined
+  }
+}
+
+// L'autorité qui applique le remplacement (AD-31) : la branche seule bouge, le
+// tronc jamais. Le verdict revient à ForkView par `branchNotice`.
+async function onBranchReplace(edit: { name: string; code: string }) {
+  const current = fork.value
+  if (current === undefined) return
+  const took = await current.branch.replace(edit.name, edit.code)
+  branchNotice.value = took
+    ? undefined
+    : 'Ce code n’a pas compilé — la version précédente de la branche sert toujours.'
+}
+
+// Rejeter la branche : un teardown entier (kernel + store + session), distinct
+// du rollback d'un remplacement (AD-47). Le run et le tronc restent intacts.
+async function onBranchReject() {
+  const current = fork.value
+  fork.value = undefined
+  forkArchive.value = undefined
+  branchNotice.value = undefined
+  await current?.branch.kernel.releaseAll()
+}
+
+// Revenir au run : on referme la vue fork, la scène normale revient.
+function onForkExit() {
+  fork.value = undefined
+  forkArchive.value = undefined
+  branchNotice.value = undefined
+}
+
 async function pickExample(key: string) {
   const found = EXAMPLES.find((example) => example.key === key)
   if (found === undefined) return
@@ -535,10 +598,24 @@ onBeforeUnmount(() => {
     </section>
 
     <main class="live" aria-label="Le run en direct">
+      <!-- Deux futurs côte à côte prennent toute la scène : la vue fork vit
+           dans la zone scène, jamais dans une cinquième zone. Hors fork, la
+           scène normale est inchangée. -->
+      <ForkView
+        v-if="fork && forkArchive"
+        :fork="fork"
+        :archive="forkArchive"
+        :at="forkAt"
+        :notice="branchNotice"
+        @replace="onBranchReplace"
+        @reject="onBranchReject"
+        @exit="onForkExit"
+      />
+
       <!-- The panel overlays the graph, never the counters: they stay readable
            while a node is inspected. An open panel eats the bottom of the
            screen, so the graph folds above it instead of being cut by it. -->
-      <div class="zone" :data-panel="Boolean(product || (state.gate && !product))">
+      <div v-else class="zone" :data-panel="Boolean(product || (state.gate && !product))">
         <!-- The application is the protagonist; the graph is the evidence.
              A graph fascinates for twenty seconds, an application is used —
              so once something serves, the graph folds to the one line that
@@ -583,10 +660,12 @@ onBeforeUnmount(() => {
           v-if="product"
           :archive="Boolean(pilot.archive())"
           :replay="pilot.isReplay()"
+          :forkable="Boolean(pilot.archive())"
           :sharing="sharing"
           :share-link="shareLink"
           @share="shareRun"
           @take-away="takeAway"
+          @fork="onFork"
           :behaviours="behaviours"
           :screen="screen"
           :session="pilot.session()"
