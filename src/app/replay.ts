@@ -143,12 +143,36 @@ export async function behavioursFromArchive(
 export interface ReplayOptions {
   /** Le pas entre deux événements. Zéro rejoue d'un bloc. */
   paceMs?: number
-  /** Appelé avant chaque pause, pour laisser l'interface respirer. */
+  /** Arrête le rejeu quand il est déclenché : le puits ne reçoit plus rien. */
   signal?: AbortSignal
+  /**
+   * Le point de fork : ne rejouer que les événements de `sequence <= stopAt`,
+   * puis rendre la main. Absent, le flux est rejoué en entier. Le point est un
+   * `sequence` entier (le kernel les numérote à partir de 1), jamais un indice —
+   * c'est lui qui est adressable et stable (AD-36) ; un flux relu est trié par
+   * `sequence` (AD-33), donc borner par `sequence` est déterministe.
+   */
+  stopAt?: number
+}
+
+/** Ce qu'un rejeu rapporte : jusqu'où il est allé, et s'il a atteint la fin. */
+export interface ReplayOutcome {
+  /**
+   * Vrai si tout le flux a été émis (ni `stopAt` ni `signal` ne l'ont écourté).
+   * Un `stopAt` au-delà du dernier `sequence` rejoue tout et rend `true` ; on
+   * détecte alors « point de fork jamais atteint » par `lastSequence < stopAt`.
+   */
+  reachedEnd: boolean
+  /**
+   * Le `sequence` du dernier événement émis ; `0` si rien n'a été émis. Sans
+   * ambiguïté avec un vrai événement, puisque le kernel numérote à partir de 1.
+   */
+  lastSequence: number
 }
 
 /**
- * Rejoue le flux dans un puits, à la cadence demandée.
+ * Rejoue le flux dans un puits, à la cadence demandée, éventuellement borné à
+ * un point de fork.
  *
  * La cadence est cosmétique et le reste : rejouer d'un bloc donne exactement
  * le même modèle de lecture. Elle existe pour qu'un rejeu se regarde comme un
@@ -158,12 +182,20 @@ export async function replayInto(
   archive: RunArchive,
   emit: (event: RunEvent) => void,
   options: ReplayOptions = {},
-): Promise<boolean> {
+): Promise<ReplayOutcome> {
   const pace = options.paceMs ?? 0
+  const { stopAt } = options
+  let lastSequence = 0
   for (const event of archive.events) {
-    if (options.signal?.aborted === true) return false
+    if (options.signal?.aborted === true) return { reachedEnd: false, lastSequence }
+    // Borné par `sequence`, pas par indice : dès qu'un événement dépasse le
+    // point de fork, on s'arrête sans l'émettre. Le préfixe n'est pas muté.
+    if (stopAt !== undefined && event.sequence > stopAt) {
+      return { reachedEnd: false, lastSequence }
+    }
     emit(event)
+    lastSequence = event.sequence
     if (pace > 0) await new Promise((next) => setTimeout(next, pace))
   }
-  return true
+  return { reachedEnd: true, lastSequence }
 }

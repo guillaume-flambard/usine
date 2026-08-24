@@ -128,3 +128,13 @@ Les bornes sont en agents, profondeur, tours et tokens. Le coût réel dépend d
 modèle choisi et de la longueur des contextes, qu'aucune de ces bornes ne
 plafonne directement. Le relais impose sa propre limite par adresse et par
 jour ; c'est elle qui protège la facture aujourd'hui, pas le budget du run.
+
+- source_spec: `_bmad-output/specs/spec-fork-timeline/stories/1-rejeu-borne-jusqu-a-n.md`
+  summary: ReplayOutcome pourrait porter un discriminant (fin / point-de-fork-atteint / interrompu) plutôt que le seul booléen reachedEnd.
+  evidence: Le consommateur réel (mode fork, story 4) devra distinguer un préfixe complet jusqu'à N d'un rejeu interrompu ; détectable aujourd'hui via lastSequence, mais un enum serait plus clair. Prématuré tant que le consommateur n'existe pas.
+- source_spec: `_bmad-output/specs/spec-fork-timeline/stories/1-rejeu-borne-jusqu-a-n.md`
+  summary: replayInto suppose un flux trié/sans doublons de sequence mais ne l'impose pas ; stopAt et l'adressabilité AD-36 en dépendent.
+  evidence: readArchive trie mais archiveOf non, et rien ne dédoublonne ; un flux non trié ou à sequence dupliquée fausserait le bornage. Pré-existant, à traiter là où l'invariant d'unicité de sequence sera posé.
+- source_spec: `_bmad-output/specs/spec-fork-timeline/stories/1-rejeu-borne-jusqu-a-n.md`
+  summary: Un pace (paceMs>0) est attendu inutilement après le dernier événement dans la fenêtre stopAt avant de rendre la main.
+  evidence: ~40ms de latence cosmétique après un préfixe déjà complet ; sans impact fonctionnel, à optimiser si la réactivité du fork le demande.
