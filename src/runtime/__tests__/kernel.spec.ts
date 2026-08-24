@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createKernel } from '../kernel'
+import { createKernel, mintBranchId } from '../kernel'
 import type { Component, ComponentId } from '../contract'
 import type { RunEvent } from '../events'
 
@@ -254,5 +254,78 @@ describe('composition kernel', () => {
     expect(event.sequence).toBe(1)
     expect(event.at).toBeGreaterThanOrEqual(0)
     expect(event.at).toBeLessThan(Date.now())
+  })
+})
+
+describe('branch identity (AD-43/44/46)', () => {
+  it('mints opaque branch ids, distinct and independent of N', () => {
+    const first = mintBranchId()
+    const second = mintBranchId()
+    expect(first).not.toBe(second)
+    // Opaque: a non-empty string that carries no N, no `sequence`.
+    expect(typeof first).toBe('string')
+    expect(first.length).toBeGreaterThan(0)
+  })
+
+  it('a kernel with no branch emits unstamped events (trunk)', async () => {
+    const { kernel, events } = recorded()
+    await kernel.load(tool('eu-registry', 'registry'))
+    await tick()
+
+    expect(events.length).toBeGreaterThan(0)
+    expect(events.every((event) => event.branchId === undefined)).toBe(true)
+  })
+
+  it('a branch kernel stamps every emitted event with its branchId', async () => {
+    const branchId = mintBranchId()
+    const kernel = createKernel({ branchId })
+    const events: RunEvent[] = []
+    kernel.subscribe((event) => events.push(event))
+    await kernel.load(tool('eu-registry', 'registry'))
+    await tick()
+
+    expect(events.length).toBeGreaterThan(0)
+    expect(events.every((event) => event.branchId === branchId)).toBe(true)
+  })
+
+  it('stamps a subscriber-failed incident with the branchId too', async () => {
+    // A subscriber-failed is minted inside `broadcast`, off the normal `emit`
+    // path: it must still carry the branch stamp, or a branch's incident would
+    // look like it came from the trunk.
+    const branchId = mintBranchId()
+    const kernel = createKernel({ branchId })
+    const events: RunEvent[] = []
+    // The recorder goes first so it captures the incident; the thrower second.
+    kernel.subscribe((event) => events.push(event))
+    kernel.subscribe(() => {
+      throw new Error('abonné cassé')
+    })
+    await kernel.load(tool('eu-registry', 'registry'))
+    await tick()
+
+    const failed = events.find((event) => event.type === 'subscriber-failed')
+    expect(failed).toBeDefined()
+    expect(failed?.branchId).toBe(branchId)
+  })
+
+  it('noteFork emits branch-forked first, stamped, carrying {trunkId, from, offset}', () => {
+    const branchId = mintBranchId()
+    const trunkId = mintBranchId()
+    const kernel = createKernel({ branchId })
+    const events: RunEvent[] = []
+    kernel.subscribe((event) => events.push(event))
+
+    kernel.noteFork({ trunkId, from: 12, offset: 340 })
+
+    const first = events[0]
+    expect(first?.type).toBe('branch-forked')
+    if (first?.type !== 'branch-forked') throw new Error('pas de branch-forked')
+    expect(first.branchId).toBe(branchId)
+    expect(first.trunkId).toBe(trunkId)
+    expect(first.from).toBe(12)
+    expect(first.offset).toBe(340)
+    // Elapsed, never an absolute date (AD-33).
+    expect(first.at).toBeGreaterThanOrEqual(0)
+    expect(first.at).toBeLessThan(Date.now())
   })
 })

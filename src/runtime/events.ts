@@ -25,6 +25,16 @@ interface Base {
    * into a trace.
    */
   at: number
+  /**
+   * The branch this event belongs to, stamped by a branch's kernel (AD-43).
+   *
+   * Absent means the trunk. Every kernel numbers `sequence` from 1, so after a
+   * fork the same number lives on the trunk prefix and on a branch at once; the
+   * effective key of a post-fork event is `(branchId, sequence)`, not `sequence`
+   * alone (AD-44). Optional so the whole existing stream — trunk, home runs,
+   * v1 archives — stays valid and reduces exactly as before.
+   */
+  branchId?: string
 }
 
 export interface ComponentCreated extends Base {
@@ -208,6 +218,36 @@ export interface SubscriberFailed extends Base {
   message: string
 }
 
+/**
+ * The first event of a branch: it forked from a trunk at a point N (AD-44).
+ *
+ * It carries `branchId` like every branch event, plus a reference to the trunk
+ * it came from. Referencing an immutable recording by id and by N is allowed
+ * (AD-44 nuances AD-33, which forbids referencing a *live* object): it is what
+ * makes a branch archive self-describing.
+ */
+export interface BranchForked extends Base {
+  type: 'branch-forked'
+  /**
+   * Always present here, unlike anywhere else. `branchId` is optional on `Base`
+   * (absent = trunk), but the one event that opens a branch must carry it — it
+   * is what makes the branch archive self-describing. A branch-forked without a
+   * branchId is a contradiction, so the type forbids it.
+   */
+  branchId: string
+  /** The recording (trunk) this branch was forked from, by its opaque id. */
+  trunkId: string
+  /** The `sequence` N on the trunk where the fork was taken (AD-36). */
+  from: number
+  /**
+   * The `at` of event N on the trunk's time axis (AD-46). A branch kernel
+   * restarts `at` near zero at the fork, so this offset is what later lets the
+   * interface align the two panels' elapsed times. An elapsed duration, like
+   * every `at` — never an absolute date (AD-33).
+   */
+  offset: number
+}
+
 export type RunEvent =
   | ComponentCreated
   | ComponentActivated
@@ -229,12 +269,16 @@ export type RunEvent =
   | DecisionMade
   | VisitorInteracted
   | SubscriberFailed
+  | BranchForked
 
 export type Subscriber = (event: RunEvent) => void
 
 /**
- * An event before the kernel assigns its sequence number.
+ * An event before the kernel assigns its sequence number, its elapsed time, and
+ * its branch stamp — all three are the kernel's to mint, never a caller's.
  * Distributive: without this, `Omit` would apply to the whole union and keep
  * only the common keys — the variants would stop being checked.
  */
-export type WithoutSequence<T = RunEvent> = T extends RunEvent ? Omit<T, 'sequence' | 'at'> : never
+export type WithoutSequence<T = RunEvent> = T extends RunEvent
+  ? Omit<T, 'sequence' | 'at' | 'branchId'>
+  : never

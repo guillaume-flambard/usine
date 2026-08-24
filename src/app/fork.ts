@@ -42,6 +42,21 @@ export interface HydrateOptions {
    * comme un run hors ligne — aucun réseau n'est ouvert par l'hydratation.
    */
   fetchSource?: SourceFetcher
+  /**
+   * L'identité de branche à estamper sur les événements du kernel hydraté
+   * (AD-43). Mintée par le runtime, propagée au `createKernel` interne. Absente,
+   * le kernel hydraté émet des événements non estampillés — utile hors d'un
+   * fork (un simple rejeu vivant), mais une branche en fournit toujours une.
+   */
+  branchId?: string
+  /**
+   * Appelé une fois, juste après la création du kernel et **avant tout
+   * chargement**. C'est la fenêtre où un store de branche s'abonne pour capter
+   * la re-matérialisation d'hydratation (AD-38 : un store nourri par un seul
+   * flux, celui de son kernel). Une exception levée ici démonte le kernel avant
+   * de se propager — aucun isolat n'est laissé vivant.
+   */
+  onKernelReady?: (kernel: Kernel) => void
 }
 
 export interface HydratedKernel {
@@ -68,7 +83,7 @@ export async function hydrateKernel(
   archive: RunArchive,
   options: HydrateOptions = {},
 ): Promise<HydratedKernel> {
-  const { stopAt, spawnWorker, fetchSource } = options
+  const { stopAt, spawnWorker, fetchSource, branchId, onKernelReady } = options
   const specs = liveBehaviourSources(archive.events, stopAt)
 
   // Block If : un comportement vivant sans source est irrécupérable. On refuse
@@ -79,8 +94,12 @@ export async function hydrateKernel(
     throw new Error(`behaviour source missing in stream: "${orphan.name}"`)
   }
 
-  const kernel = createKernel()
+  const kernel = createKernel(branchId !== undefined ? { branchId } : {})
   try {
+    // Avant tout chargement : un store de branche s'abonne ici, de sorte que la
+    // re-matérialisation qui suit soit la première chose qu'il reçoit, et qu'il
+    // ne soit jamais nourri que par ce kernel (AD-38).
+    onKernelReady?.(kernel)
     for (const spec of specs) {
       const made = await behaviourComponent(
         {
