@@ -117,7 +117,9 @@ def test_spans_come_out_in_the_order_they_opened() -> None:
 
 def test_the_route_returns_a_shape_a_collector_accepts() -> None:
     store = InMemoryRunStore()
-    store.put("un", run(created("maitre", 0)))
+    store.put("un", run(created("maitre", 0)), "org")
+    # Partagé pour la lecture anonyme : on teste la forme de la trace, pas l'accès.
+    store.share("un", "org")
     client = TestClient(create_app(key="clé", call=None, runs=store))
 
     body = client.get("/runs/un/trace").json()
