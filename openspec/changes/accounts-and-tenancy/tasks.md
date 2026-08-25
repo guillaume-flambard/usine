@@ -35,7 +35,7 @@
 
 ## 8. Full-suite verification
 
-- [ ] 8.1 Run `pnpm lint && pnpm type-check && pnpm test && pnpm test:browser && pnpm test:api && pnpm build`. Verify: all green; `openspec validate accounts-and-tenancy --strict` passes; cordis boundary intact.
+- [x] 8.1 Run `pnpm lint && pnpm type-check && pnpm test && pnpm test:browser && pnpm test:api && pnpm build`. Verify: all green; `openspec validate accounts-and-tenancy --strict` passes; cordis boundary intact.
 
 ## 9. Infra (user actions, out of code scope — documented, not blocking CI)
 
