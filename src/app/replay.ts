@@ -68,21 +68,46 @@ interface Trace {
   released: boolean
 }
 
+/** Un comportement vivant à un point du flux : son nom, sa version, son code. */
+export interface LiveBehaviourSource {
+  /** Le nom du comportement, hors du préfixe `behaviour:`. */
+  name: string
+  /** Comptée, jamais lue : v1 à la naissance, +1 par remplacement qui a pris. */
+  version: number
+  /**
+   * Le code porté par le dernier `build.source` du composant vivant — celui
+   * qu'il faut recompiler. `undefined` quand le flux ne l'a jamais porté ; à
+   * l'appelant de décider si c'est fatal (le fork rejette, cf. AD-49).
+   */
+  source?: string
+}
+
 /**
- * Les comportements encore vivants à la fin du run, recompilés.
+ * Les comportements vivants à un point N du flux, avec leur version comptée et
+ * leur dernière source.
  *
- * La version n'est pas lue dans l'événement : elle est **comptée**. Un
- * comportement naît en v1 et prend un cran à chaque remplacement qui a pris —
- * ce qui est exactement ce que le flux raconte, sans champ à faire confiance.
+ * C'est le patron partagé du rejeu et du fork (AD-45) : on re-réduit le préfixe
+ * `sequence <= stopAt` — tout le flux quand `stopAt` est absent — et on en tire
+ * l'ensemble vivant. Un comportement est vivant s'il a été créé avec un
+ * `provides` `behaviour:*` et **pas relâché** à N (release, remplacement, ou
+ * chute). Sa version n'est pas lue dans un champ : elle est **comptée**, un cran
+ * par `component-replaced` qui a pris. Sa source est le dernier `build.source`
+ * du composant qui la porte.
  */
-export async function behavioursFromArchive(
-  archive: RunArchive,
-  spawn?: SpawnWorker,
-): Promise<readonly Behaviour[]> {
+export function liveBehaviourSources(
+  events: readonly RunEvent[],
+  stopAt?: number,
+): readonly LiveBehaviourSource[] {
+  // Borné par `sequence`, jamais par indice (AD-36) : le préfixe est le sous-
+  // ensemble `sequence <= stopAt`. On le trie par `sequence` avant de réduire :
+  // le comptage suppose l'ordre du flux, et on ne fait pas confiance à
+  // l'appelant pour l'avoir gardé (une archive relue l'est, un tableau nu non).
+  const bounded = stopAt === undefined ? events : events.filter((event) => event.sequence <= stopAt)
+  const prefix = [...bounded].sort((a, b) => a.sequence - b.sequence)
   const traces = new Map<string, Trace>()
   const versions = new Map<string, number>()
 
-  for (const event of archive.events) {
+  for (const event of prefix) {
     switch (event.type) {
       case 'component-created': {
         const key = event.provides.map(behaviourName).find((name) => name !== undefined)
@@ -124,16 +149,39 @@ export async function behavioursFromArchive(
     }
   }
 
-  const live: Behaviour[] = []
+  const live: LiveBehaviourSource[] = []
   for (const trace of traces.values()) {
-    if (trace.released || trace.key === undefined || trace.source === undefined) continue
-    const made = await createIsolate(trace.source, spawn)
+    if (trace.released || trace.key === undefined) continue
+    live.push({
+      name: trace.key,
+      version: versions.get(trace.key) ?? 1,
+      ...(trace.source !== undefined ? { source: trace.source } : {}),
+    })
+  }
+  return live
+}
+
+/**
+ * Les comportements encore vivants à la fin du run, recompilés.
+ *
+ * Le parcours du flux — vivants, versions comptées, dernière source — vit dans
+ * `liveBehaviourSources` ; ici on ne fait que le consommer et recompiler ce qui
+ * porte une source.
+ */
+export async function behavioursFromArchive(
+  archive: RunArchive,
+  spawn?: SpawnWorker,
+  stopAt?: number,
+): Promise<readonly Behaviour[]> {
+  const live: Behaviour[] = []
+  for (const spec of liveBehaviourSources(archive.events, stopAt)) {
+    if (spec.source === undefined) continue
+    const made = await createIsolate(spec.source, spawn)
     if (!('isolate' in made)) continue
-    const name = trace.key
     const isolate = made.isolate
     live.push({
-      name,
-      version: versions.get(name) ?? 1,
+      name: spec.name,
+      version: spec.version,
       call: (input) => isolate.run(input),
     })
   }
@@ -143,12 +191,36 @@ export async function behavioursFromArchive(
 export interface ReplayOptions {
   /** Le pas entre deux événements. Zéro rejoue d'un bloc. */
   paceMs?: number
-  /** Appelé avant chaque pause, pour laisser l'interface respirer. */
+  /** Arrête le rejeu quand il est déclenché : le puits ne reçoit plus rien. */
   signal?: AbortSignal
+  /**
+   * Le point de fork : ne rejouer que les événements de `sequence <= stopAt`,
+   * puis rendre la main. Absent, le flux est rejoué en entier. Le point est un
+   * `sequence` entier (le kernel les numérote à partir de 1), jamais un indice —
+   * c'est lui qui est adressable et stable (AD-36) ; un flux relu est trié par
+   * `sequence` (AD-33), donc borner par `sequence` est déterministe.
+   */
+  stopAt?: number
+}
+
+/** Ce qu'un rejeu rapporte : jusqu'où il est allé, et s'il a atteint la fin. */
+export interface ReplayOutcome {
+  /**
+   * Vrai si tout le flux a été émis (ni `stopAt` ni `signal` ne l'ont écourté).
+   * Un `stopAt` au-delà du dernier `sequence` rejoue tout et rend `true` ; on
+   * détecte alors « point de fork jamais atteint » par `lastSequence < stopAt`.
+   */
+  reachedEnd: boolean
+  /**
+   * Le `sequence` du dernier événement émis ; `0` si rien n'a été émis. Sans
+   * ambiguïté avec un vrai événement, puisque le kernel numérote à partir de 1.
+   */
+  lastSequence: number
 }
 
 /**
- * Rejoue le flux dans un puits, à la cadence demandée.
+ * Rejoue le flux dans un puits, à la cadence demandée, éventuellement borné à
+ * un point de fork.
  *
  * La cadence est cosmétique et le reste : rejouer d'un bloc donne exactement
  * le même modèle de lecture. Elle existe pour qu'un rejeu se regarde comme un
@@ -158,12 +230,20 @@ export async function replayInto(
   archive: RunArchive,
   emit: (event: RunEvent) => void,
   options: ReplayOptions = {},
-): Promise<boolean> {
+): Promise<ReplayOutcome> {
   const pace = options.paceMs ?? 0
+  const { stopAt } = options
+  let lastSequence = 0
   for (const event of archive.events) {
-    if (options.signal?.aborted === true) return false
+    if (options.signal?.aborted === true) return { reachedEnd: false, lastSequence }
+    // Borné par `sequence`, pas par indice : dès qu'un événement dépasse le
+    // point de fork, on s'arrête sans l'émettre. Le préfixe n'est pas muté.
+    if (stopAt !== undefined && event.sequence > stopAt) {
+      return { reachedEnd: false, lastSequence }
+    }
     emit(event)
+    lastSequence = event.sequence
     if (pace > 0) await new Promise((next) => setTimeout(next, pace))
   }
-  return true
+  return { reachedEnd: true, lastSequence }
 }

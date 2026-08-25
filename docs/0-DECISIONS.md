@@ -2,8 +2,24 @@
 
 Source de vérité pour le PRD BMAD. Décidé avec Guillaume le 2026-08-20. Prime sur les autres docs de `docs/` en cas de conflit.
 
+> **Cible produit changée le 2026-08-24 (`7-MIGRATION.md`).** Le produit devient
+> **l'atelier de pré-prod qui forke la timeline** : l'entrée n'est plus « écris
+> un brief, l'usine construit un outil » mais « importe/rejoue la trajectoire
+> d'un agent qui a planté ». Le run **forke**, remplace l'agent à chaud sur la
+> branche, et montre deux futurs sous porte humaine avant la prod. Le moteur,
+> les décisions ci-dessous (Cordis, composition réelle, porte humaine,
+> frugalité) sont **conservés tels quels** : ce sont les primitives de l'atelier.
+> Deux garde-fous d'honnêteté (voir `7-MIGRATION.md` et `CLAUDE.md`) : le
+> rollback est *intra-runtime* (prévenir avant, pas réparer après) ; on tient une
+> **primitive**, pas une « plateforme de fiabilité ».
+
 ## Ce qu'on construit
-**Un vrai produit**, pas une démo. Une **usine agentique** : l'utilisateur écrit un **prompt (un brief)** → le système **crée réellement des agents** qui se connectent, **tournent pour de vrai et parlent** (streament leurs messages), passent une **porte humaine**, et produisent un **vrai produit fonctionnel** en sortie.
+**Un vrai produit**, pas une démo. Historiquement une **usine agentique** :
+l'utilisateur écrit un **brief** → le système **crée réellement des agents** qui
+se connectent, **tournent pour de vrai et parlent**, passent une **porte
+humaine**. *Depuis le 2026-08-24*, ce même moteur sert l'**atelier de pré-prod** :
+on rejoue une trajectoire d'agent, on la **forke**, on remplace un agent à chaud
+sur la branche, et on prévisualise deux futurs sous porte humaine.
 
 Ce qu'on **jette** : le run scripté par timers (la version « démo/théâtrale » déjà portée dans `src/usine/run.ts`). On garde le **design system** et la coquille visuelle, on remplace le faux moteur par le vrai.
 
@@ -20,7 +36,7 @@ Ce qu'on **jette** : le run scripté par timers (la version « démo/théâtrale
 ## UI
 - **100vh, app plein écran** — PAS la page éditoriale qui scrolle. Layout app : **prompt/chat à gauche, panneau vivant (graphe + agents qui parlent) à droite** (esprit Claude Desktop).
 - **Design system Memo Labs** conservé : crème `#faf9f7`, encre `#16130f`, terracotta `#ad4c16`, Oswald, coins carrés, minimaliste. (Voir `3-CLAUDE-DESIGN-BRIEF.md` + `src/assets/usine.css` déjà porté.)
-- **L'application est réelle et vivante** — *révisé le 2026-08-24* : plus un « payoff » figé à la fin du run, mais une application posée tôt, utilisée pendant le run, et refaite à chaud **en réponse à ce que le visiteur en fait**. Code réel, sources réelles. Brief-agnostique : un classifieur de conformité (type ClaimCheck) reste un cas d'usage exemplaire, pas la forme obligée du produit.
+- **La scène montre la divergence** — *révisé le 2026-08-24 (cible atelier)* : la zone vivante devient **deux panneaux côte à côte** (tronc et branche), chacun avec **sa porte** (valide/rejette la branche) et un bandeau de comparaison (métriques diffées, `evaluation.py`). La divergence se montre *dans* la scène, pas dans une zone de plus. L'application vivante/réactive antérieure reste un cas d'usage du même moteur, pas le produit.
 
 ## Stack
 - **Vue 3 + TypeScript** (scaffoldé via `create-vue`), **Vite**, **pnpm partout**. ESLint/oxlint + Prettier. Strict TS.

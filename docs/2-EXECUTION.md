@@ -63,15 +63,26 @@ Ce qui a été **jeté** : le run choréographié par timers de `src/usine/run.t
 
 ## Le user flow
 
-1. **Le brief** : un champ pré-rempli, modifiable.
-2. **Lancer l'usine** : un bouton. Premier signe de vie en moins de 1,5 s.
-3. **L'application apparaît, et on s'en sert** : en quelques secondes un écran et un premier comportement sont posés. Le visiteur s'en sert **pendant** que le run continue — il ne regarde pas un chantier, il utilise un outil.
-4. **Elle mue autour de l'usage** : à mesure que le visiteur tape, les agents refont les comportements à chaud, en réponse à ce qu'il en fait, sans qu'il perde sa session. Le graphe reste consultable comme preuve (nœuds, états réels, artefacts), mais replié : l'application est le protagoniste.
+> **Cible atelier — révisé le 2026-08-24 (`7-MIGRATION.md`).** L'entrée n'est
+> plus un brief « construis un outil » : c'est **l'import/rejeu d'une trajectoire
+> d'agent qui a planté**. Le run ne fabrique plus une app — il **forke** et
+> prévisualise deux futurs. Même moteur, autre récit.
 
-> **Révisé le 2026-08-24.** L'ancien user flow plaçait « le payoff » — un
-> vérificateur figé — à la fin. Le produit est brief-agnostique et vivant : la
-> valeur est la mue en usage, pas un livrable terminal. La conformité des
-> allégations reste un brief exemplaire, pas l'aboutissement obligé.
+1. **Importer/rejouer une trace** : on charge une trajectoire d'agent qui a
+   échoué (rejeu déterministe de l'**état**, pas des logs).
+2. **Rejouer jusqu'à l'événement N** : on s'arrête à l'instant du problème — le
+   `sequence` du flux rend ce point adressable.
+3. **Forker la timeline** : à partir de N, une branche vivante diverge du tronc.
+4. **Hot-swap l'agent sur la branche** : on remplace l'agent/comportement à
+   chaud (`kernel.replace`, réversible), sans toucher au tronc.
+5. **Deux futurs côte à côte** : le graphe live montre la divergence ; un bandeau
+   compare les branches (métriques diffées, cf. `services/api/.../evaluation.py`).
+6. **La porte : valide ou rejette la branche** — avant de pousser en prod.
+
+> **Honnêteté à tenir en démo** : le rollback est *intra-runtime* (il restaure la
+> composition, pas un effet externe déjà parti). On vend « **prévenir avant** »
+> (porte + branche sandbox), pas « réparer après ». Et on n'est pas une
+> plateforme de fiabilité : une **primitive** (réversibilité + fork visuel).
 
 ## Les étapes de build
 
@@ -84,14 +95,22 @@ Faisabilité navigateur vérifiée, coeffect réactif prouvé, cascade et réver
 Moteur de run, flux d'événements typés, graphe projeté depuis la topologie réelle, narration, artefacts consultables, porte humaine.
 **Porte** : un run complet réel, de bout en bout, sans LLM.
 
-### Phase 2 — L'application vivante et réactive
+### Phase 2 — L'atelier qui forke la timeline (cible, `7-MIGRATION.md`)
 
-L'application sert pendant le run ; les agents la refont à chaud, et — depuis le
-2026-08-24 — **en réponse à ce que le visiteur en fait**, sans qu'il perde sa
-session. La conformité des allégations reste un cas d'usage exemplaire, réel,
-déterministe et sourcé, mais brief-agnostique.
-**Porte** : un visiteur se sert de l'application, la voit muer autour de ce qu'il
-tape, et ne perd rien à aucun remplacement.
+Les primitives sont là et testées : rejeu déterministe depuis le flux (AD-33),
+hot-swap réversible avec rollback (`kernel.performReplacement`), porte humaine,
+graphe live, harnais d'éval (`evaluation.py`). L'étape précédente — l'application
+vivante et réactive — a **construit ces primitives** ; elle passe au second plan
+comme cas d'usage, pas comme produit.
+
+**Le fork gap (travail neuf, load-bearing)** : hydrater un **kernel vivant depuis
+un préfixe de flux** (aujourd'hui `behavioursFromArchive` reconstruit des
+comportements *sans* kernel, donc `kernel.replace` n'aurait rien à remplacer sur
+une branche). Le reste est du câblage additif : `stopAt` sur `replayInto`, un mode
+fork du pilot (rejoué-puis-vivant), un second store, une scène à deux panneaux,
+une porte par branche.
+**Porte** : sur une trace rejouée, on forke à N, on remplace un agent à chaud sur
+la branche, et les deux futurs divergent visiblement, chacun sous sa porte.
 
 ### Phase 3 — LLM branchable
 

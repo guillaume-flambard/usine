@@ -1,20 +1,42 @@
 # L'usine agentique
 
-Une page où un visiteur écrit un besoin et regarde des agents — qui n'existaient
-pas — faire naître une application utilisable en quelques secondes, puis **la
-remplacer à chaud pendant qu'il s'en sert, en réponse à ce qu'il en fait**, sans
-qu'il perde ce qu'il a fait.
+**Un atelier de pré-production pour les équipes qui ont des agents en prod et ont
+peur de les changer.** On y rejoue la trajectoire d'un agent qui a échoué, on
+**forke la timeline**, on remplace l'agent **à chaud sur la branche**, et on
+regarde les deux futurs diverger côte à côte — avant de pousser en prod. La porte
+humaine valide ou rejette la branche ; le rejeu déterministe est le time-travel
+de l'**état** (pas des logs) ; le graphe live rend la divergence regardable.
 
-C'est la pièce phare de Memo Labs, sur `usine.memolabs.dev`.
+C'est la pièce phare de Memo Labs, sur `usine.memolabs.dev`. **Cible produit
+courante : `docs/7-MIGRATION.md`.**
 
-Le produit ne démontre pas « une IA qui écrit du code ». Il démontre **un
-système qui se modifie pendant qu'il sert** — la thèse de *A Programming
-Paradigm for Spatiotemporal Composability* (Shi, Zhang, Cui — PKU / DeepSeek-AI),
-dont Cordis est l'implémentation. Le hot-swap n'est pas le décor du chantier :
-c'est **la valeur que l'utilisateur final ressent en usage** — l'outil mue
-autour de lui, et son travail survit à chaque changement (l'angle est dans
-`docs/5-ANGLE.md`). Toute décision se juge à l'aune de ça : si un changement rend
-cette démonstration moins visible, il coûte plus qu'il ne rapporte.
+Le produit ne démontre pas « une IA qui écrit du code ». Il répond à une peur qui
+se paie cher (Gartner : >40 % des projets d'agents annulés d'ici 2027 pour
+coût/risque) : **tester le correctif d'un agent sur la vraie trajectoire qui a
+planté, en dix secondes, avant de le déployer.** La prouesse — forker, remplacer
+à chaud, revenir en arrière proprement sous une porte humaine — est la thèse de
+*A Programming Paradigm for Spatiotemporal Composability* (Shi, Zhang, Cui —
+PKU / DeepSeek-AI), dont Cordis est l'implémentation. Toute décision se juge à
+l'aune de ça : si un changement rend cette démonstration moins visible ou moins
+regardable, il coûte plus qu'il ne rapporte.
+
+**Deux garde-fous d'honnêteté, à ne jamais transgresser (voir `docs/7`) :**
+
+1. **Le rollback est *intra-runtime*.** Il restaure la composition de l'agent —
+   **pas** les effets de bord externes (une base supprimée, un e-mail parti, un
+   virement émis). On ne laisse jamais croire l'inverse. On se différencie sur
+   l'axe du temps : **prévenir avant** (porte humaine + branche sandbox pour
+   prévisualiser l'action irréversible), pas *réparer après*.
+2. **Jamais « plateforme de fiabilité » ni « control plane ».** L'éval /
+   observabilité est un cimetière surcapitalisé, le control plane est revendiqué
+   par les hyperscalers. On tient **une primitive** — réversibilité runtime +
+   fork visuel — pas une plateforme. Le fork/hot-swap est le wahou de démo ; le
+   marché prouvé est la simulation/qualité d'agents. Ne pas confondre les deux.
+
+L'angle précédent — « l'application qui mue » (`docs/5-ANGLE.md`) — est **passé
+au second plan** : ses primitives (rejeu déterministe, hot-swap réversible, porte
+humaine, graphe live, harnais d'éval) sont exactement ce sur quoi l'atelier est
+bâti. Rien n'est jeté ; le récit change.
 
 ## Manifest
 
@@ -87,6 +109,11 @@ Quatre zones, et **pas une de plus** : marque + ligne d'état, conversation,
 composeur, scène. L'erreur déjà commise une fois — et à ne pas refaire — est
 d'attribuer un bloc visible à chaque nouvelle fonctionnalité ; on est monté à
 quatorze avant de refondre.
+
+> **Cible atelier (`docs/7`) :** la scène accueillera **deux panneaux divergents
+> côte à côte** (les deux futurs), chacun avec **sa porte** (valide/rejette la
+> branche) et un bandeau de comparaison de branches. La divergence se montre
+> *dans* la scène, pas dans une cinquième zone.
 
 `_bmad-output/planning-artifacts/ux-designs/ux-usine-2026-08-20/DESIGN.md` porte
 les jetons, les composants et les règles d'honnêteté : chaque élément à l'écran

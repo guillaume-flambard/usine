@@ -8,13 +8,14 @@
 import { computed, shallowRef, type Ref } from 'vue'
 import { liveLayout, topologySignature, type Layout } from '../state/layout'
 import { createStore, type RunStore } from '../state/store'
-import { createKernel, type Kernel } from '../runtime/kernel'
+import { createKernel, mintBranchId, type Kernel } from '../runtime/kernel'
+import { hydrateKernel } from '../app/fork'
 import { deterministicReasoner, type Reasoner, type ReasoningOrigin } from '../runtime/reasoner'
 import type { Budget, Worksite } from '../agents/free-agent'
 import type { SpawnWorker } from '../app/isolate'
 import type { SourceFetcher } from '../app/sources'
 import { liveBehaviours, startFactory } from './factory'
-import { behaviourKey, type Behaviour } from '../app/behaviour'
+import { behaviourComponent, behaviourKey, type Behaviour } from '../app/behaviour'
 import { createSession, type Interaction, type Session } from '../app/session'
 import {
   archiveOf,
@@ -33,6 +34,74 @@ export type RunPhase =
   | 'Terminé'
   | 'Incident'
   | 'Libéré'
+
+/**
+ * Le tronc d'un fork : un *recording* sans kernel (AD-48).
+ *
+ * Son modèle de lecture est le préfixe `[1..N]` re-réduit dans son propre store
+ * (AD-45) ; rien ne le fait bouger après le fork, il n'a pas de noyau vivant.
+ */
+export interface Trunk {
+  readonly store: RunStore
+  /**
+   * Les comportements du tronc **recompilés à N** depuis le flux — de quoi
+   * montrer son application vivante à N à côté de la branche. Le tronc est un
+   * recording : ces comportements n'ont pas de kernel, ils répondent, on ne les
+   * remplace pas (AD-37/48).
+   */
+  readonly behaviours: readonly Behaviour[]
+  /** L'écran tel qu'il était à N, réduit depuis le préfixe. */
+  readonly screen: { markup: string; revision: number }
+}
+
+/**
+ * Une branche d'un fork : un kernel vivant hydraté à N, avec son propre store
+ * (AD-38).
+ *
+ * Son store est nourri **uniquement** par le flux de son kernel : la
+ * re-matérialisation des comportements vivants à N, puis la divergence — une
+ * seule population d'événements, tous estampillés `branchId` (AD-44). Il ne
+ * porte donc ni l'écran ni l'historique d'agents d'avant le fork (le préfixe
+ * reste la vue du tronc) ; le panneau de branche réensemencera l'écran à N
+ * (story 6). Un remplacement à chaud (AD-31) opère sur `kernel` sans jamais
+ * toucher le modèle de lecture du tronc.
+ */
+export interface Branch {
+  /** L'identité opaque de la branche, mintée par le runtime (AD-43). */
+  readonly branchId: string
+  readonly store: RunStore
+  readonly kernel: Kernel
+  /** Les comportements vivants à N, prêts à être appelés ou remplacés. */
+  readonly behaviours: readonly Behaviour[]
+  /**
+   * L'écran de la branche : réensemencé depuis celui du tronc à N (le store de
+   * branche ne re-réduit pas le préfixe, il ne le porte donc pas). L'application
+   * de la branche part de l'écran qu'elle avait à N, puis diverge.
+   */
+  readonly screen: { markup: string; revision: number }
+  /**
+   * Le flux propre de la branche, estampillé `branchId` : `branch-forked`
+   * d'abord (AD-44), puis chaque événement que son kernel émet ensuite. C'est ce
+   * qui rend l'archive d'une branche auto-descriptive — elle référence le tronc
+   * par id + N sans recopier le préfixe.
+   */
+  stream(): readonly RunEvent[]
+  /**
+   * Remplace à chaud un comportement de la branche par une nouvelle version, à
+   * partir de N (AD-31/37), sans jamais toucher le tronc. Rend `true` si la
+   * nouvelle version a pris ; `false` si le nom est inconnu, si le code ne
+   * compile pas, ou si le remplacement est retombé — auquel cas la version
+   * précédente continue de servir (le rollback est celui, déjà éprouvé, du
+   * kernel).
+   */
+  replace(name: string, code: string): Promise<boolean>
+}
+
+/** Ce que rend un fork : un tronc et une branche, deux read models isolés. */
+export interface Fork {
+  readonly trunk: Trunk
+  readonly branch: Branch
+}
 
 export interface Pilot {
   readonly store: RunStore
@@ -91,6 +160,20 @@ export interface Pilot {
    * the same views, and behaviours recompiled in the same isolated thread.
    */
   replay(archive: RunArchive, paceMs?: number): Promise<void>
+  /**
+   * Forke une archive maison au point `at` (le `sequence` N, AD-36) : rend un
+   * tronc et une branche coexistants, deux read models isolés.
+   *
+   * Le tronc est un store sans kernel réduit sur `[1..N]` (AD-48) ; la branche
+   * est un kernel hydraté à N (AD-49), estampillé d'un `branchId` opaque
+   * (AD-43), dont le store est nourri uniquement par le flux de ce kernel
+   * (AD-38) : la re-matérialisation à N puis la divergence. Le premier événement
+   * de la branche est un `branch-forked` portant `{trunkId, from:N, offset}`
+   * (AD-44/46). Lève si `at` ne désigne aucun événement (hors bornes).
+   * N'utilise que des factories fraîches : ni le store ni le kernel du pilote ne
+   * sont touchés (aucun singleton).
+   */
+  fork(archive: RunArchive, at: number): Promise<Fork>
   /**
    * Déclare les sources branchables, et comment on va les chercher.
    *
@@ -280,6 +363,120 @@ export function createPilot(options: PilotOptions = {}): Pilot {
         paceMs,
         signal: replayAbort.signal,
       })
+    },
+    async fork(archive, at) {
+      // Deux identités opaques, mintées par le runtime (AD-43) : l'une nomme le
+      // recording (tronc) que la branche référence, l'autre estampe la branche.
+      // Deux forks du même N obtiennent donc deux `branchId` distincts.
+      const trunkId = mintBranchId()
+      const branchId = mintBranchId()
+
+      // La borne du fork : le dernier événement du préfixe `sequence <= N`. On la
+      // cherche par `sequence` (robuste à un flux non trié, ou à un N qui tombe
+      // entre deux `sequence`, ou au-delà de la fin — on clampe alors au dernier).
+      let boundary: RunEvent | undefined
+      for (const event of archive.events) {
+        if (event.sequence > at) continue
+        if (boundary === undefined || event.sequence > boundary.sequence) boundary = event
+      }
+      // Aucun événement sous le point demandé (N < 1, ou en deçà du premier) : il
+      // n'y a rien à forker. On rejette plutôt que de deviner un point vide.
+      if (boundary === undefined) throw new Error(`fork point out of range: ${at}`)
+      // `from` et `offset` décrivent le même point réel : la vraie borne, pas le
+      // `at` brut demandé. L'offset aligne les deux axes de temps (AD-46).
+      const from = boundary.sequence
+      const offset = boundary.at
+
+      // Le tronc : un store sans kernel, nourri par le préfixe `[1..N]` (AD-48).
+      const trunkStore = createStore()
+      await replayInto(archive, trunkStore.receive, { stopAt: at })
+      // Les comportements du tronc recompilés à N : de quoi montrer son
+      // application vivante à côté de la branche. Un recording, pas un kernel.
+      const trunkBehaviours = await behavioursFromArchive(
+        archive,
+        options.spawnWorker,
+        at,
+      )
+      const trunkScreen = trunkStore.state.value.screen
+
+      // La branche : un store nourri **uniquement** par le flux de son kernel
+      // (AD-38). Il ne re-réduit pas le préfixe d'archive — sinon les composants
+      // du préfixe et ceux que le kernel re-matérialise à N entreraient en
+      // collision (ids doublés, `lastSequence` qui recule). Le store s'abonne
+      // dans `onKernelReady`, avant les chargements : il capte donc la
+      // re-matérialisation d'hydratation, puis la divergence, en une seule
+      // population d'événements monotone.
+      const branchStore = createStore()
+      const branchStream: RunEvent[] = []
+      const hydrated = await hydrateKernel(archive, {
+        stopAt: at,
+        branchId,
+        onKernelReady: (kernel) => {
+          kernel.subscribe((event) => branchStream.push(event))
+          branchStore.connect(kernel)
+          // Émis avant tout chargement : `branch-forked` est ainsi le premier
+          // événement de la branche (AD-44), devant la re-matérialisation.
+          kernel.noteFork({ trunkId, from, offset })
+        },
+        ...(options.spawnWorker !== undefined ? { spawnWorker: options.spawnWorker } : {}),
+        ...(options.fetchSource !== undefined ? { fetchSource: options.fetchSource } : {}),
+      })
+
+      // La version vivante de chaque comportement de la branche, suivie ici : un
+      // remplacement qui prend la fait monter d'un cran, comme pendant un run.
+      const versions = new Map(hydrated.behaviours.map((live) => [live.name, live.version]))
+
+      async function replaceOnBranch(name: string, code: string): Promise<boolean> {
+        const current = versions.get(name)
+        if (current === undefined) return false
+        const version = current + 1
+        // Compilé avant de toucher le kernel : un code qui ne s'évalue pas en
+        // fonction est refusé ici, pas plus tard comme un composant tombé.
+        const made = await behaviourComponent(
+          { name, version, code, author: 'branche' },
+          options.spawnWorker,
+          options.fetchSource,
+        )
+        if (!('component' in made)) return false
+        // Le composant vivant qui porte ce comportement, par sa clé de coeffet.
+        const key = behaviourKey(name)
+        const holder = hydrated.kernel
+          .inspect()
+          .components.find((component) => component.state === 'active' && component.provides.includes(key))
+        if (holder === undefined) return false
+        const id = await hydrated.kernel.replace(holder.id, made.component, {
+          specification: `comportement : ${name}\nversion : ${version}\nbranche`,
+          source: code,
+          route: 'evaluation',
+        })
+        // `undefined` = la nouvelle version est retombée ; le kernel a remis la
+        // précédente (AD-31). On ne fait pas monter le compteur de version.
+        if (id === undefined) return false
+        versions.set(name, version)
+        return true
+      }
+
+      return {
+        trunk: {
+          store: trunkStore,
+          behaviours: trunkBehaviours,
+          // Une copie : le store peut repartir, le fork garde l'écran figé à N.
+          screen: { ...trunkScreen },
+        },
+        branch: {
+          branchId,
+          store: branchStore,
+          kernel: hydrated.kernel,
+          behaviours: hydrated.behaviours,
+          // Réensemencé depuis le tronc à N : la branche part du même écran,
+          // puis diverge.
+          screen: { ...trunkScreen },
+          // Une copie : le flux interne continue de grandir, l'appelant en reçoit
+          // un instantané figé qu'il ne peut pas muter.
+          stream: () => [...branchStream],
+          replace: replaceOnBranch,
+        },
+      }
     },
     screen() {
       // From the read model, not from the worksite: a replayed run has no

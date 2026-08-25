@@ -107,13 +107,40 @@ export interface Kernel {
    * claim.
    */
   noteVisitorInteraction(
-    observation: Omit<VisitorInteracted, 'type' | 'sequence' | 'at'>,
+    observation: Omit<VisitorInteracted, 'type' | 'sequence' | 'at' | 'branchId'>,
   ): void
+  /**
+   * Records that this kernel's stream is a branch forked from a trunk at N.
+   * Emitted like any event, so it is stamped with the kernel's `branchId`
+   * (AD-44): called right after the branch's store connects and before anything
+   * else, it is the first branch-stamped event the store sees.
+   */
+  noteFork(fork: { trunkId: string; from: number; offset: number }): void
   /** Subscribes to the stream. Returns the unsubscribe function. */
   subscribe(subscriber: Subscriber): Teardown
 }
 
-export function createKernel(): Kernel {
+/**
+ * Mints an opaque branch identity (AD-43). Runtime-only: nobody else is allowed
+ * to mint one, so two units can never disagree on its shape. Opaque and
+ * independent of `sequence`/N — two forks taken at the same N get two distinct
+ * ids.
+ */
+export function mintBranchId(): string {
+  return crypto.randomUUID()
+}
+
+export interface KernelOptions {
+  /**
+   * The branch this kernel produces events for (AD-43). Absent means the trunk:
+   * a trunk has no kernel (AD-48), but a kernel with no branch — a home run —
+   * emits unstamped events, exactly as before this existed.
+   */
+  branchId?: string
+}
+
+export function createKernel(options: KernelOptions = {}): Kernel {
+  const { branchId } = options
   const root = new Context()
   const entries = new Map<ComponentId, Entry>()
   /** Who actually publishes which name. */
@@ -154,7 +181,15 @@ export function createKernel(): Kernel {
       return
     }
     sequence += 1
-    broadcast({ ...event, sequence, at: Date.now() - startedAt } as RunEvent)
+    broadcast({
+      ...event,
+      sequence,
+      at: Date.now() - startedAt,
+      // Stamped only when this kernel belongs to a branch: a trunk-less home run
+      // keeps emitting unstamped events, and a branch marks every one of its own
+      // so the effective key stays `(branchId, sequence)` (AD-44).
+      ...(branchId !== undefined ? { branchId } : {}),
+    } as RunEvent)
   }
 
   /**
@@ -180,7 +215,13 @@ export function createKernel(): Kernel {
     if (event.type === 'subscriber-failed') return
     for (const message of incidents) {
       sequence += 1
-      broadcast({ type: 'subscriber-failed', message, sequence, at: Date.now() - startedAt })
+      broadcast({
+        type: 'subscriber-failed',
+        message,
+        sequence,
+        at: Date.now() - startedAt,
+        ...(branchId !== undefined ? { branchId } : {}),
+      })
     }
   }
 
@@ -694,6 +735,14 @@ export function createKernel(): Kernel {
     pendingGates: () => [...gates.keys()],
     noteVisitorInteraction(observation) {
       emit({ type: 'visitor-interacted', ...observation })
+    },
+    noteFork(fork) {
+      emit({
+        type: 'branch-forked',
+        trunkId: fork.trunkId,
+        from: fork.from,
+        offset: fork.offset,
+      })
     },
     subscribe(subscriber: Subscriber): Teardown {
       subscribers.add(subscriber)

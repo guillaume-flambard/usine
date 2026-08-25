@@ -63,14 +63,14 @@ Le wahou vient du graphe qui pousse, de la largeur des technologies mobilisées 
    - disposition automatique en couches de gauche à droite, sans chevauchement.
 5. **La narration live** : **une seule ligne**, grande, calme (Oswald 300). Chaque message remplace le précédent. Pas d'empilement, pas de défilement, pas de terminal dense.
 6. **Le panneau d'artefact** : ce que l'agent a réellement écrit — découpage en histoires, spécification, décision d'architecture — et, pour un composant fabriqué, sa spécification et son code côte à côte.
-7. **La porte humaine** : deux boutons carrés (Approuver / Écarter), accompagnés de ce sur quoi porte la décision et de l'objection du sceptique. Écarter doit **montrer la rétractation** dans le graphe, pas le figer.
-8. **L'application vivante (le protagoniste)** — *révisé le 2026-08-24* : plus un bloc « payoff » qui apparaît à la fin, mais l'application elle-même, posée tôt dans le run et **utilisée pendant qu'il continue**. Le visiteur s'en sert ; les agents la refont à chaud **autour de ce qu'il en fait**, sans qu'il perde sa session. Elle doit **fonctionner** (code réel, sources réelles). Un compteur honnête — « N remplacements à chaud · 0 redémarrage · M interactions conservées » — dit ce que la mue lui a épargné. La conformité des allégations reste un cas d'usage exemplaire, pas la forme obligée : le produit est brief-agnostique.
+7. **La porte humaine, par branche** — *révisé le 2026-08-24 (cible atelier)* : deux boutons carrés (Valide / Rejette **cette branche**), accompagnés de ce sur quoi porte la décision et de l'objection du sceptique. Rejeter doit **montrer la rétractation** dans le graphe de la branche, pas le figer.
+8. **La scène de divergence (le protagoniste)** — *révisé le 2026-08-24 (`7-MIGRATION.md`)* : plus une application unique, mais **deux panneaux côte à côte** — le **tronc** (la trajectoire rejouée) et la **branche** (après fork + hot-swap de l'agent à l'instant N). Chacun montre son graphe live et l'état de son application ; la divergence se lit en les comparant. Un **bandeau de comparaison** diffe des métriques réelles entre branches (part servie, remplacements, rang du premier écran, tokens — `services/api/.../evaluation.py`). Honnêteté : la réversibilité montrée est *intra-runtime* ; l'argument est « prévenir avant » (fork sandbox sous porte), jamais « annuler un effet externe ».
 9. **L'indicateur de mode** : le mode d'exécution actif (déterministe ou LLM branché) est visible en permanence, avec une explication d'une phrase accessible en un geste.
 
 ## Contraintes techniques
 
 - Vue 3 + Vite. Thème clair unique.
-- Accessibilité : contrastes AA, parcours critique au clavier (lancer, approuver, utiliser le vérificateur), état jamais porté par la seule couleur, `prefers-reduced-motion` respecté — le run reste compréhensible sans mouvement.
+- Accessibilité : contrastes AA, parcours critique au clavier (rejouer, forker, valider/rejeter une branche), état jamais porté par la seule couleur, `prefers-reduced-motion` respecté — le run reste compréhensible sans mouvement.
 - Le graphe doit rester fluide jusqu'à une quarantaine de nœuds vivants.
 
 ## Références d'interaction

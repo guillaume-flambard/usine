@@ -49,6 +49,21 @@ Ce PRD couvre la v1 déployée le 2026-08-20 et les deux cycles qui la rendent d
 > toujours — la conformité reste un cas d'usage exemplaire, pas un beachhead
 > rouvert.
 
+> **Cible produit changée le 2026-08-24 (voir `docs/7-MIGRATION.md`).** Le
+> produit devient **l'atelier de pré-prod qui forke la timeline d'un agent** :
+> rejouer une trajectoire qui a planté, forker à l'instant du problème, remplacer
+> l'agent à chaud sur la branche, montrer deux futurs sous porte humaine avant la
+> prod. Le marché visé n'est pas « un logiciel qui mue » mais **la peur de
+> changer ses agents en prod** (Gartner : >40 % des projets annulés d'ici 2027).
+> Les invariants de ce PRD et de la spine (état hors du remplaçable, remplacement
+> réversible, rejeu depuis le flux) sont **réutilisés tels quels** comme
+> fondations du fork ; les cycles A/A′/B ci-dessus ont construit ces primitives.
+> **Fork gap** à bâtir : hydrater un kernel vivant depuis un préfixe de flux.
+> **Deux garde-fous d'honnêteté** : le rollback est *intra-runtime* (prévenir
+> avant, pas réparer après) ; on tient une **primitive**, jamais une « plateforme
+> de fiabilité » ni un « control plane ». La feuille de route (spike fork,
+> signaux recruteurs, moat OSS, import de traces externes) est dans `docs/7`.
+
 ---
 
 ## 2. Contexte et problème
