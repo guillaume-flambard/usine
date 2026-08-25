@@ -233,6 +233,10 @@ export function createPilot(options: PilotOptions = {}): Pilot {
   /** Everything the run emitted, kept so it can be stored and replayed. */
   let recorded: RunEvent[] = []
   let currentBrief = ''
+  // L'origine de ce qui est à l'écran : `foreign` pour une trace importée, sinon
+  // interne. Portée par l'archive pour que le fork reste masqué de bout en bout —
+  // à l'écran, au partage, au rechargement (AD-41/AD-49).
+  let currentOrigin: RunArchive['origin']
   let replayed: readonly Behaviour[] | undefined
   let replayAbort: AbortController | undefined
   let disconnect: (() => void) | undefined
@@ -292,6 +296,7 @@ export function createPilot(options: PilotOptions = {}): Pilot {
     replayAbort?.abort()
     replayAbort = undefined
     replayed = undefined
+    currentOrigin = undefined
     await currentKernel?.releaseAll()
     currentKernel = undefined
     currentWorksite = undefined
@@ -318,7 +323,7 @@ export function createPilot(options: PilotOptions = {}): Pilot {
       return liveBehaviours(currentKernel)
     },
     archive() {
-      return recorded.length === 0 ? undefined : archiveOf(currentBrief, recorded)
+      return recorded.length === 0 ? undefined : archiveOf(currentBrief, recorded, currentOrigin)
     },
     connectSources(sources, fetcher) {
       declaredSources = sources
@@ -353,6 +358,7 @@ export function createPilot(options: PilotOptions = {}): Pilot {
       currentSession = createSession()
       currentBrief = archive.brief
       recorded = [...archive.events]
+      currentOrigin = archive.origin
       lastError = undefined
 
       // The behaviours are rebuilt first: a visitor who reaches the end of the

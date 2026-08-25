@@ -17,6 +17,8 @@ import type { RunArchive } from '../app/replay'
 import ModelSwitch, { type ModelSource } from './ModelSwitch.vue'
 import { relayReasoner, relayState, type RelayState } from '../runtime/reasoner/relay'
 import { fetchRun, linkFor, requestedRun, storeRun } from '../app/archive-client'
+import { importTrace, isImportError } from '../app/import'
+import { measureRun } from '../app/measure'
 import { fetchEvaluation, formatEvaluation, type Evaluation } from '../app/eval-client'
 import { availableSources, serviceFetcher } from '../app/sources'
 import type { Interaction } from '../app/session'
@@ -338,6 +340,50 @@ const forkAt = ref(0)
 // mot si le code n'a pas compilé (la précédente sert toujours).
 const branchNotice = ref<string | undefined>()
 
+// La mesure d'une trace importée, lue sur son seul flux (AD-40) : les mêmes
+// chiffres que le bandeau de fork, ici pour dire ce que la trace étrangère a
+// fait. Absent hors import. Dépend de `lastSequence` pour se recalculer au fil
+// du rejeu.
+const foreignMeasure = computed(() => {
+  void state.value.lastSequence
+  const archive = pilot.archive()
+  return archive?.origin === 'foreign' ? measureRun(archive) : undefined
+})
+
+// Forkable seulement pour un run interne. Une trace importée (`origin: 'foreign'`)
+// ne porte aucun `build.source` : rien n'est recompilable, donc rien à forker ni
+// à hot-swap (AD-49). On masque la porte en amont pour ne rien promettre (AD-41).
+const forkable = computed(() => {
+  const archive = pilot.archive()
+  return archive !== undefined && archive.origin !== 'foreign'
+})
+
+// Importer une trace étrangère : la lire, la traduire, la rejouer. On ne joint
+// personne — le fichier est lu côté client — et on refuse proprement ce qu'on ne
+// reconnaît pas plutôt que d'afficher un run à moitié inventé.
+async function onImportTrace(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = '' // Réarmer : réimporter le même fichier doit relancer l'événement.
+  if (file === undefined) return
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(await file.text())
+  } catch {
+    error.value = "Ce fichier n'est pas un JSON lisible."
+    return
+  }
+  const result = importTrace(parsed)
+  if (isImportError(result)) {
+    error.value = `Trace non importée : ${result.reason}.`
+    return
+  }
+  error.value = undefined
+  brief.value = result.brief
+  started.value = true
+  await pilot.replay(result)
+}
+
 async function onFork() {
   const archive = pilot.archive()
   if (archive === undefined || fork.value !== undefined) return
@@ -590,6 +636,18 @@ onBeforeUnmount(() => {
           <span v-else class="composer-hint">
             {{ mode === 'demo' && !briefReplayable ? 'Sans modèle branché, ce besoin ne produira rien.' : '⌘↵' }}
           </span>
+          <!-- Importer une trace d'un agent étranger (LangGraph, OTLP) : elle est
+               rejouée et mesurée, mais non forkable. -->
+          <label class="picker import-trace">
+            Importer une trace
+            <input
+              type="file"
+              accept="application/json,.json"
+              class="hidden-title"
+              aria-label="Importer une trace d'agent (LangGraph ou OTLP, JSON)"
+              @change="onImportTrace"
+            />
+          </label>
           <button class="button" :disabled="starting || brief.trim().length === 0" @click="restart">
             {{ started ? 'Relancer' : "Lancer l'usine" }}
           </button>
@@ -616,6 +674,16 @@ onBeforeUnmount(() => {
            while a node is inspected. An open panel eats the bottom of the
            screen, so the graph folds above it instead of being cut by it. -->
       <div v-else class="zone" :data-panel="Boolean(product || (state.gate && !product))">
+        <!-- Trace importée : on la rejoue et on la mesure, mais elle ne porte
+             aucun comportement recompilable — donc pas de fork, et on le dit
+             plutôt que de le laisser deviner (AD-41/AD-49). -->
+        <p v-if="foreignMeasure" class="foreign-banner" role="status">
+          <span class="worksite-tag">Trace importée</span>
+          {{ foreignMeasure.events }} événements · {{ foreignMeasure.agents }} agents ·
+          {{ foreignMeasure.served ? 'a servi une application' : "n'a pas servi d'application" }}
+          — rejouable et mesurable, non forkable (agent étranger, non ré-exécutable).
+        </p>
+
         <!-- The application is the protagonist; the graph is the evidence.
              A graph fascinates for twenty seconds, an application is used —
              so once something serves, the graph folds to the one line that
@@ -660,7 +728,7 @@ onBeforeUnmount(() => {
           v-if="product"
           :archive="Boolean(pilot.archive())"
           :replay="pilot.isReplay()"
-          :forkable="Boolean(pilot.archive())"
+          :forkable="forkable"
           :sharing="sharing"
           :share-link="shareLink"
           @share="shareRun"

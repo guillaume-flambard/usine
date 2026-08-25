@@ -762,6 +762,23 @@ body,
   word-break: break-word;
 }
 
+/* Une trace importée : rejouée et mesurée, mais non forkable. Le bandeau le dit
+   franchement plutôt que de laisser le visiteur chercher un bouton absent. */
+.foreign-banner {
+  flex: 0 0 auto;
+  margin: 0 0 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Importer une trace : un label qui déclenche le champ fichier caché. */
+.import-trace {
+  cursor: pointer;
+}
+
 /* Le résumé du graphe, une fois l'application en service. L'application est le
    protagoniste, le graphe la preuve : elle se déplie, elle ne s'impose pas. */
 .graph-summary {

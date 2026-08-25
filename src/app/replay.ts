@@ -17,18 +17,43 @@ import { createIsolate, type SpawnWorker } from './isolate'
 /** La version du format. Un run d'une autre version est refusé, pas deviné. */
 export const ARCHIVE_VERSION = 1
 
+/**
+ * L'origine d'une archive.
+ *
+ * `foreign` marque une trajectoire *importée* depuis un agent étranger
+ * (LangGraph, OTLP) : elle ne porte aucun `build.source`, donc aucun
+ * comportement ne peut être recompilé, donc elle n'est ni forkable ni
+ * hot-swappable (AD-49). Absent = interne (un run enregistré par l'atelier),
+ * ce qui garde toutes les archives v1 existantes valides et forkables.
+ */
+export type ArchiveOrigin = 'foreign'
+
 export interface RunArchive {
   version: number
   /** Le brief dont le run est sorti. Il n'est nulle part ailleurs. */
   brief: string
   events: readonly RunEvent[]
+  /**
+   * D'où vient l'archive. Absent = interne. Voir `ArchiveOrigin`. Purement
+   * additif : une archive v1 sans ce champ est lue et traitée comme interne.
+   */
+  origin?: ArchiveOrigin
 }
 
+/** Une archive importée est-elle étrangère (donc non forkable) ? */
+export const isForeign = (archive: RunArchive): boolean => archive.origin === 'foreign'
+
 /** Emballe un run pour le stockage. Rien n'est calculé : tout est déjà là. */
-export const archiveOf = (brief: string, events: readonly RunEvent[]): RunArchive => ({
+export const archiveOf = (
+  brief: string,
+  events: readonly RunEvent[],
+  origin?: ArchiveOrigin,
+): RunArchive => ({
   version: ARCHIVE_VERSION,
   brief,
   events,
+  // Omis quand interne : garde l'archive sérialisée identique à avant ce champ.
+  ...(origin !== undefined ? { origin } : {}),
 })
 
 /**
@@ -58,6 +83,9 @@ export function readArchive(value: unknown): RunArchive | undefined {
     // Remis en ordre : le réducteur suppose une séquence croissante, et un
     // fichier réordonné à la main ne doit pas produire un graphe incohérent.
     events: [...events].sort((a, b) => a.sequence - b.sequence),
+    // Préservé quand présent et reconnu ; tout le reste (dont l'absence) reste
+    // interne. Une archive étrangère relue reste non forkable.
+    ...(candidate.origin === 'foreign' ? { origin: 'foreign' as const } : {}),
   }
 }
 
