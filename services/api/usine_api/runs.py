@@ -97,6 +97,10 @@ class RunStore(Protocol):
         """Retire les runs en corbeille depuis plus longtemps que la fenêtre."""
         ...
 
+    def forget_owner(self, owner: str) -> int:
+        """Efface tous les runs d'une org (vivants et en corbeille). RGPD."""
+        ...
+
     def count(self) -> int: ...
 
     def all(self) -> list[Archive]: ...
@@ -206,6 +210,12 @@ class InMemoryRunStore:
         for run_id in stale:
             del self._runs[run_id]
         return len(stale)
+
+    def forget_owner(self, owner: str) -> int:
+        gone = [run_id for run_id, entry in self._runs.items() if entry.owner == owner]
+        for run_id in gone:
+            del self._runs[run_id]
+        return len(gone)
 
     def count(self) -> int:
         return len(self._runs)

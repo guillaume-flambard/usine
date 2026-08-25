@@ -984,6 +984,26 @@ button.picker:hover {
   margin-left: auto;
 }
 
+/* Mes données : emporter ou effacer. L'effacement se distingue (terracotta). */
+.my-data {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.my-data-erase {
+  color: var(--accent, #c4633a);
+}
+
+.my-data-warn {
+  color: var(--muted);
+}
+
 /* Une ligne pour tous les faits du run. Elle remplace cinq boîtes. */
 .status {
   display: flex;

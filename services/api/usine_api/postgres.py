@@ -69,6 +69,13 @@ class PostgresIdentityStore:
             found = conn.execute(query, (account_id,)).fetchone()
         return self._row(found) if found is not None else None
 
+    def forget(self, account_id: str) -> bool:
+        # Org avant compte (clé étrangère). Sessions supprimées à part par la route.
+        with self._pool.connection() as conn, conn.transaction():
+            conn.execute("DELETE FROM organizations WHERE owner_account_id = %s", (account_id,))
+            result = conn.execute("DELETE FROM accounts WHERE id = %s", (account_id,))
+            return result.rowcount > 0
+
 
 class PostgresTokenStore:
     def __init__(self, pool: ConnectionPool, *, ttl_seconds: float = TOKEN_TTL_SECONDS) -> None:
@@ -100,6 +107,16 @@ class PostgresTokenStore:
             )
             return found[0]
 
+    def forget(self, email: str) -> int:
+        with self._pool.connection() as conn:
+            return conn.execute("DELETE FROM magic_link_tokens WHERE email = %s", (email,)).rowcount
+
+    def purge_expired(self) -> int:
+        with self._pool.connection() as conn:
+            return conn.execute(
+                "DELETE FROM magic_link_tokens WHERE expires_at < %s", (time.time(),)
+            ).rowcount
+
 
 class PostgresSessionStore:
     def __init__(self, pool: ConnectionPool, *, ttl_seconds: float = SESSION_TTL_SECONDS) -> None:
@@ -128,6 +145,18 @@ class PostgresSessionStore:
     def close(self, session_id: str) -> None:
         with self._pool.connection() as conn:
             conn.execute("DELETE FROM sessions WHERE session_id = %s", (session_id,))
+
+    def forget(self, account_id: str) -> int:
+        with self._pool.connection() as conn:
+            return conn.execute(
+                "DELETE FROM sessions WHERE account_id = %s", (account_id,)
+            ).rowcount
+
+    def purge_expired(self) -> int:
+        with self._pool.connection() as conn:
+            return conn.execute(
+                "DELETE FROM sessions WHERE expires_at < %s", (time.time(),)
+            ).rowcount
 
 
 class PostgresRunStore:
@@ -241,6 +270,10 @@ class PostgresRunStore:
             )
             return result.rowcount
 
+    def forget_owner(self, owner: str) -> int:
+        with self._pool.connection() as conn:
+            return conn.execute("DELETE FROM runs WHERE owner = %s", (owner,)).rowcount
+
     def count(self) -> int:
         with self._pool.connection() as conn:
             return conn.execute("SELECT count(*) FROM runs").fetchone()[0]
@@ -272,6 +305,10 @@ class PostgresAuditLog:
             AuditEntry(org=row[0], action=row[1], target=row[2], at=row[3].timestamp())
             for row in rows
         ]
+
+    def forget(self, org: str) -> int:
+        with self._pool.connection() as conn:
+            return conn.execute("DELETE FROM audit_entries WHERE org = %s", (org,)).rowcount
 
 
 class PostgresStores:

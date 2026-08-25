@@ -155,6 +155,41 @@ def test_audit_records_and_isolates_by_org(stores) -> None:  # type: ignore[no-u
     assert [e.target for e in stores.audit.entries("orgB")] == ["r9"]
 
 
+def test_erasure_across_stores_on_postgres(stores) -> None:  # type: ignore[no-untyped-def]
+    who = stores.identities.ensure("leaver@b.co")
+    org = who.organization.id
+    keeper = stores.identities.ensure("keeper@b.co")
+    stores.runs.put("r1", archive(1), org)
+    stores.runs.put("k1", archive(1), keeper.organization.id)
+    sid = stores.sessions.open(who.account.id)
+    stores.tokens.issue("leaver@b.co")
+    stores.audit.record(org, "share", "r1")
+
+    # Effacement, dans l'ordre des clés étrangères (comme la route).
+    assert stores.sessions.forget(who.account.id) == 1
+    assert stores.runs.forget_owner(org) == 1
+    assert stores.tokens.forget("leaver@b.co") == 1
+    assert stores.audit.forget(org) == 1
+    assert stores.identities.forget(who.account.id) is True
+
+    # Parti pour la personne, intact pour l'autre.
+    assert stores.identities.by_account(who.account.id) is None
+    assert stores.sessions.account(sid) is None
+    assert stores.runs.get("k1", keeper.organization.id) is not None
+    assert stores.identities.by_account(keeper.account.id) is not None
+
+
+def test_credential_purge_on_postgres(stores) -> None:  # type: ignore[no-untyped-def]
+    # Jeton et session avec TTL nul : expirés d'emblée, donc purgés.
+    from usine_api.postgres import PostgresSessionStore, PostgresTokenStore
+
+    who = stores.identities.ensure("a@b.co")
+    PostgresTokenStore(stores.pool, ttl_seconds=0).issue("a@b.co")
+    PostgresSessionStore(stores.pool, ttl_seconds=0).open(who.account.id)
+    assert stores.tokens.purge_expired() == 1
+    assert stores.sessions.purge_expired() == 1
+
+
 def test_full_flow_through_the_app_on_postgres(stores, monkeypatch) -> None:  # type: ignore[no-untyped-def]
     # Prouve que create_app câble bien Postgres depuis DATABASE_URL, et que le
     # flux connexion → conservation → relecture tient de bout en bout sur la base.

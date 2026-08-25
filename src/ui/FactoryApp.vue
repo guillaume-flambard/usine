@@ -30,6 +30,7 @@ import {
   trashRun,
   type RunSummary,
 } from '../app/runs-client'
+import { accountExportUrl, eraseAccount } from '../app/account-client'
 import { fetchEvaluation, formatEvaluation, type Evaluation } from '../app/eval-client'
 import { availableSources, serviceFetcher } from '../app/sources'
 import type { Interaction } from '../app/session'
@@ -215,6 +216,18 @@ async function onPurgeRun(id: string) {
 async function onToggleShare(run: RunSummary) {
   const done = run.shared ? await revokeRunById(run.id) : await shareRunById(run.id)
   if (done) await refreshRuns()
+}
+
+// Mes données (RGPD) : exporter tout, ou effacer son compte (irréversible).
+const accountExport = accountExportUrl()
+const eraseConfirm = ref(false)
+
+async function onEraseAccount() {
+  if (await eraseAccount()) {
+    session.value = { authenticated: false }
+    runsOpen.value = false
+    eraseConfirm.value = false
+  }
 }
 
 /**
@@ -712,6 +725,22 @@ onBeforeUnmount(() => {
             </span>
           </li>
         </ul>
+
+        <!-- Mes données (RGPD) : emporter ou effacer. L'effacement est
+             irréversible et demande une confirmation explicite. -->
+        <div class="my-data">
+          <a class="status-toggle" :href="accountExport">exporter mes données</a>
+          <template v-if="!eraseConfirm">
+            <button class="status-toggle my-data-erase" @click="eraseConfirm = true">
+              supprimer mon compte
+            </button>
+          </template>
+          <template v-else>
+            <span class="my-data-warn">Effacer définitivement compte et runs ?</span>
+            <button class="status-toggle my-data-erase" @click="onEraseAccount">confirmer</button>
+            <button class="status-toggle" @click="eraseConfirm = false">annuler</button>
+          </template>
+        </div>
       </div>
 
       <!-- Une ligne, pas cinq boîtes. Chaque fait y est un mot, et le point

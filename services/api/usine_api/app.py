@@ -491,6 +491,61 @@ def create_app(
         entries = journal.entries(who.organization.id)
         return no_store({"entries": [entry.as_json() for entry in entries]})
 
+    @app.get("/account")
+    async def account_summary(request: Request) -> JSONResponse:
+        # Droit d'accès : ce qu'on détient sur la personne.
+        who = identity_of(request)
+        if who is None:
+            return no_store({"error": "connexion requise"}, 401)
+        org = who.organization.id
+        return no_store(
+            {
+                "email": who.account.email,
+                "org": org,
+                "runs": len(store.list_for(org)),
+                "trashed": len(store.list_trashed(org)),
+            }
+        )
+
+    @app.get("/account/export")
+    async def account_export(request: Request) -> Response:
+        # Droit à la portabilité : compte + toutes les archives (vivantes et corbeille).
+        who = identity_of(request)
+        if who is None:
+            return no_store({"error": "connexion requise"}, 401)
+        org = who.organization.id
+        owned = store.list_for(org) + store.list_trashed(org)
+        return JSONResponse(
+            {
+                "account": {"email": who.account.email, "org": org},
+                "runs": [entry.archive.as_json() for _run_id, entry in owned],
+            },
+            headers={
+                "cache-control": "no-store",
+                "content-disposition": 'attachment; filename="mes-donnees-usine.json"',
+            },
+        )
+
+    @app.delete("/account")
+    async def account_erase(request: Request) -> JSONResponse:
+        # Droit à l'effacement : cascade cross-stores, dans l'ordre des clés
+        # étrangères (sessions et org avant compte). Efface la trace interne —
+        # jamais un effet de bord externe (AD-41).
+        who = identity_of(request)
+        if who is None:
+            return no_store({"error": "connexion requise"}, 401)
+        account_id = who.account.id
+        org = who.organization.id
+        email = who.account.email
+        seats.forget(account_id)
+        store.forget_owner(org)
+        links.forget(email)
+        journal.forget(org)
+        people.forget(account_id)
+        response = no_store({"erased": True})
+        response.delete_cookie(SESSION_COOKIE, path="/")
+        return response
+
     @app.get("/runs/{run_id}/export")
     async def export_run(run_id: str, request: Request) -> Response:
         who = identity_of(request)

@@ -85,6 +85,10 @@ class IdentityStore(Protocol):
 
     def by_account(self, account_id: str) -> Identity | None: ...
 
+    def forget(self, account_id: str) -> bool:
+        """Efface le compte et son organisation (droit à l'effacement)."""
+        ...
+
 
 class TokenStore(Protocol):
     """Les jetons de lien magique. On stocke un hash, jamais le jeton."""
@@ -95,6 +99,14 @@ class TokenStore(Protocol):
 
     def redeem(self, token: str) -> str | None:
         """Rend l'email si le jeton est valide et inutilisé, sinon `None`. Usage unique."""
+        ...
+
+    def forget(self, email: str) -> int:
+        """Efface les jetons d'un email (effacement)."""
+        ...
+
+    def purge_expired(self) -> int:
+        """Retire les jetons expirés (rétention)."""
         ...
 
 
@@ -110,6 +122,14 @@ class SessionStore(Protocol):
         ...
 
     def close(self, session_id: str) -> None: ...
+
+    def forget(self, account_id: str) -> int:
+        """Efface les sessions d'un compte (effacement)."""
+        ...
+
+    def purge_expired(self) -> int:
+        """Retire les sessions expirées (rétention)."""
+        ...
 
 
 class EmailSender(Protocol):
@@ -148,6 +168,13 @@ class InMemoryIdentityStore:
     def by_account(self, account_id: str) -> Identity | None:
         return self._by_account.get(account_id)
 
+    def forget(self, account_id: str) -> bool:
+        identity = self._by_account.pop(account_id, None)
+        if identity is None:
+            return False
+        self._by_email.pop(identity.account.email, None)
+        return True
+
 
 @dataclass
 class _Token:
@@ -180,6 +207,19 @@ class InMemoryTokenStore:
             return None
         entry.used = True
         return entry.email
+
+    def forget(self, email: str) -> int:
+        gone = [key for key, entry in self._tokens.items() if entry.email == email]
+        for key in gone:
+            del self._tokens[key]
+        return len(gone)
+
+    def purge_expired(self) -> int:
+        now = self._now()
+        gone = [key for key, entry in self._tokens.items() if entry.expires_at < now]
+        for key in gone:
+            del self._tokens[key]
+        return len(gone)
 
 
 @dataclass
@@ -216,6 +256,19 @@ class InMemorySessionStore:
 
     def close(self, session_id: str) -> None:
         self._sessions.pop(session_id, None)
+
+    def forget(self, account_id: str) -> int:
+        gone = [sid for sid, entry in self._sessions.items() if entry.account_id == account_id]
+        for sid in gone:
+            del self._sessions[sid]
+        return len(gone)
+
+    def purge_expired(self) -> int:
+        now = self._now()
+        gone = [sid for sid, entry in self._sessions.items() if entry.expires_at < now]
+        for sid in gone:
+            del self._sessions[sid]
+        return len(gone)
 
 
 @dataclass
