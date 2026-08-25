@@ -12,6 +12,8 @@ qu'elle est propre.
 from __future__ import annotations
 
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any
 
 import httpx
@@ -27,8 +29,9 @@ from .identity import (
     InMemoryIdentityStore,
     InMemorySessionStore,
     InMemoryTokenStore,
-    RecordingEmailSender,
+    LoggingEmailSender,
     SessionStore,
+    SmtpEmailSender,
     TokenStore,
     normalize_email,
 )
@@ -91,6 +94,25 @@ async def http_caller(
             return response.status_code, {}
 
 
+def _default_email_sender() -> EmailSender:
+    """SMTP si l'environnement le configure, sinon un journal (dev).
+
+    En prod, `SMTP_HOST` déclenche l'envoi réel ; en dev, on journalise le lien
+    plutôt que de joindre un serveur — honnête sur ce qu'il fait.
+    """
+    host = os.environ.get("SMTP_HOST", "")
+    if not host:
+        return LoggingEmailSender()
+    return SmtpEmailSender(
+        host=host,
+        port=int(os.environ.get("SMTP_PORT", "587")),
+        username=os.environ.get("SMTP_USER", ""),
+        password=os.environ.get("SMTP_PASSWORD", ""),
+        sender=os.environ.get("SMTP_FROM", "atelier@memolabs.dev"),
+        use_tls=os.environ.get("SMTP_TLS", "1") != "0",
+    )
+
+
 def create_app(
     *,
     key: str | None = None,
@@ -114,13 +136,27 @@ def create_app(
     """Construit le service. Tout ce qui touche l'extérieur est injectable."""
     bounds = limits or Limits()
     gate = limiter or RateLimiter(bounds)
-    store: RunStore = runs if runs is not None else InMemoryRunStore()
-    # L'identité, derrière ses ports. Défauts en mémoire : un test n'a besoin ni
-    # de base ni d'SMTP (voir SOLUTION-DESIGN accounts-and-tenancy).
-    people: IdentityStore = identities if identities is not None else InMemoryIdentityStore()
-    links: TokenStore = tokens if tokens is not None else InMemoryTokenStore()
-    seats: SessionStore = sessions if sessions is not None else InMemorySessionStore()
-    mailer: EmailSender = email if email is not None else RecordingEmailSender()
+
+    # Postgres si une base est fournie et qu'aucun store n'a été injecté (les
+    # tests injectent leurs impls en mémoire). Sinon on reste en mémoire, et la
+    # CI n'a besoin ni de base ni d'SMTP.
+    db_url = os.environ.get("DATABASE_URL", "")
+    stores_needed = any(dep is None for dep in (runs, identities, tokens, sessions))
+    pg = None
+    if db_url and stores_needed:
+        from .postgres import PostgresStores
+
+        pg = PostgresStores(db_url)
+
+    store: RunStore = runs or (pg.runs if pg is not None else InMemoryRunStore())
+    # L'identité, derrière ses ports.
+    people: IdentityStore = identities or (
+        pg.identities if pg is not None else InMemoryIdentityStore()
+    )
+    links: TokenStore = tokens or (pg.tokens if pg is not None else InMemoryTokenStore())
+    seats: SessionStore = sessions or (pg.sessions if pg is not None else InMemorySessionStore())
+    # L'email : SMTP si configuré, journal sinon (dev). Un test injecte le sien.
+    mailer: EmailSender = email or _default_email_sender()
     # Nommés par nous, comme les sources. Vide par défaut : un serveur d'outils
     # est une décision de déploiement, pas un défaut qu'on découvre.
     tool_servers: dict[str, Server] = servers or {}
@@ -130,7 +166,20 @@ def create_app(
     chosen_model = model or os.environ.get("USINE_MODEL", DEFAULT_MODEL)
     site_origin = origin or os.environ.get("USINE_ORIGIN", "https://usine.memolabs.dev")
 
-    app = FastAPI(title="Usine agentique — service", docs_url=None, redoc_url=None)
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        # Rien à ouvrir (le pool l'est déjà) ; à l'arrêt, on le ferme proprement
+        # plutôt que de le laisser au ramasse-miettes.
+        yield
+        if pg is not None:
+            pg.pool.close()
+
+    app = FastAPI(
+        title="Usine agentique — service",
+        docs_url=None,
+        redoc_url=None,
+        lifespan=lifespan,
+    )
 
     def no_store(body: dict[str, Any], status: int = 200) -> JSONResponse:
         # Rien de ce que rend ce service n'est cachable : une capacité mise en

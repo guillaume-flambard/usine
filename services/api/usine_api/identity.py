@@ -18,11 +18,16 @@ Deux règles d'honnêteté câblées ici :
 from __future__ import annotations
 
 import hashlib
+import logging
 import secrets
+import smtplib
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from email.message import EmailMessage
 from typing import Protocol
+
+logger = logging.getLogger("usine.identity")
 
 #: Durée de validité d'un lien magique. Assez pour aller lire son email, pas plus.
 TOKEN_TTL_SECONDS = 15 * 60
@@ -225,3 +230,49 @@ class RecordingEmailSender:
 
     def send_link(self, email: str, link: str) -> None:
         self.sent.append((email, link))
+
+
+class LoggingEmailSender:
+    """En dev, on n'envoie pas : on journalise le lien pour le suivre à la main.
+
+    Honnête sur ce qu'il fait — il ne joint aucun serveur. À remplacer par
+    `SmtpEmailSender` en production (sélection par variable d'environnement).
+    """
+
+    def send_link(self, email: str, link: str) -> None:
+        # Le lien est un secret à usage unique : en dev seulement, jamais en prod
+        # (où c'est `SmtpEmailSender` qui sert, et rien n'est journalisé).
+        logger.info("lien de connexion pour %s : %s", email, link)
+
+
+@dataclass
+class SmtpEmailSender:
+    """L'envoi réel, par SMTP. Configuré par l'environnement, jamais testé en CI.
+
+    Non exercé par les tests (il joindrait un serveur) : c'est un adaptateur de
+    bord, comme l'appel au fournisseur. Sa correction se vérifie à la mise en
+    service (tâche d'infra), pas ici.
+    """
+
+    host: str
+    port: int
+    username: str
+    password: str
+    sender: str
+    use_tls: bool = True
+
+    def send_link(self, email: str, link: str) -> None:
+        message = EmailMessage()
+        message["From"] = self.sender
+        message["To"] = email
+        message["Subject"] = "Votre lien de connexion à l'atelier"
+        message.set_content(
+            "Pour vous connecter, ouvrez ce lien (valable un usage, un court instant) :\n\n"
+            f"{link}\n\nSi vous n'avez rien demandé, ignorez cet email."
+        )
+        with smtplib.SMTP(self.host, self.port, timeout=15) as smtp:
+            if self.use_tls:
+                smtp.starttls()
+            if self.username:
+                smtp.login(self.username, self.password)
+            smtp.send_message(message)

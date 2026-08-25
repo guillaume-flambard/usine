@@ -6,10 +6,15 @@ qui expire et n'est jamais stocké en clair, des sessions qui se ferment.
 
 from __future__ import annotations
 
+import logging
+
+import pytest
+
 from usine_api.identity import (
     InMemoryIdentityStore,
     InMemorySessionStore,
     InMemoryTokenStore,
+    LoggingEmailSender,
     RecordingEmailSender,
     _hash,
     normalize_email,
@@ -93,3 +98,11 @@ def test_recording_sender_keeps_the_link() -> None:
     sender = RecordingEmailSender()
     sender.send_link("a@b.co", "https://x/redeem?token=zzz")
     assert sender.sent == [("a@b.co", "https://x/redeem?token=zzz")]
+
+
+def test_logging_sender_journals_the_link(caplog: pytest.LogCaptureFixture) -> None:
+    # En dev, l'émetteur ne joint personne : il journalise le lien pour le suivre.
+    with caplog.at_level(logging.INFO, logger="usine.identity"):
+        LoggingEmailSender().send_link("a@b.co", "https://x/redeem?token=zzz")
+    assert "a@b.co" in caplog.text
+    assert "token=zzz" in caplog.text

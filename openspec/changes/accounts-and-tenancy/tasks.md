@@ -20,12 +20,12 @@
 
 ## 5. PostgreSQL adapters + migrations
 
-- [ ] 5.1 Add versioned SQL migrations for accounts, organizations, magic_link_tokens, sessions, run_ownership; add `psycopg`/driver dep. Verify: `ruff` clean; migration files apply against a local Postgres (documented command).
-- [ ] 5.2 Postgres impls of the four identity ports + the run-ownership store, selected by env vars in `create_app`; in-memory remains the default. Verify: the existing port contract tests run against the in-memory impl in CI; a note documents how to run them against Postgres locally. No live DB required for CI green.
+- [x] 5.1 Add versioned SQL migrations for accounts, organizations, magic_link_tokens, sessions, run_ownership; add `psycopg`/driver dep. Verify: `ruff` clean; migration files apply against a local Postgres (documented command).
+- [x] 5.2 Postgres impls of the four identity ports + the run-ownership store, selected by env vars in `create_app`; in-memory remains the default. Verify: the existing port contract tests run against the in-memory impl in CI; a note documents how to run them against Postgres locally. No live DB required for CI green.
 
 ## 6. Email sender
 
-- [ ] 6.1 `EmailSender`: a dev impl that logs the link (no send), and an SMTP impl selected by env. Verify: unit test on the dev logger; SMTP impl behind the port, not exercised in CI.
+- [x] 6.1 `EmailSender`: a dev impl that logs the link (no send), and an SMTP impl selected by env. Verify: unit test on the dev logger; SMTP impl behind the port, not exercised in CI.
 
 ## 7. Front: auth + gated persistence
 
