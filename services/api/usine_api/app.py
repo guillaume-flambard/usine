@@ -200,7 +200,10 @@ def create_app(
         # même dans tous les cas : rien ne dit si un compte existe (pas d'oracle).
         if email:
             token = links.issue(email)
-            link = f"{str(request.base_url)}auth/redeem?token={token}"
+            # Le lien passe par `/api` : c'est le préfixe que le proxy route vers
+            # ce service. Bâti sur l'origine publique, pas sur `base_url` (qui,
+            # derrière le proxy, porte l'hôte interne).
+            link = f"{site_origin}/api/auth/redeem?token={token}"
             mailer.send_link(email, link)
         return no_store({"sent": True})
 

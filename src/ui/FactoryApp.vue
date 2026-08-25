@@ -19,6 +19,7 @@ import { relayReasoner, relayState, type RelayState } from '../runtime/reasoner/
 import { fetchRun, linkFor, requestedRun, storeRun } from '../app/archive-client'
 import { importTrace, isImportError } from '../app/import'
 import { measureRun } from '../app/measure'
+import { logout, requestLink, sessionStatus, type SessionStatus } from '../app/auth-client'
 import { fetchEvaluation, formatEvaluation, type Evaluation } from '../app/eval-client'
 import { availableSources, serviceFetcher } from '../app/sources'
 import type { Interaction } from '../app/session'
@@ -120,6 +121,13 @@ function takeAway() {
 async function shareRun() {
   const archive = pilot.archive()
   if (archive === undefined || sharing.value) return
+  // Conserver/partager exige une identité (un run appartient à une org). On le
+  // dit et on ouvre la connexion, plutôt que de laisser le service répondre 401.
+  if (!session.value.authenticated) {
+    signInOpen.value = true
+    error.value = 'Connectez-vous pour conserver et partager un run.'
+    return
+  }
   sharing.value = true
   try {
     const id = await storeRun(archive)
@@ -140,6 +148,27 @@ const wired = ref<readonly { name: string; description: string }[]>([])
  * different facts, and telling the second as the first is a lie.
  */
 const capacity = ref<RelayState['runs'] | undefined>()
+
+// L'authentification. Un visiteur anonyme fait tourner la démo et ouvre les
+// liens partagés ; se connecter par lien magique débloque conserver/partager.
+const session = ref<SessionStatus>({ authenticated: false })
+const signInOpen = ref(false)
+const signInEmail = ref('')
+const signInSent = ref(false)
+
+async function onRequestLink() {
+  const email = signInEmail.value.trim()
+  if (email.length === 0) return
+  const ok = await requestLink(email)
+  signInSent.value = ok
+  error.value = ok ? undefined : "Le lien n'a pas pu être envoyé."
+}
+
+async function onLogout() {
+  await logout()
+  session.value = { authenticated: false }
+  signInSent.value = false
+}
 
 /**
  * What the visitor is told before clicking. Capacity is not a technical
@@ -455,6 +484,8 @@ function onEscape(event: KeyboardEvent) {
 
 onMounted(() => {
   window.addEventListener('keydown', onEscape)
+  // Qui l'on est, une fois. Silencieux : un service absent laisse anonyme.
+  void sessionStatus().then((status) => (session.value = status))
   // Le rapport d'éval, une fois : il porte sur l'ensemble des runs conservés,
   // pas sur un run précis. On ne le lit donc PAS quand la page rejoue un run
   // partagé — le visiteur est venu voir *ce* run, pas une moyenne d'atelier —
@@ -541,7 +572,49 @@ onBeforeUnmount(() => {
         >
           {{ modeHelp ? 'masquer' : 'détail' }}
         </button>
+
+        <!-- La connexion vit dans la ligne de marque, pas dans une zone de plus.
+             Anonyme : un lien « se connecter » ; connecté : l'email et « quitter ». -->
+        <span v-if="session.authenticated" class="account">
+          <span class="account-email">{{ session.email }}</span>
+          <button class="status-toggle" @click="onLogout">quitter</button>
+        </span>
+        <button
+          v-else
+          class="status-toggle account-signin"
+          :aria-expanded="signInOpen"
+          aria-controls="signin-panel"
+          @click="signInOpen = !signInOpen"
+        >
+          se connecter
+        </button>
       </header>
+
+      <!-- Le panneau de connexion : un email, un lien magique. Aucun mot de passe. -->
+      <form
+        v-if="signInOpen && !session.authenticated"
+        id="signin-panel"
+        class="signin"
+        @submit.prevent="onRequestLink"
+      >
+        <p v-if="signInSent" class="signin-sent" role="status">
+          Lien envoyé. Ouvrez-le depuis votre email pour vous connecter.
+        </p>
+        <template v-else>
+          <label class="hidden-title" for="signin-email">Votre email</label>
+          <input
+            id="signin-email"
+            v-model="signInEmail"
+            type="email"
+            class="brief-field signin-field"
+            placeholder="vous@equipe.co"
+            autocomplete="email"
+          />
+          <button class="button" type="submit" :disabled="signInEmail.trim().length === 0">
+            Recevoir un lien
+          </button>
+        </template>
+      </form>
 
       <!-- Une ligne, pas cinq boîtes. Chaque fait y est un mot, et le point
            coloré dit le mode sans avoir à le lire. -->

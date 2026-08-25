@@ -29,9 +29,9 @@
 
 ## 7. Front: auth + gated persistence
 
-- [ ] 7.1 `src/app/auth-client.ts`: request link, session status, logout (same-origin, credentials included). Verify: node tests with a fetch double.
-- [ ] 7.2 Sign-in affordance in the brand/status line; show signed-in email; logout. Verify: browser test — signed-out shows sign-in; after a stubbed session, shows the email.
-- [ ] 7.3 Gate persist/share on auth: a signed-out visitor still runs the demo and opens shared links, but storing/sharing prompts sign-in. Verify: browser test — demo runs signed-out; the share action prompts sign-in when unauthenticated.
+- [x] 7.1 `src/app/auth-client.ts`: request link, session status, logout (same-origin, credentials included). Verify: node tests with a fetch double.
+- [x] 7.2 Sign-in affordance in the brand/status line; show signed-in email; logout. Verify: browser test — signed-out shows sign-in; after a stubbed session, shows the email.
+- [x] 7.3 Gate persist/share on auth: a signed-out visitor still runs the demo and opens shared links, but storing/sharing prompts sign-in. Verify: browser test — demo runs signed-out; the share action prompts sign-in when unauthenticated.
 
 ## 8. Full-suite verification
 
