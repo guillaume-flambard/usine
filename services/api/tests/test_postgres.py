@@ -31,7 +31,10 @@ def stores():  # type: ignore[no-untyped-def]
 
     made = PostgresStores(DSN)
     with made.pool.connection() as conn:
-        conn.execute("TRUNCATE runs, sessions, magic_link_tokens, organizations, accounts CASCADE")
+        conn.execute(
+            "TRUNCATE audit_entries, runs, sessions, magic_link_tokens, "
+            "organizations, accounts CASCADE"
+        )
     yield made
     made.pool.close()
 
@@ -140,6 +143,16 @@ def test_purge_expired_on_postgres(stores) -> None:  # type: ignore[no-untyped-d
     # Fenêtre nulle : tout ce qui est en corbeille part.
     assert stores.runs.purge_expired(older_than_seconds=0) == 1
     assert stores.runs.list_trashed("orgA") == []
+
+
+def test_audit_records_and_isolates_by_org(stores) -> None:  # type: ignore[no-untyped-def]
+    stores.audit.record("orgA", "share", "r1")
+    stores.audit.record("orgA", "trash", "r1")
+    stores.audit.record("orgB", "purge", "r9")
+    a = [(e.action, e.target) for e in stores.audit.entries("orgA")]
+    assert a == [("share", "r1"), ("trash", "r1")]
+    # Une org ne voit pas le journal d'une autre.
+    assert [e.target for e in stores.audit.entries("orgB")] == ["r9"]
 
 
 def test_full_flow_through_the_app_on_postgres(stores, monkeypatch) -> None:  # type: ignore[no-untyped-def]

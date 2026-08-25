@@ -43,6 +43,8 @@ __screenshots__/
 # Secrets: never committed. The relay key lives here for local runs only.
 .env
 .env.*
+# …sauf l'exemple, qui documente les variables (aucune vraie valeur).
+!.env.example
 
 # Le service Python garde son environnement hors du dépôt.
 services/api/.venv/

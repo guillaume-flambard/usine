@@ -14,6 +14,7 @@ import time
 from psycopg.types.json import Json
 from psycopg_pool import ConnectionPool
 
+from .audit import AuditEntry
 from .db import migrate, open_pool
 from .identity import (
     SESSION_TTL_SECONDS,
@@ -250,8 +251,31 @@ class PostgresRunStore:
         return [Archive(version=row[0], brief=row[1], events=list(row[2])) for row in rows]
 
 
+class PostgresAuditLog:
+    def __init__(self, pool: ConnectionPool) -> None:
+        self._pool = pool
+
+    def record(self, org: str, action: str, target: str) -> None:
+        with self._pool.connection() as conn:
+            conn.execute(
+                "INSERT INTO audit_entries (org, action, target) VALUES (%s, %s, %s)",
+                (org, action, target),
+            )
+
+    def entries(self, org: str) -> list[AuditEntry]:
+        with self._pool.connection() as conn:
+            rows = conn.execute(
+                "SELECT org, action, target, at FROM audit_entries WHERE org = %s ORDER BY at, id",
+                (org,),
+            ).fetchall()
+        return [
+            AuditEntry(org=row[0], action=row[1], target=row[2], at=row[3].timestamp())
+            for row in rows
+        ]
+
+
 class PostgresStores:
-    """Les cinq stores adossés à un même pool, migrations appliquées."""
+    """Les stores adossés à un même pool, migrations appliquées."""
 
     def __init__(self, dsn: str) -> None:
         self.pool = open_pool(dsn)
@@ -260,3 +284,4 @@ class PostgresStores:
         self.tokens = PostgresTokenStore(self.pool)
         self.sessions = PostgresSessionStore(self.pool)
         self.runs = PostgresRunStore(self.pool)
+        self.audit = PostgresAuditLog(self.pool)
