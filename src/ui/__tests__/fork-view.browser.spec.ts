@@ -9,9 +9,18 @@
 // hôte ne peut pas lire leur contenu. La divergence s'observe donc là où elle
 // est honnête — le bandeau de comparaison, payé par `measureRun` — pas en
 // fouillant dans les iframes.
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, afterEach } from 'vitest'
 import { render } from 'vitest-browser-vue'
 import FactoryApp from '../FactoryApp.vue'
+import { createPilot } from '../../orchestration/pilot'
+import { liveBehaviours } from '../../orchestration/factory'
+import { createFrameHost } from '../../app/frame-host'
+import { createSession } from '../../app/session'
+import { behaviourKey } from '../../app/behaviour'
+import type { Behaviour } from '../../app/behaviour'
+import type { RunArchive } from '../../app/replay'
+import type { RunEvent } from '../../runtime/events'
+import type { ComponentId } from '../../runtime/contract'
 import '../../assets/tokens.css'
 import '../../assets/app.css'
 
@@ -164,4 +173,104 @@ describe('le panneau à deux futurs', () => {
     expect(document.querySelector('.fork')).toBeNull()
     expect(document.querySelector('.live-frame')).not.toBeNull()
   })
+})
+
+// Les cadres de ForkView ont une origine opaque (`sandbox="allow-scripts"`) :
+// impossible de lire leur contenu par-dessus. Pour prouver que les panneaux
+// rendent **vraiment** une application (l'écran monté, le comportement qui
+// répond), on rejoue exactement le même pont — `createFrameHost` avec les
+// données du fork — dans un cadre **same-origin** lisible, comme frame.browser.
+const APP_SCREEN =
+  '<h1>Compteur</h1>' +
+  '<textarea data-field="texte"></textarea>' +
+  '<button data-invoke="compter">Compter</button>' +
+  '<div data-output="compter"></div>'
+
+function withScreenArchive(): RunArchive {
+  const M = 'master#0' as ComponentId
+  const ev = (make: (s: number) => Omit<RunEvent, 'sequence' | 'at'>, i: number): RunEvent =>
+    ({ ...make(i + 1), sequence: i + 1, at: i }) as RunEvent
+  const factories: ((s: number) => Omit<RunEvent, 'sequence' | 'at'>)[] = [
+    () => ({
+      type: 'component-created',
+      id: 'compter#1' as ComponentId,
+      name: 'compter-v1',
+      display: { role: 'compte' },
+      needs: [],
+      provides: [behaviourKey('compter')],
+      parent: M,
+    }),
+    () => ({
+      type: 'component-built',
+      id: 'compter#1' as ComponentId,
+      parent: M,
+      build: { specification: 'compter', source: "(t) => String(t).length + ' car.'", route: 'evaluation' },
+    }),
+    () => ({ type: 'component-activated', id: 'compter#1' as ComponentId }),
+    () => ({ type: 'screen-posted', id: M, markup: APP_SCREEN, revision: 1 }),
+  ]
+  return { version: 1, brief: 'un run avec écran', events: factories.map(ev) }
+}
+
+/** Monte un cadre same-origin et y pousse des comportements + un écran. */
+async function renderInto(behaviours: readonly Behaviour[], screen: { markup: string; revision: number }) {
+  const frame = document.createElement('iframe')
+  frame.src = '/sandbox.html'
+  frame.style.cssText = 'width:600px;height:300px'
+  document.body.appendChild(frame)
+  const host = createFrameHost({
+    frame,
+    behaviours: () => behaviours,
+    screen: () => screen,
+    session: createSession(),
+  })
+  await wait(600)
+  const inner = frame.contentDocument
+  if (inner === null) throw new Error('cadre inaccessible')
+  return { frame, host, inner }
+}
+
+describe('les panneaux du fork rendent une vraie application', () => {
+  let cleanup: (() => void)[] = []
+  afterEach(async () => {
+    for (const c of cleanup) c()
+    cleanup = []
+  })
+
+  it('le tronc monte son écran à N et son comportement répond ; la branche diverge', async () => {
+    const pilot = createPilot()
+    const fork = await pilot.fork(withScreenArchive(), 4)
+    cleanup.push(() => void fork.branch.kernel.releaseAll())
+
+    // — Tronc : l'écran à N est monté, le comportement recompilé répond. —
+    const trunk = await renderInto(fork.trunk.behaviours, fork.trunk.screen)
+    cleanup.push(() => {
+      trunk.host.dispose()
+      trunk.frame.remove()
+    })
+    expect(trunk.inner.querySelector('h1')?.textContent).toBe('Compteur')
+    const trunkButton = trunk.inner.querySelector<HTMLButtonElement>('[data-invoke]')
+    expect(trunkButton?.disabled).toBe(false) // le comportement du tronc sert
+    const field = trunk.inner.querySelector<HTMLTextAreaElement>('[data-field]')
+    if (field === null) throw new Error('pas de champ')
+    field.value = 'abcd'
+    trunkButton?.click()
+    await wait(200)
+    expect(trunk.inner.querySelector('[data-output="compter"]')?.textContent).toBe('4 car.')
+
+    // — Branche : on fait diverger le comportement, puis on le rend. —
+    expect(await fork.branch.replace('compter', "(t) => 'divergé: ' + t")).toBe(true)
+    const branch = await renderInto(liveBehaviours(fork.branch.kernel), fork.branch.screen)
+    cleanup.push(() => {
+      branch.host.dispose()
+      branch.frame.remove()
+    })
+    const branchField = branch.inner.querySelector<HTMLTextAreaElement>('[data-field]')
+    if (branchField === null) throw new Error('pas de champ (branche)')
+    branchField.value = 'x'
+    branch.inner.querySelector<HTMLButtonElement>('[data-invoke]')?.click()
+    await wait(200)
+    // La branche répond avec le code divergé ; le tronc, lui, disait « N car. ».
+    expect(branch.inner.querySelector('[data-output="compter"]')?.textContent).toBe('divergé: x')
+  }, 25_000)
 })

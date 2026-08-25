@@ -261,6 +261,7 @@ onBeforeUnmount(() => {
             class="fork-code"
             rows="3"
             spellcheck="false"
+            aria-label="Code du comportement de la branche"
             placeholder="(input) => …"
           ></textarea>
           <div class="fork-edit-row">
@@ -276,7 +277,12 @@ onBeforeUnmount(() => {
 
     <!-- Le bandeau : les deux mesures et leur écart. Rien tant qu'il n'y a rien
          à mesurer — aucun zéro décoratif (AD-40). -->
-    <div v-if="hasData" class="fork-compare" aria-label="Comparaison mesurée tronc / branche">
+    <div
+      v-if="hasData"
+      class="fork-compare"
+      aria-label="Comparaison mesurée tronc / branche"
+      aria-live="polite"
+    >
       <table class="fork-table">
         <thead>
           <tr>
@@ -343,6 +349,13 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
+}
+/* Sous une largeur étroite, deux colonnes écrasent les panneaux : on empile,
+   tronc au-dessus de la branche, plutôt que de les rendre illisibles. */
+@media (max-width: 900px) {
+  .fork-panels {
+    grid-template-columns: 1fr;
+  }
 }
 
 .fork-panel {
