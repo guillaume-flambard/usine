@@ -379,7 +379,10 @@ def create_app(
         who = identity_of(request)
         if who is None:
             return no_store({"error": "connexion requise"}, 401)
-        runs_of = store.list_for(who.organization.id)
+        org = who.organization.id
+        # `?trashed=1` montre la corbeille du propriétaire ; sinon ses runs vivants.
+        trashed = request.query_params.get("trashed") in {"1", "true"}
+        runs_of = store.list_trashed(org) if trashed else store.list_for(org)
         return no_store(
             {
                 "runs": [
@@ -427,9 +430,49 @@ def create_app(
             return no_store({"error": "connexion requise"}, 401)
         if not store.delete(run_id, who.organization.id):
             return no_store({"error": "run inconnu"}, 404)
-        # La réversibilité côté produit ne défait pas un effet externe : ici on
-        # efface la trace interne, rien de plus (AD-41).
-        return no_store({"deleted": True})
+        # Corbeille, pas destruction : réversible. La purge, elle, efface la trace
+        # interne — jamais un effet de bord externe (AD-41).
+        return no_store({"trashed": True})
+
+    @app.post("/runs/{run_id}/restore")
+    async def restore_run(run_id: str, request: Request) -> JSONResponse:
+        who = identity_of(request)
+        if who is None:
+            return no_store({"error": "connexion requise"}, 401)
+        if not store.restore(run_id, who.organization.id):
+            return no_store({"error": "run inconnu"}, 404)
+        return no_store({"restored": True})
+
+    @app.post("/runs/{run_id}/purge")
+    async def purge_run(run_id: str, request: Request) -> JSONResponse:
+        who = identity_of(request)
+        if who is None:
+            return no_store({"error": "connexion requise"}, 401)
+        if not store.purge(run_id, who.organization.id):
+            return no_store({"error": "run inconnu"}, 404)
+        return no_store({"purged": True})
+
+    @app.get("/runs/{run_id}/export")
+    async def export_run(run_id: str, request: Request) -> Response:
+        who = identity_of(request)
+        if who is None:
+            return no_store({"error": "connexion requise"}, 401)
+        org = who.organization.id
+        # Propriétaire seul (pas via lien partagé) : on vérifie qu'il possède ce
+        # run vivant avant de le rendre en pièce jointe.
+        owned = any(rid == run_id for rid, _ in store.list_for(org))
+        if not owned:
+            return no_store({"error": "run inconnu"}, 404)
+        archive = store.get(run_id, org)
+        if archive is None:
+            return no_store({"error": "run inconnu"}, 404)
+        return JSONResponse(
+            archive.as_json(),
+            headers={
+                "cache-control": "no-store",
+                "content-disposition": f'attachment; filename="run-{run_id}.json"',
+            },
+        )
 
     @app.post("/memory/{run_id}")
     async def remember(run_id: str, request: Request) -> JSONResponse:

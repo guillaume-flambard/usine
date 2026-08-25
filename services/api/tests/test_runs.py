@@ -14,7 +14,12 @@ from fastapi.testclient import TestClient
 
 from usine_api.app import create_app
 from usine_api.identity import RecordingEmailSender
-from usine_api.runs import ARCHIVE_VERSION, InMemoryRunStore
+from usine_api.runs import ARCHIVE_VERSION, Archive, InMemoryRunStore
+
+# Une archive prête pour les tests du store directement (hors HTTP).
+ARCHIVE_IM = Archive(
+    version=1, brief="un besoin", events=[{"type": "work-finished", "sequence": 1}]
+)
 
 
 def event(sequence: int, kind: str = "message-emitted", **extra: Any) -> dict[str, Any]:
@@ -213,3 +218,117 @@ def test_stored_events_are_byte_for_byte_unchanged() -> None:
     pushed = archive(event(1), event(2, "work-finished"))
     run_id = client.post("/runs", json=pushed).json()["id"]
     assert client.get(f"/runs/{run_id}").json()["events"] == pushed["events"]
+
+
+# --- Cycle de vie : corbeille réversible, restauration, purge. ---
+
+
+def test_delete_trashes_a_run_reversibly() -> None:
+    store = InMemoryRunStore()
+    store.put("r1", ARCHIVE_IM, "orgA")
+    assert store.delete("r1", "orgA") is True
+    # Invisible : ni listé, ni résolu — mais retenu.
+    assert store.get("r1", "orgA") is None
+    assert store.list_for("orgA") == []
+    assert [rid for rid, _ in store.list_trashed("orgA")] == ["r1"]
+    # Restauré : de retour.
+    assert store.restore("r1", "orgA") is True
+    assert store.get("r1", "orgA") is not None
+    assert store.list_trashed("orgA") == []
+
+
+def test_a_trashed_shared_run_stops_resolving() -> None:
+    store = InMemoryRunStore()
+    store.put("r1", ARCHIVE_IM, "orgA")
+    store.share("r1", "orgA")
+    assert store.get("r1", None) is not None
+    store.delete("r1", "orgA")
+    # Même partagé, un run en corbeille ne résout plus.
+    assert store.get("r1", None) is None
+
+
+def test_only_the_owner_administers_lifecycle() -> None:
+    store = InMemoryRunStore()
+    store.put("r1", ARCHIVE_IM, "orgA")
+    assert store.delete("r1", "orgB") is False
+    store.delete("r1", "orgA")
+    assert store.restore("r1", "orgB") is False
+    assert store.purge("r1", "orgB") is False
+    assert store.purge("r1", "orgA") is True
+    assert store.get("r1", "orgA") is None
+    assert store.list_trashed("orgA") == []
+
+
+def test_purge_only_removes_a_trashed_run() -> None:
+    store = InMemoryRunStore()
+    store.put("r1", ARCHIVE_IM, "orgA")
+    # Un run vivant ne se purge pas : ça contournerait la corbeille.
+    assert store.purge("r1", "orgA") is False
+    store.delete("r1", "orgA")
+    assert store.purge("r1", "orgA") is True
+
+
+def test_delete_route_trashes_and_restore_route_brings_back() -> None:
+    app, mailer = make_app()
+    owner = TestClient(app)
+    sign_in(owner, mailer, "owner@atelier.co")
+    run_id = owner.post("/runs", json=archive(event(1))).json()["id"]
+
+    assert owner.delete(f"/runs/{run_id}").json() == {"trashed": True}
+    # Disparu des vivants et de la lecture, présent dans la corbeille.
+    assert owner.get(f"/runs/{run_id}").status_code == 404
+    assert owner.get("/runs").json()["runs"] == []
+    trashed = owner.get("/runs", params={"trashed": "1"}).json()["runs"]
+    assert [r["id"] for r in trashed] == [run_id]
+
+    assert owner.post(f"/runs/{run_id}/restore").json() == {"restored": True}
+    assert owner.get(f"/runs/{run_id}").status_code == 200
+    assert len(owner.get("/runs").json()["runs"]) == 1
+
+
+def test_purge_route_removes_a_trashed_run() -> None:
+    app, mailer = make_app()
+    owner = TestClient(app)
+    sign_in(owner, mailer, "owner@atelier.co")
+    run_id = owner.post("/runs", json=archive(event(1))).json()["id"]
+    # On ne purge pas un run vivant.
+    assert owner.post(f"/runs/{run_id}/purge").status_code == 404
+    owner.delete(f"/runs/{run_id}")
+    assert owner.post(f"/runs/{run_id}/purge").json() == {"purged": True}
+    assert owner.get("/runs", params={"trashed": "1"}).json()["runs"] == []
+
+
+def test_export_route_is_owner_only_and_attaches() -> None:
+    app, mailer = make_app()
+    owner = TestClient(app)
+    sign_in(owner, mailer, "owner@atelier.co")
+    pushed = archive(event(1), event(2, "work-finished"))
+    run_id = owner.post("/runs", json=pushed).json()["id"]
+
+    exported = owner.get(f"/runs/{run_id}/export")
+    assert exported.status_code == 200
+    assert "attachment" in exported.headers["content-disposition"]
+    assert exported.json()["events"] == pushed["events"]
+
+    # Même partagé, une autre org ne l'exporte pas.
+    owner.post(f"/runs/{run_id}/share")
+    other = TestClient(app)
+    sign_in(other, mailer, "someone-else@atelier.co")
+    assert other.get(f"/runs/{run_id}/export").status_code == 404
+
+
+def test_purge_expired_removes_only_long_trashed_runs() -> None:
+    clock = {"t": 1000.0}
+    store = InMemoryRunStore(now=lambda: clock["t"])
+    store.put("old", ARCHIVE_IM, "orgA")
+    store.put("recent", ARCHIVE_IM, "orgA")
+    store.put("live", ARCHIVE_IM, "orgA")
+    store.delete("old", "orgA")
+    clock["t"] += 100
+    store.delete("recent", "orgA")
+    # Fenêtre de 50 s : « old » (corbeille depuis 100 s) part, « recent » (0 s)
+    # et « live » restent.
+    removed = store.purge_expired(older_than_seconds=50)
+    assert removed == 1
+    assert store.get("live", "orgA") is not None
+    assert [rid for rid, _ in store.list_trashed("orgA")] == ["recent"]

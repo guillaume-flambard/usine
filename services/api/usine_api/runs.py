@@ -12,7 +12,9 @@ ainsi coûte dix lignes et évite qu'une base soit nécessaire pour un test.
 from __future__ import annotations
 
 import secrets
-from dataclasses import dataclass
+import time
+from collections.abc import Callable
+from dataclasses import dataclass, replace
 from typing import Any, Protocol
 
 #: La version du format, la même que côté navigateur. Un run d'une autre
@@ -55,6 +57,10 @@ class Owned:
     archive: Archive
     owner: str
     shared: bool = False
+    #: Quand le run a été mis à la corbeille (heure absolue), ou `None` s'il est
+    #: vivant. Un run en corbeille est retenu mais invisible : ni listé, ni
+    #: résolu par lien. Seule la purge le retire pour de bon.
+    trashed_at: float | None = None
 
 
 class RunStore(Protocol):
@@ -62,7 +68,7 @@ class RunStore(Protocol):
 
     Chaque run appartient à une organisation. Un `viewer` (org, ou `None` pour
     un visiteur anonyme) ne voit un run que s'il en est propriétaire, ou si le
-    run a été explicitement partagé.
+    run a été explicitement partagé — et jamais s'il est en corbeille.
     """
 
     def put(self, run_id: str, archive: Archive, owner: str) -> None: ...
@@ -71,11 +77,25 @@ class RunStore(Protocol):
 
     def list_for(self, owner: str) -> list[tuple[str, Owned]]: ...
 
+    def list_trashed(self, owner: str) -> list[tuple[str, Owned]]: ...
+
     def share(self, run_id: str, owner: str) -> bool: ...
 
     def revoke(self, run_id: str, owner: str) -> bool: ...
 
-    def delete(self, run_id: str, owner: str) -> bool: ...
+    def delete(self, run_id: str, owner: str) -> bool:
+        """Met le run à la corbeille (réversible), ne le détruit pas."""
+        ...
+
+    def restore(self, run_id: str, owner: str) -> bool: ...
+
+    def purge(self, run_id: str, owner: str) -> bool:
+        """Retire définitivement un run en corbeille (propriétaire seul)."""
+        ...
+
+    def purge_expired(self, older_than_seconds: float) -> int:
+        """Retire les runs en corbeille depuis plus longtemps que la fenêtre."""
+        ...
 
     def count(self) -> int: ...
 
@@ -90,9 +110,20 @@ class InMemoryRunStore:
     ici plutôt qu'enfoui le jour où ça ne l'est plus.
     """
 
-    def __init__(self, capacity: int = 500) -> None:
+    def __init__(self, capacity: int = 500, *, now: Callable[[], float] = time.time) -> None:
         self._runs: dict[str, Owned] = {}
         self._capacity = capacity
+        self._now = now
+
+    def _owned(self, run_id: str, owner: str, *, live_only: bool = False) -> Owned | None:
+        """L'entrée si elle appartient à `owner` (et, au besoin, n'est pas en
+        corbeille), sinon `None`."""
+        entry = self._runs.get(run_id)
+        if entry is None or entry.owner != owner:
+            return None
+        if live_only and entry.trashed_at is not None:
+            return None
+        return entry
 
     def put(self, run_id: str, archive: Archive, owner: str) -> None:
         if len(self._runs) >= self._capacity:
@@ -104,7 +135,8 @@ class InMemoryRunStore:
 
     def get(self, run_id: str, viewer: str | None) -> Archive | None:
         entry = self._runs.get(run_id)
-        if entry is None:
+        if entry is None or entry.trashed_at is not None:
+            # Un run en corbeille est indistinct d'un run absent.
             return None
         # Propriétaire, ou run partagé : sinon indistinct d'un run inexistant
         # (on ne fuite pas l'existence à une autre org).
@@ -113,28 +145,67 @@ class InMemoryRunStore:
         return None
 
     def list_for(self, owner: str) -> list[tuple[str, Owned]]:
-        return [(run_id, entry) for run_id, entry in self._runs.items() if entry.owner == owner]
+        return [
+            (run_id, entry)
+            for run_id, entry in self._runs.items()
+            if entry.owner == owner and entry.trashed_at is None
+        ]
+
+    def list_trashed(self, owner: str) -> list[tuple[str, Owned]]:
+        return [
+            (run_id, entry)
+            for run_id, entry in self._runs.items()
+            if entry.owner == owner and entry.trashed_at is not None
+        ]
 
     def share(self, run_id: str, owner: str) -> bool:
-        entry = self._runs.get(run_id)
-        if entry is None or entry.owner != owner:
+        entry = self._owned(run_id, owner, live_only=True)
+        if entry is None:
             return False
-        self._runs[run_id] = Owned(archive=entry.archive, owner=owner, shared=True)
+        self._runs[run_id] = replace(entry, shared=True)
         return True
 
     def revoke(self, run_id: str, owner: str) -> bool:
-        entry = self._runs.get(run_id)
-        if entry is None or entry.owner != owner:
+        entry = self._owned(run_id, owner, live_only=True)
+        if entry is None:
             return False
-        self._runs[run_id] = Owned(archive=entry.archive, owner=owner, shared=False)
+        self._runs[run_id] = replace(entry, shared=False)
         return True
 
     def delete(self, run_id: str, owner: str) -> bool:
-        entry = self._runs.get(run_id)
-        if entry is None or entry.owner != owner:
+        # Corbeille, pas destruction : réversible, et le lien cesse de résoudre.
+        entry = self._owned(run_id, owner, live_only=True)
+        if entry is None:
+            return False
+        self._runs[run_id] = replace(entry, trashed_at=self._now())
+        return True
+
+    def restore(self, run_id: str, owner: str) -> bool:
+        entry = self._owned(run_id, owner)
+        if entry is None or entry.trashed_at is None:
+            return False
+        self._runs[run_id] = replace(entry, trashed_at=None)
+        return True
+
+    def purge(self, run_id: str, owner: str) -> bool:
+        entry = self._owned(run_id, owner)
+        # On ne purge que ce qui est en corbeille : purger un run vivant
+        # contournerait la corbeille.
+        if entry is None or entry.trashed_at is None:
             return False
         del self._runs[run_id]
         return True
+
+    def purge_expired(self, older_than_seconds: float) -> int:
+        cutoff = self._now() - older_than_seconds
+        stale = [
+            run_id
+            for run_id, entry in self._runs.items()
+            if entry.trashed_at is not None and entry.trashed_at < cutoff
+        ]
+        for run_id in stale:
+            del self._runs[run_id]
+        return len(stale)
 
     def count(self) -> int:
         return len(self._runs)
