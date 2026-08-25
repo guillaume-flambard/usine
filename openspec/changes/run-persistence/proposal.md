@@ -1,34 +1,49 @@
 ## Why
 
-**Priorité : P0. Dépend de :** `accounts-and-tenancy`.
+**Priorité : P0. Dépend de :** `accounts-and-tenancy` (livré).
 
-Les runs sont conservés par un service de stockage minimal, sans base durable,
-sans rétention, sans sauvegarde. Une équipe ne peut pas retrouver ses
-trajectoires de façon fiable, ni faire confiance à leur pérennité. Il faut une
-persistance durable, propriétaire d'org, sauvegardée.
+`accounts-and-tenancy` a déjà posé la persistance durable : les runs vivent dans
+PostgreSQL, appartiennent à une org, sont listables (`GET /runs`) et supprimables.
+Il manque deux choses pour qu'une équipe fasse *confiance* à cette persistance :
+(1) une **gestion sûre du cycle de vie** — aujourd'hui la suppression est
+définitive et immédiate, sans corbeille ni rétention, et rien dans l'interface ne
+montre à un visiteur connecté ses propres runs ; (2) une **sauvegarde vérifiée**,
+pour qu'une panne d'hôte ne perde pas le travail.
 
 ## What Changes
 
-- **Base de données durable** : les archives (flux `RunEvent`, le format
-  d'archive AD-33) stockées par org, indexées, listables.
-- **Cycle de vie** : rétention configurable, suppression sur demande, corbeille
-  puis purge (jamais de suppression définitive silencieuse).
-- **Sauvegarde/restauration** : dumps réguliers, restauration testée.
-- **Migration** : reprendre les runs déjà stockés par le service actuel sans
-  perte.
+- **Corbeille au lieu d'une suppression sèche** : supprimer un run le met à la
+  corbeille (réversible) ; il disparaît des listes et des liens mais peut être
+  restauré. La purge définitive est explicite, ou automatique après une fenêtre
+  de rétention. **Jamais de suppression définitive silencieuse.**
+- **Rétention + purge** : les runs en corbeille au-delà d'une fenêtre
+  configurable sont purgés ; la purge est une opération nommée et testée (son
+  déclenchement périodique est de l'infra).
+- **Export** : un propriétaire peut exporter un run (son flux d'archive, le
+  format de record) pour l'emporter hors de l'atelier.
+- **Vue « mes runs »** : un visiteur connecté voit, ouvre, partage/révoque,
+  met à la corbeille et restaure ses runs — sinon la tenancy les rend invisibles.
+- **Sauvegarde/restauration** : script `pg_dump`/`pg_restore` documenté et
+  vérifié ; le déclenchement régulier est de l'infra.
 
 ## Capabilities
 
 ### New Capabilities
-- `run-store`: persistance durable des archives par org, listing, recherche.
-- `run-lifecycle`: rétention, corbeille, purge, export.
-- `backup-restore`: sauvegardes régulières et restauration vérifiée.
+- `run-lifecycle`: corbeille réversible, rétention, purge explicite, et export
+  d'un run par son propriétaire.
+- `backup-restore`: sauvegarde régulière de la base et restauration vérifiée.
+
+### Modified Capabilities
+- `tenancy`: la suppression d'un run devient une mise à la corbeille
+  (réversible) ; la lecture et le listing excluent les runs en corbeille.
 
 ## Impact
 
-- Le format stocké reste le flux d'événements — ne pas y ajouter de dépendance à
-  un objet vivant (AD-33).
-- **Honnêteté** : la suppression d'un run efface la trace **interne** ; elle ne
-  défait aucun effet de bord qu'un agent réel aurait produit ailleurs.
-- Dépend de l'identité/org (`accounts-and-tenancy`) ; prérequis de la conformité
-  RGPD (`data-privacy-compliance`).
+- **Code** : le `RunStore` (port + impls mémoire et Postgres) gagne corbeille,
+  restauration, purge, et un listing qui exclut la corbeille ; une migration SQL
+  ajoute `trashed_at`. Nouveau front : une vue « mes runs ».
+- **Honnêteté (AD-41)** : purger un run efface la trace **interne**, pas un effet
+  de bord externe qu'un agent aurait produit. La corbeille protège de la perte
+  accidentelle ; elle ne prétend pas annuler le monde.
+- **Infra (utilisateur)** : planifier la purge et la sauvegarde (cron Coolify).
+- Reste hors périmètre : recherche plein-texte (listing simple pour l'instant).
