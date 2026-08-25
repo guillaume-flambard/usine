@@ -920,6 +920,70 @@ button.picker:hover {
   color: var(--muted);
 }
 
+/* Mes runs : une liste sobre, pas un tableau de bord. */
+.my-runs {
+  margin: 10px 0 0;
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  padding: 8px;
+}
+
+.my-runs-tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.my-runs-tabs [aria-selected='true'] {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.my-runs-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 30vh;
+  overflow-y: auto;
+}
+
+.my-runs-empty {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.my-runs-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.my-runs-open {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.my-runs-meta {
+  color: var(--muted);
+}
+
+.my-runs-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
 /* Une ligne pour tous les faits du run. Elle remplace cinq boîtes. */
 .status {
   display: flex;

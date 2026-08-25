@@ -148,21 +148,24 @@ class PostgresRunStore:
     def get(self, run_id: str, viewer: str | None) -> Archive | None:
         with self._pool.connection() as conn:
             found = conn.execute(
-                "SELECT version, brief, events, owner, shared FROM runs WHERE run_id = %s",
+                "SELECT version, brief, events, owner, shared FROM runs "
+                "WHERE run_id = %s AND trashed_at IS NULL",
                 (run_id,),
             ).fetchone()
         if found is None:
             return None
         owner, shared = found[3], found[4]
-        # Propriétaire ou partagé, sinon indistinct d'un run absent.
+        # Propriétaire ou partagé, sinon indistinct d'un run absent (ou en corbeille).
         if shared or owner == viewer:
             return self._archive(found)
         return None
 
-    def list_for(self, owner: str) -> list[tuple[str, Owned]]:
+    def _list(self, owner: str, *, trashed: bool) -> list[tuple[str, Owned]]:
+        clause = "trashed_at IS NOT NULL" if trashed else "trashed_at IS NULL"
         with self._pool.connection() as conn:
             rows = conn.execute(
-                "SELECT run_id, version, brief, events, shared FROM runs WHERE owner = %s",
+                f"SELECT run_id, version, brief, events, shared, trashed_at FROM runs "
+                f"WHERE owner = %s AND {clause}",
                 (owner,),
             ).fetchall()
         return [
@@ -172,15 +175,24 @@ class PostgresRunStore:
                     archive=Archive(version=row[1], brief=row[2], events=list(row[3])),
                     owner=owner,
                     shared=row[4],
+                    trashed_at=row[5].timestamp() if row[5] is not None else None,
                 ),
             )
             for row in rows
         ]
 
+    def list_for(self, owner: str) -> list[tuple[str, Owned]]:
+        return self._list(owner, trashed=False)
+
+    def list_trashed(self, owner: str) -> list[tuple[str, Owned]]:
+        return self._list(owner, trashed=True)
+
     def _set_shared(self, run_id: str, owner: str, shared: bool) -> bool:
         with self._pool.connection() as conn:
+            # Un run en corbeille ne se (dé)partage pas.
             result = conn.execute(
-                "UPDATE runs SET shared = %s WHERE run_id = %s AND owner = %s",
+                "UPDATE runs SET shared = %s WHERE run_id = %s AND owner = %s "
+                "AND trashed_at IS NULL",
                 (shared, run_id, owner),
             )
             return result.rowcount > 0
@@ -192,11 +204,41 @@ class PostgresRunStore:
         return self._set_shared(run_id, owner, False)
 
     def delete(self, run_id: str, owner: str) -> bool:
+        # Corbeille : on pose trashed_at plutôt que de détruire.
         with self._pool.connection() as conn:
             result = conn.execute(
-                "DELETE FROM runs WHERE run_id = %s AND owner = %s", (run_id, owner)
+                "UPDATE runs SET trashed_at = now() "
+                "WHERE run_id = %s AND owner = %s AND trashed_at IS NULL",
+                (run_id, owner),
             )
             return result.rowcount > 0
+
+    def restore(self, run_id: str, owner: str) -> bool:
+        with self._pool.connection() as conn:
+            result = conn.execute(
+                "UPDATE runs SET trashed_at = NULL "
+                "WHERE run_id = %s AND owner = %s AND trashed_at IS NOT NULL",
+                (run_id, owner),
+            )
+            return result.rowcount > 0
+
+    def purge(self, run_id: str, owner: str) -> bool:
+        # On ne purge que ce qui est en corbeille (jamais un run vivant).
+        with self._pool.connection() as conn:
+            result = conn.execute(
+                "DELETE FROM runs WHERE run_id = %s AND owner = %s AND trashed_at IS NOT NULL",
+                (run_id, owner),
+            )
+            return result.rowcount > 0
+
+    def purge_expired(self, older_than_seconds: float) -> int:
+        with self._pool.connection() as conn:
+            result = conn.execute(
+                "DELETE FROM runs WHERE trashed_at IS NOT NULL "
+                "AND trashed_at < now() - make_interval(secs => %s)",
+                (older_than_seconds,),
+            )
+            return result.rowcount
 
     def count(self) -> int:
         with self._pool.connection() as conn:

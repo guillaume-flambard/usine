@@ -20,6 +20,16 @@ import { fetchRun, linkFor, requestedRun, storeRun } from '../app/archive-client
 import { importTrace, isImportError } from '../app/import'
 import { measureRun } from '../app/measure'
 import { logout, requestLink, sessionStatus, type SessionStatus } from '../app/auth-client'
+import {
+  exportUrl,
+  listRuns,
+  purgeRun,
+  restoreRun,
+  revokeRunById,
+  shareRunById,
+  trashRun,
+  type RunSummary,
+} from '../app/runs-client'
 import { fetchEvaluation, formatEvaluation, type Evaluation } from '../app/eval-client'
 import { availableSources, serviceFetcher } from '../app/sources'
 import type { Interaction } from '../app/session'
@@ -168,6 +178,43 @@ async function onLogout() {
   await logout()
   session.value = { authenticated: false }
   signInSent.value = false
+  runsOpen.value = false
+}
+
+// La vue « mes runs » : sans elle, un visiteur connecté ne verrait aucun de ses
+// runs (la tenancy les rend privés).
+const runsOpen = ref(false)
+const runsTab = ref<'live' | 'trash'>('live')
+const myRuns = ref<RunSummary[]>([])
+const myTrash = ref<RunSummary[]>([])
+const runExportUrl = exportUrl
+
+async function refreshRuns() {
+  ;[myRuns.value, myTrash.value] = await Promise.all([listRuns(false), listRuns(true)])
+}
+
+async function toggleRuns() {
+  runsOpen.value = !runsOpen.value
+  if (runsOpen.value) await refreshRuns()
+}
+
+function openRun(id: string) {
+  // Rejouer ce run, par le chemin de rejeu existant (?run=<id>).
+  window.location.search = `?run=${encodeURIComponent(id)}`
+}
+
+async function onTrashRun(id: string) {
+  if (await trashRun(id)) await refreshRuns()
+}
+async function onRestoreRun(id: string) {
+  if (await restoreRun(id)) await refreshRuns()
+}
+async function onPurgeRun(id: string) {
+  if (await purgeRun(id)) await refreshRuns()
+}
+async function onToggleShare(run: RunSummary) {
+  const done = run.shared ? await revokeRunById(run.id) : await shareRunById(run.id)
+  if (done) await refreshRuns()
 }
 
 /**
@@ -576,6 +623,9 @@ onBeforeUnmount(() => {
         <!-- La connexion vit dans la ligne de marque, pas dans une zone de plus.
              Anonyme : un lien « se connecter » ; connecté : l'email et « quitter ». -->
         <span v-if="session.authenticated" class="account">
+          <button class="status-toggle" :aria-expanded="runsOpen" aria-controls="my-runs" @click="toggleRuns">
+            mes runs
+          </button>
           <span class="account-email">{{ session.email }}</span>
           <button class="status-toggle" @click="onLogout">quitter</button>
         </span>
@@ -615,6 +665,54 @@ onBeforeUnmount(() => {
           </button>
         </template>
       </form>
+
+      <!-- Mes runs : lister, ouvrir, partager, mettre à la corbeille, restaurer. -->
+      <div v-if="runsOpen && session.authenticated" id="my-runs" class="my-runs">
+        <div class="my-runs-tabs" role="tablist">
+          <button
+            class="status-toggle"
+            role="tab"
+            :aria-selected="runsTab === 'live'"
+            @click="runsTab = 'live'"
+          >
+            actifs ({{ myRuns.length }})
+          </button>
+          <button
+            class="status-toggle"
+            role="tab"
+            :aria-selected="runsTab === 'trash'"
+            @click="runsTab = 'trash'"
+          >
+            corbeille ({{ myTrash.length }})
+          </button>
+        </div>
+
+        <ul v-if="runsTab === 'live'" class="my-runs-list">
+          <li v-if="myRuns.length === 0" class="my-runs-empty">Aucun run conservé.</li>
+          <li v-for="run in myRuns" :key="run.id" class="my-runs-row">
+            <button class="my-runs-open" @click="openRun(run.id)">{{ run.brief || 'run' }}</button>
+            <span class="my-runs-meta">{{ run.events }} évts{{ run.shared ? ' · partagé' : '' }}</span>
+            <span class="my-runs-actions">
+              <button class="status-toggle" @click="onToggleShare(run)">
+                {{ run.shared ? 'révoquer' : 'partager' }}
+              </button>
+              <a class="status-toggle" :href="runExportUrl(run.id)">exporter</a>
+              <button class="status-toggle" @click="onTrashRun(run.id)">corbeille</button>
+            </span>
+          </li>
+        </ul>
+
+        <ul v-else class="my-runs-list">
+          <li v-if="myTrash.length === 0" class="my-runs-empty">Corbeille vide.</li>
+          <li v-for="run in myTrash" :key="run.id" class="my-runs-row">
+            <span class="my-runs-open">{{ run.brief || 'run' }}</span>
+            <span class="my-runs-actions">
+              <button class="status-toggle" @click="onRestoreRun(run.id)">restaurer</button>
+              <button class="status-toggle" @click="onPurgeRun(run.id)">purger</button>
+            </span>
+          </li>
+        </ul>
+      </div>
 
       <!-- Une ligne, pas cinq boîtes. Chaque fait y est un mot, et le point
            coloré dit le mode sans avoir à le lire. -->

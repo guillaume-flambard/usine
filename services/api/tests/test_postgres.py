@@ -111,6 +111,37 @@ def test_listing_returns_only_ones_own(stores) -> None:  # type: ignore[no-untyp
     assert len(stores.runs.list_for("orgB")) == 1
 
 
+def test_lifecycle_trash_restore_purge(stores) -> None:  # type: ignore[no-untyped-def]
+    stores.runs.put("r1", archive(1), "orgA")
+    stores.runs.share("r1", "orgA")
+    # Corbeille : invisible, y compris par lien partagé, mais retenu.
+    assert stores.runs.delete("r1", "orgA") is True
+    assert stores.runs.get("r1", "orgA") is None
+    assert stores.runs.get("r1", None) is None
+    assert stores.runs.list_for("orgA") == []
+    assert [rid for rid, _ in stores.runs.list_trashed("orgA")] == ["r1"]
+    # Restauré : de retour (et non partagé — le partage a été perdu à la corbeille ?
+    # non : on ne touche pas `shared`, mais le run est de nouveau lisible).
+    assert stores.runs.restore("r1", "orgA") is True
+    assert stores.runs.get("r1", "orgA") is not None
+    # Purge : un run vivant ne se purge pas ; en corbeille, oui, propriétaire seul.
+    assert stores.runs.purge("r1", "orgA") is False
+    stores.runs.delete("r1", "orgA")
+    assert stores.runs.purge("r1", "orgB") is False
+    assert stores.runs.purge("r1", "orgA") is True
+    assert stores.runs.list_trashed("orgA") == []
+
+
+def test_purge_expired_on_postgres(stores) -> None:  # type: ignore[no-untyped-def]
+    stores.runs.put("r1", archive(1), "orgA")
+    stores.runs.delete("r1", "orgA")
+    # Fenêtre large : rien ne part (corbeille toute récente).
+    assert stores.runs.purge_expired(older_than_seconds=3600) == 0
+    # Fenêtre nulle : tout ce qui est en corbeille part.
+    assert stores.runs.purge_expired(older_than_seconds=0) == 1
+    assert stores.runs.list_trashed("orgA") == []
+
+
 def test_full_flow_through_the_app_on_postgres(stores, monkeypatch) -> None:  # type: ignore[no-untyped-def]
     # Prouve que create_app câble bien Postgres depuis DATABASE_URL, et que le
     # flux connexion → conservation → relecture tient de bout en bout sur la base.
