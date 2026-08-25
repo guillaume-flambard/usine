@@ -47,12 +47,35 @@ class Archive:
         return {"version": self.version, "brief": self.brief, "events": self.events}
 
 
+@dataclass(frozen=True)
+class Owned:
+    """Un run et son appartenance. L'org et le partage vivent à côté du flux,
+    jamais dedans : le flux reste le format d'archive (AD-33)."""
+
+    archive: Archive
+    owner: str
+    shared: bool = False
+
+
 class RunStore(Protocol):
-    """Le port. Postgres le remplira sans que les routes changent."""
+    """Le port. Postgres le remplira sans que les routes changent.
 
-    def put(self, run_id: str, archive: Archive) -> None: ...
+    Chaque run appartient à une organisation. Un `viewer` (org, ou `None` pour
+    un visiteur anonyme) ne voit un run que s'il en est propriétaire, ou si le
+    run a été explicitement partagé.
+    """
 
-    def get(self, run_id: str) -> Archive | None: ...
+    def put(self, run_id: str, archive: Archive, owner: str) -> None: ...
+
+    def get(self, run_id: str, viewer: str | None) -> Archive | None: ...
+
+    def list_for(self, owner: str) -> list[tuple[str, Owned]]: ...
+
+    def share(self, run_id: str, owner: str) -> bool: ...
+
+    def revoke(self, run_id: str, owner: str) -> bool: ...
+
+    def delete(self, run_id: str, owner: str) -> bool: ...
 
     def count(self) -> int: ...
 
@@ -68,25 +91,56 @@ class InMemoryRunStore:
     """
 
     def __init__(self, capacity: int = 500) -> None:
-        self._runs: dict[str, Archive] = {}
+        self._runs: dict[str, Owned] = {}
         self._capacity = capacity
 
-    def put(self, run_id: str, archive: Archive) -> None:
+    def put(self, run_id: str, archive: Archive, owner: str) -> None:
         if len(self._runs) >= self._capacity:
             # Le plus ancien part. Un stockage sans borne sur un service public
             # est une fuite de mémoire avec un nom flatteur.
             oldest = next(iter(self._runs))
             del self._runs[oldest]
-        self._runs[run_id] = archive
+        self._runs[run_id] = Owned(archive=archive, owner=owner)
 
-    def get(self, run_id: str) -> Archive | None:
-        return self._runs.get(run_id)
+    def get(self, run_id: str, viewer: str | None) -> Archive | None:
+        entry = self._runs.get(run_id)
+        if entry is None:
+            return None
+        # Propriétaire, ou run partagé : sinon indistinct d'un run inexistant
+        # (on ne fuite pas l'existence à une autre org).
+        if entry.shared or entry.owner == viewer:
+            return entry.archive
+        return None
+
+    def list_for(self, owner: str) -> list[tuple[str, Owned]]:
+        return [(run_id, entry) for run_id, entry in self._runs.items() if entry.owner == owner]
+
+    def share(self, run_id: str, owner: str) -> bool:
+        entry = self._runs.get(run_id)
+        if entry is None or entry.owner != owner:
+            return False
+        self._runs[run_id] = Owned(archive=entry.archive, owner=owner, shared=True)
+        return True
+
+    def revoke(self, run_id: str, owner: str) -> bool:
+        entry = self._runs.get(run_id)
+        if entry is None or entry.owner != owner:
+            return False
+        self._runs[run_id] = Owned(archive=entry.archive, owner=owner, shared=False)
+        return True
+
+    def delete(self, run_id: str, owner: str) -> bool:
+        entry = self._runs.get(run_id)
+        if entry is None or entry.owner != owner:
+            return False
+        del self._runs[run_id]
+        return True
 
     def count(self) -> int:
         return len(self._runs)
 
     def all(self) -> list[Archive]:
-        return list(self._runs.values())
+        return [entry.archive for entry in self._runs.values()]
 
 
 def read_archive(body: Any, *, raw_size: int) -> Archive:

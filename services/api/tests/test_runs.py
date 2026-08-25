@@ -9,9 +9,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from usine_api.app import create_app
+from usine_api.identity import RecordingEmailSender
 from usine_api.runs import ARCHIVE_VERSION, InMemoryRunStore
 
 
@@ -23,8 +25,27 @@ def archive(*events: dict[str, Any], brief: str = "un besoin") -> dict[str, Any]
     return {"version": ARCHIVE_VERSION, "brief": brief, "events": list(events)}
 
 
+def make_app(**kwargs: Any) -> tuple[FastAPI, RecordingEmailSender]:
+    mailer = RecordingEmailSender()
+    app = create_app(key="clé", call=None, email=mailer, secure_cookies=False, **kwargs)
+    return app, mailer
+
+
+def sign_in(client: TestClient, mailer: RecordingEmailSender, email: str) -> None:
+    """Connecte ce client (lien magique) : son bocal à cookies porte la session."""
+    client.post("/auth/request-link", json={"email": email})
+    _addr, link = mailer.sent[-1]
+    token = link.split("token=", 1)[1]
+    client.get("/auth/redeem", params={"token": token}, follow_redirects=False)
+
+
 def client_for(**kwargs: Any) -> TestClient:
-    return TestClient(create_app(key="clé", call=None, **kwargs))
+    """Un client déjà connecté : la plupart des tests conservent puis relisent
+    leurs propres runs, donc propriétaire == lecteur."""
+    app, mailer = make_app(**kwargs)
+    client = TestClient(app)
+    sign_in(client, mailer, "owner@atelier.co")
+    return client
 
 
 def test_a_pushed_run_comes_back_identical() -> None:
@@ -110,3 +131,85 @@ def test_a_stored_run_is_never_cached() -> None:
     run_id = client.post("/runs", json=archive(event(1))).json()["id"]
 
     assert client.get(f"/runs/{run_id}").headers["cache-control"] == "no-store"
+
+
+# --- Tenancy : appartenance, privé par défaut, partage, isolation entre orgs. ---
+
+
+def test_storing_a_run_requires_sign_in() -> None:
+    app, _mailer = make_app()
+    anonymous = TestClient(app)
+    assert anonymous.post("/runs", json=archive(event(1))).status_code == 401
+
+
+def test_a_run_is_private_by_default() -> None:
+    app, mailer = make_app()
+    owner = TestClient(app)
+    sign_in(owner, mailer, "owner@atelier.co")
+    run_id = owner.post("/runs", json=archive(event(1))).json()["id"]
+
+    # Un visiteur anonyme ne voit pas un run non partagé : 404, pas 403.
+    assert TestClient(app).get(f"/runs/{run_id}").status_code == 404
+
+
+def test_another_org_cannot_read_a_run() -> None:
+    app, mailer = make_app()
+    owner = TestClient(app)
+    sign_in(owner, mailer, "owner@atelier.co")
+    run_id = owner.post("/runs", json=archive(event(1))).json()["id"]
+
+    other = TestClient(app)
+    sign_in(other, mailer, "someone-else@atelier.co")
+    # Indistinct d'un run inexistant : on ne fuite pas l'existence.
+    assert other.get(f"/runs/{run_id}").status_code == 404
+
+
+def test_sharing_enables_the_link_and_revoking_disables_it() -> None:
+    app, mailer = make_app()
+    owner = TestClient(app)
+    sign_in(owner, mailer, "owner@atelier.co")
+    run_id = owner.post("/runs", json=archive(event(1))).json()["id"]
+    anonymous = TestClient(app)
+
+    assert anonymous.get(f"/runs/{run_id}").status_code == 404
+    assert owner.post(f"/runs/{run_id}/share").status_code == 200
+    assert anonymous.get(f"/runs/{run_id}").status_code == 200
+    assert owner.post(f"/runs/{run_id}/revoke").status_code == 200
+    assert anonymous.get(f"/runs/{run_id}").status_code == 404
+
+
+def test_a_non_owner_cannot_administer_a_run() -> None:
+    app, mailer = make_app()
+    owner = TestClient(app)
+    sign_in(owner, mailer, "owner@atelier.co")
+    run_id = owner.post("/runs", json=archive(event(1))).json()["id"]
+
+    other = TestClient(app)
+    sign_in(other, mailer, "someone-else@atelier.co")
+    assert other.post(f"/runs/{run_id}/share").status_code == 404
+    assert other.delete(f"/runs/{run_id}").status_code == 404
+    # Le propriétaire, lui, peut supprimer.
+    assert owner.delete(f"/runs/{run_id}").status_code == 200
+    assert owner.get(f"/runs/{run_id}").status_code == 404
+
+
+def test_listing_returns_only_ones_own_runs() -> None:
+    app, mailer = make_app()
+    owner = TestClient(app)
+    sign_in(owner, mailer, "owner@atelier.co")
+    owner.post("/runs", json=archive(event(1)))
+    owner.post("/runs", json=archive(event(1)))
+
+    other = TestClient(app)
+    sign_in(other, mailer, "someone-else@atelier.co")
+    other.post("/runs", json=archive(event(1)))
+
+    assert len(owner.get("/runs").json()["runs"]) == 2
+    assert len(other.get("/runs").json()["runs"]) == 1
+
+
+def test_stored_events_are_byte_for_byte_unchanged() -> None:
+    client = client_for()
+    pushed = archive(event(1), event(2, "work-finished"))
+    run_id = client.post("/runs", json=pushed).json()["id"]
+    assert client.get(f"/runs/{run_id}").json()["events"] == pushed["events"]

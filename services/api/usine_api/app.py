@@ -12,13 +12,29 @@ qu'elle est propre.
 from __future__ import annotations
 
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from .evaluation import evaluate, measure
+from .identity import (
+    SESSION_TTL_SECONDS,
+    EmailSender,
+    Identity,
+    IdentityStore,
+    InMemoryIdentityStore,
+    InMemorySessionStore,
+    InMemoryTokenStore,
+    LoggingEmailSender,
+    SessionStore,
+    SmtpEmailSender,
+    TokenStore,
+    normalize_email,
+)
 from .limits import Limits, RateLimiter
 from .mcp import TIMEOUT_SECONDS, McpRefusal, Server, call_tool, list_tools
 from .memory import MAX_FACT, Fact, InMemoryMemory, Memory
@@ -78,6 +94,25 @@ async def http_caller(
             return response.status_code, {}
 
 
+def _default_email_sender() -> EmailSender:
+    """SMTP si l'environnement le configure, sinon un journal (dev).
+
+    En prod, `SMTP_HOST` déclenche l'envoi réel ; en dev, on journalise le lien
+    plutôt que de joindre un serveur — honnête sur ce qu'il fait.
+    """
+    host = os.environ.get("SMTP_HOST", "")
+    if not host:
+        return LoggingEmailSender()
+    return SmtpEmailSender(
+        host=host,
+        port=int(os.environ.get("SMTP_PORT", "587")),
+        username=os.environ.get("SMTP_USER", ""),
+        password=os.environ.get("SMTP_PASSWORD", ""),
+        sender=os.environ.get("SMTP_FROM", "atelier@memolabs.dev"),
+        use_tls=os.environ.get("SMTP_TLS", "1") != "0",
+    )
+
+
 def create_app(
     *,
     key: str | None = None,
@@ -92,11 +127,36 @@ def create_app(
     memory: Memory | None = None,
     servers: dict[str, Server] | None = None,
     transport: Any = None,
+    identities: IdentityStore | None = None,
+    tokens: TokenStore | None = None,
+    sessions: SessionStore | None = None,
+    email: EmailSender | None = None,
+    secure_cookies: bool = True,
 ) -> FastAPI:
     """Construit le service. Tout ce qui touche l'extérieur est injectable."""
     bounds = limits or Limits()
     gate = limiter or RateLimiter(bounds)
-    store: RunStore = runs if runs is not None else InMemoryRunStore()
+
+    # Postgres si une base est fournie et qu'aucun store n'a été injecté (les
+    # tests injectent leurs impls en mémoire). Sinon on reste en mémoire, et la
+    # CI n'a besoin ni de base ni d'SMTP.
+    db_url = os.environ.get("DATABASE_URL", "")
+    stores_needed = any(dep is None for dep in (runs, identities, tokens, sessions))
+    pg = None
+    if db_url and stores_needed:
+        from .postgres import PostgresStores
+
+        pg = PostgresStores(db_url)
+
+    store: RunStore = runs or (pg.runs if pg is not None else InMemoryRunStore())
+    # L'identité, derrière ses ports.
+    people: IdentityStore = identities or (
+        pg.identities if pg is not None else InMemoryIdentityStore()
+    )
+    links: TokenStore = tokens or (pg.tokens if pg is not None else InMemoryTokenStore())
+    seats: SessionStore = sessions or (pg.sessions if pg is not None else InMemorySessionStore())
+    # L'email : SMTP si configuré, journal sinon (dev). Un test injecte le sien.
+    mailer: EmailSender = email or _default_email_sender()
     # Nommés par nous, comme les sources. Vide par défaut : un serveur d'outils
     # est une décision de déploiement, pas un défaut qu'on découvre.
     tool_servers: dict[str, Server] = servers or {}
@@ -106,12 +166,55 @@ def create_app(
     chosen_model = model or os.environ.get("USINE_MODEL", DEFAULT_MODEL)
     site_origin = origin or os.environ.get("USINE_ORIGIN", "https://usine.memolabs.dev")
 
-    app = FastAPI(title="Usine agentique — service", docs_url=None, redoc_url=None)
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        # Rien à ouvrir (le pool l'est déjà) ; à l'arrêt, on le ferme proprement
+        # plutôt que de le laisser au ramasse-miettes.
+        yield
+        if pg is not None:
+            pg.pool.close()
+
+    app = FastAPI(
+        title="Usine agentique — service",
+        docs_url=None,
+        redoc_url=None,
+        lifespan=lifespan,
+    )
 
     def no_store(body: dict[str, Any], status: int = 200) -> JSONResponse:
         # Rien de ce que rend ce service n'est cachable : une capacité mise en
         # cache est une capacité fausse.
         return JSONResponse(body, status_code=status, headers={"cache-control": "no-store"})
+
+    #: Le cookie qui porte la session. HTTP-only : le script de la page ne le lit
+    #: jamais, comme la clé fournisseur ne le touche jamais (règle projet).
+    SESSION_COOKIE = "usine_session"
+
+    def set_session(response: Response, session_id: str) -> None:
+        response.set_cookie(
+            SESSION_COOKIE,
+            session_id,
+            httponly=True,
+            secure=secure_cookies,
+            samesite="lax",
+            max_age=SESSION_TTL_SECONDS,
+            path="/",
+        )
+
+    def identity_of(request: Request) -> Identity | None:
+        """L'identité derrière le cookie de session, ou `None`."""
+        session_id = request.cookies.get(SESSION_COOKIE)
+        if not session_id:
+            return None
+        account_id = seats.account(session_id)
+        if account_id is None:
+            return None
+        return people.by_account(account_id)
+
+    def viewer_org(request: Request) -> str | None:
+        """L'org derrière la session, ou `None` pour un visiteur anonyme."""
+        who = identity_of(request)
+        return who.organization.id if who is not None else None
 
     @app.get("/health")
     async def health(request: Request) -> JSONResponse:
@@ -128,6 +231,66 @@ def create_app(
                 "callsPerRun": bounds.calls_per_run,
             }
         )
+
+    @app.post("/auth/request-link")
+    async def request_link(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+        except Exception:  # noqa: BLE001 — un corps illisible est une demande
+            body = {}
+        email = normalize_email(str(body.get("email") or "") if isinstance(body, dict) else "")
+
+        # Sous le compteur : le canal email ne doit pas pouvoir être pilonné.
+        refusal = gate.allow(address_of(request))
+        if refusal is not None:
+            return no_store({"error": refusal}, 429)
+
+        # On envoie seulement si l'email est plausible — mais la réponse est la
+        # même dans tous les cas : rien ne dit si un compte existe (pas d'oracle).
+        if email:
+            token = links.issue(email)
+            # Le lien passe par `/api` : c'est le préfixe que le proxy route vers
+            # ce service. Bâti sur l'origine publique, pas sur `base_url` (qui,
+            # derrière le proxy, porte l'hôte interne).
+            link = f"{site_origin}/api/auth/redeem?token={token}"
+            mailer.send_link(email, link)
+        return no_store({"sent": True})
+
+    @app.get("/auth/redeem")
+    async def redeem(request: Request, token: str = "") -> Response:
+        email = links.redeem(token) if token else None
+        if email is None:
+            # Expiré, utilisé, inconnu : indistincts, et sans session.
+            return no_store({"error": "lien invalide ou expiré"}, 400)
+        who = people.ensure(email)
+        session_id = seats.open(who.account.id)
+        # On revient à l'atelier, session posée. La redirection rend le lien
+        # cliquable depuis un email : le suivre connecte et ramène à la page.
+        response = RedirectResponse(url=site_origin, status_code=303)
+        set_session(response, session_id)
+        return response
+
+    @app.get("/auth/session")
+    async def session_route(request: Request) -> JSONResponse:
+        who = identity_of(request)
+        if who is None:
+            return no_store({"authenticated": False})
+        return no_store(
+            {
+                "authenticated": True,
+                "email": who.account.email,
+                "org": who.organization.id,
+            }
+        )
+
+    @app.post("/auth/logout")
+    async def logout(request: Request) -> JSONResponse:
+        session_id = request.cookies.get(SESSION_COOKIE)
+        if session_id:
+            seats.close(session_id)
+        response = no_store({"loggedOut": True})
+        response.delete_cookie(SESSION_COOKIE, path="/")
+        return response
 
     @app.post("/reason")
     async def reason_route(request: Request) -> JSONResponse:
@@ -187,6 +350,13 @@ def create_app(
 
     @app.post("/runs")
     async def store_run(request: Request) -> JSONResponse:
+        # Conserver un run exige une identité : un run appartient à une org.
+        # Un visiteur anonyme fait tourner la démo mais ne persiste rien
+        # (dégradation sûre, spec authorization).
+        who = identity_of(request)
+        if who is None:
+            return no_store({"error": "connexion requise pour conserver un run"}, 401)
+
         raw = await request.body()
         try:
             body = await request.json()
@@ -199,17 +369,67 @@ def create_app(
             return no_store({"error": refused.message}, refused.status)
 
         run_id = make_id()
-        store.put(run_id, archive)
+        store.put(run_id, archive, who.organization.id)
         # Rien d'autre ne ressort : le run est déjà chez celui qui l'a poussé,
         # et le renvoyer doublerait la charge pour rien.
         return no_store({"id": run_id, "events": len(archive.events)}, 201)
 
+    @app.get("/runs")
+    async def list_runs(request: Request) -> JSONResponse:
+        who = identity_of(request)
+        if who is None:
+            return no_store({"error": "connexion requise"}, 401)
+        runs_of = store.list_for(who.organization.id)
+        return no_store(
+            {
+                "runs": [
+                    {
+                        "id": run_id,
+                        "brief": entry.archive.brief,
+                        "events": len(entry.archive.events),
+                        "shared": entry.shared,
+                    }
+                    for run_id, entry in runs_of
+                ]
+            }
+        )
+
     @app.get("/runs/{run_id}")
-    async def fetch_run(run_id: str) -> JSONResponse:
-        archive = store.get(run_id)
+    async def fetch_run(run_id: str, request: Request) -> JSONResponse:
+        # Propriétaire, ou run partagé : sinon 404, indistinct d'un run absent.
+        archive = store.get(run_id, viewer_org(request))
         if archive is None:
             return no_store({"error": "run inconnu"}, 404)
         return no_store(archive.as_json())
+
+    @app.post("/runs/{run_id}/share")
+    async def share_run(run_id: str, request: Request) -> JSONResponse:
+        who = identity_of(request)
+        if who is None:
+            return no_store({"error": "connexion requise"}, 401)
+        if not store.share(run_id, who.organization.id):
+            return no_store({"error": "run inconnu"}, 404)
+        return no_store({"shared": True})
+
+    @app.post("/runs/{run_id}/revoke")
+    async def revoke_run(run_id: str, request: Request) -> JSONResponse:
+        who = identity_of(request)
+        if who is None:
+            return no_store({"error": "connexion requise"}, 401)
+        if not store.revoke(run_id, who.organization.id):
+            return no_store({"error": "run inconnu"}, 404)
+        return no_store({"shared": False})
+
+    @app.delete("/runs/{run_id}")
+    async def delete_run(run_id: str, request: Request) -> JSONResponse:
+        who = identity_of(request)
+        if who is None:
+            return no_store({"error": "connexion requise"}, 401)
+        if not store.delete(run_id, who.organization.id):
+            return no_store({"error": "run inconnu"}, 404)
+        # La réversibilité côté produit ne défait pas un effet externe : ici on
+        # efface la trace interne, rien de plus (AD-41).
+        return no_store({"deleted": True})
 
     @app.post("/memory/{run_id}")
     async def remember(run_id: str, request: Request) -> JSONResponse:
@@ -330,8 +550,8 @@ def create_app(
         return no_store(found)
 
     @app.get("/runs/{run_id}/trace")
-    async def trace(run_id: str) -> JSONResponse:
-        archive = store.get(run_id)
+    async def trace(run_id: str, request: Request) -> JSONResponse:
+        archive = store.get(run_id, viewer_org(request))
         if archive is None:
             return no_store({"error": "run inconnu"}, 404)
         return no_store(trace_of(run_id, archive))
@@ -343,8 +563,8 @@ def create_app(
         return no_store(evaluate(store.all()).as_json())
 
     @app.get("/evaluation/{run_id}")
-    async def evaluation_of(run_id: str) -> JSONResponse:
-        archive = store.get(run_id)
+    async def evaluation_of(run_id: str, request: Request) -> JSONResponse:
+        archive = store.get(run_id, viewer_org(request))
         if archive is None:
             return no_store({"error": "run inconnu"}, 404)
         one = measure(archive)
