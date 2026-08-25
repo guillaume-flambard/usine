@@ -7,7 +7,7 @@
 // weakening the isolation to observe it, which would prove nothing.
 import { describe, expect, it, afterEach } from 'vitest'
 import { createFrameHost, type FrameHost } from './frame-host'
-import { createSession, type Session } from './session'
+import { createSession, type Interaction, type Session } from './session'
 import type { Behaviour } from './behaviour'
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
@@ -30,6 +30,8 @@ interface Harness {
   host: FrameHost
   session: Session
   inner: Document
+  /** Every interaction the host handed back as an observation. */
+  observations: Interaction[]
   set(next: { behaviours?: readonly Behaviour[]; screen?: { markup: string; revision: number } }): void
 }
 
@@ -51,12 +53,14 @@ async function harness(initial: readonly Behaviour[]): Promise<Harness> {
   let behaviours: readonly Behaviour[] = initial
   let screen = { markup: SCREEN, revision: 1 }
   const session = createSession()
+  const observations: Interaction[] = []
 
   const host = createFrameHost({
     frame,
     behaviours: () => behaviours,
     screen: () => screen,
     session,
+    onObservation: (interaction) => observations.push(interaction),
   })
 
   // The bridge announces itself; the host answers with the screen.
@@ -69,6 +73,7 @@ async function harness(initial: readonly Behaviour[]): Promise<Harness> {
     host,
     session,
     inner,
+    observations,
     set(next) {
       if (next.behaviours !== undefined) behaviours = next.behaviours
       if (next.screen !== undefined) screen = next.screen
@@ -203,13 +208,34 @@ describe('the bridge', () => {
     expect(button(inner)?.disabled).toBe(false)
   })
 
+  it('reports every interaction as an observation, carrying the exchange', async () => {
+    const { inner, observations } = await harness([
+      behaviour('compter', 1, (text) => `${text.split(' ').length} mots`),
+    ])
+    await wait(120)
+
+    const field = inner.querySelector<HTMLTextAreaElement>('[data-field]')
+    if (field === null) throw new Error('pas de champ')
+    field.value = 'trois mots ici'
+    button(inner)?.click()
+    await wait(200)
+
+    // The observation is the recorded interaction itself, not a bare ping: an
+    // agent needs the input and the answer to decide whether to recompose.
+    expect(observations).toHaveLength(1)
+    expect(observations[0]?.name).toBe('compter')
+    expect(observations[0]?.input).toBe('trois mots ici')
+    expect(observations[0]?.output).toBe('3 mots')
+    expect(observations[0]?.version).toBe(1)
+  })
+
   it('says so when a behaviour fails rather than leaving the slot blank', async () => {
     const failing: Behaviour = {
       name: 'compter',
       version: 1,
       call: async () => ({ failure: 'arrêté : plus de 2000 ms sans réponse' }),
     }
-    const { inner, session } = await harness([failing])
+    const { inner, session, observations } = await harness([failing])
     await wait(120)
 
     button(inner)?.click()
@@ -217,5 +243,8 @@ describe('the bridge', () => {
 
     expect(output(inner)).toContain('arrêté')
     expect(session.interactions[0]?.failure).toContain('arrêté')
+    // A failed call is still an observation, and it carries the failure: a
+    // behaviour that broke on the visitor's input is exactly a reason to react.
+    expect(observations[0]?.failure).toContain('arrêté')
   })
 })

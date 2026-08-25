@@ -31,6 +31,7 @@ export function initialState(): FullState {
       screen: { markup: '', revision: 0 },
       replacements: 0,
       restarts: 0,
+      interactions: 0,
       lastSequence: 0,
     }),
     internal: new Map(),
@@ -64,6 +65,7 @@ export function reduce(state: FullState, event: RunEvent): FullState {
   let gate = state.view.gate
   let tokens = state.view.tokens
   let replacements = state.view.replacements
+  let interactions = state.view.interactions
   let screen = state.view.screen
 
   /** Replaces a node and re-derives its displayed state. */
@@ -200,6 +202,10 @@ export function reduce(state: FullState, event: RunEvent): FullState {
 
     case 'screen-posted':
       screen = { markup: event.markup, revision: event.revision }
+      break
+
+    case 'visitor-interacted':
+      interactions += 1
       break
 
     case 'component-replaced':
@@ -345,6 +351,7 @@ export function reduce(state: FullState, event: RunEvent): FullState {
       liveAgents: nodes.filter(isLive).length,
       screen,
       replacements,
+      interactions,
       // Zero, and said out loud. It is the number the whole claim rests on:
       // "three hot replacements, no restart" is only worth something if the
       // second half is measured rather than assumed.

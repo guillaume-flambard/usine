@@ -7,7 +7,7 @@
 
 import type { Behaviour } from './behaviour'
 import { readFromFrame, type ToFrame } from './protocol'
-import type { Session } from './session'
+import type { Interaction, Session } from './session'
 
 export interface FrameHostOptions {
   /** The sandboxed frame. It must already be in the document. */
@@ -22,6 +22,12 @@ export interface FrameHostOptions {
   onMounted?: (report: { slots: readonly string[]; refused: readonly string[] }) => void
   /** Called after each interaction, so the counter can be repainted. */
   onInteraction?: () => void
+  /**
+   * Called with each recorded interaction, so it can be carried back to the
+   * run as an observation an agent may answer. Distinct from `onInteraction`:
+   * that one only asks for a repaint; this one hands out the exchange itself.
+   */
+  onObservation?: (interaction: Interaction) => void
 }
 
 export interface FrameHost {
@@ -107,8 +113,13 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
     if (behaviour === undefined) {
       // The behaviour went away between the click and here — a replacement
       // that failed, or a component released. Saying so beats a silent slot.
-      options.session.record({ name, input, failure: 'ce comportement ne sert plus' })
+      const recorded = options.session.record({
+        name,
+        input,
+        failure: 'ce comportement ne sert plus',
+      })
       options.onInteraction?.()
+      options.onObservation?.(recorded)
       post({ type: 'call-settled', call, failure: 'ce comportement ne sert plus' })
       return
     }
@@ -119,7 +130,7 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 
     // Recorded before the answer is posted: what the visitor did is kept even
     // if the frame is gone by the time it comes back.
-    options.session.record({
+    const recorded = options.session.record({
       name,
       input,
       version,
@@ -127,6 +138,7 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
       ...(result.failure !== undefined ? { failure: result.failure } : {}),
     })
     options.onInteraction?.()
+    options.onObservation?.(recorded)
 
     post({
       type: 'call-settled',

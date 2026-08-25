@@ -78,7 +78,7 @@ describe('the factory started on a need', () => {
       spawnWorker: spawnVmWorker,
       sources: [],
       // One agent at most: the budget is not advisory.
-      budget: { maxAgents: 1, maxDepth: 1, maxTurns: 2, maxTokens: 10_000 },
+      budget: { maxAgents: 1, maxDepth: 1, maxTurns: 2, maxTokens: 10_000, maxReactions: 6 },
       stepMs: 10,
       settleTimeoutMs: 2000,
     })

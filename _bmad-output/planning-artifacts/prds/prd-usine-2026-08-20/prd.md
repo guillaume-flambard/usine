@@ -28,12 +28,26 @@ La promesse tient sur cinq affirmations non négociables :
 
 1. **Les agents sont réels.** Chaque agent et chaque outil est un composant Cordis vivant (une fiber), pas une entrée d'un script de timers. Le graphe affiché est la projection de la topologie réelle du runtime.
 2. **L'usine fabrique ses propres pièces.** Les agents ne se contentent pas d'assembler un catalogue fermé : ils **génèrent des composants à l'exécution** et les chargent à chaud. Un composant généré qui se comporte mal se retire proprement. C'est ce qui sépare une orchestration d'une usine, et c'est la raison d'être du choix de Cordis.
-3. **Le produit est vivant, pas livré en fin de course.** L'application apparaît en quelques secondes, le visiteur s'en sert pendant que le run continue, et les agents la remplacent sous ses doigts — sans redémarrage et sans perdre son état. C'est la seule chose que le paradigme de composabilité spatiotemporelle apporte et que personne d'autre ne montre ; c'est donc ce que le produit doit montrer.
+3. **Le produit est vivant, pas livré en fin de course.** L'application apparaît en quelques secondes, le visiteur s'en sert pendant que le run continue, et les agents la remplacent sous ses doigts — **en réponse à ce qu'il en fait** (voir cycle B), sans redémarrage et sans perdre son état. C'est la seule chose que le paradigme de composabilité spatiotemporelle apporte et que personne d'autre ne montre ; c'est donc ce que le produit doit montrer.
 4. **Ça reste regardable quand le modèle ne répond pas.** Quota atteint, crédit épuisé, relais muet : le site rejoue un run enregistré et le dit. Le repli n'est pas un filet honteux, c'est une surface produit tenue au même niveau d'exigence que le direct.
 
 5. **Ça doit impressionner.** Pas par des effets décoratifs — par ce qui se passe réellement à l'écran : un système qui se construit lui-même sous les yeux du visiteur, avec la largeur de technologies qu'il mobilise, et qui finit par lui tendre un outil qui marche. Le spectacle est un objectif du produit, pas un dommage collatéral qu'on tolère.
 
 Ce PRD couvre la v1 déployée le 2026-08-20 et les deux cycles qui la rendent défendable : **A** — l'application vivante et son remplacement à chaud ; **A′** — les sources réelles, l'emport et le rejeu.
+
+> **Repositionnement du 2026-08-24 (voir `docs/5-ANGLE.md`).** L'emphase se
+> déplace : le hot-swap n'est pas d'abord un spectacle qui prouve le moteur
+> (affirmation 5), mais **la valeur que l'utilisateur final ressent en usage** —
+> l'outil mue autour de lui, en réponse à ce qu'il tape, et son travail survit à
+> chaque changement. Le spectacle sert cette valeur, il ne la précède plus.
+> **Cycle B (livré le 2026-08-24) — la boucle réactive minimale** : une
+> interaction du visiteur devient un événement `visitor-interacted` dans le flux,
+> réveille l'agent qui a écrit le comportement, et déclenche un remplacement à
+> chaud en réponse ; l'échec d'activation laisse la version précédente servir ;
+> un rejeu reproduit la recomposition depuis le seul flux. Le produit **reste
+> brief-agnostique** : la suppression du vérificateur figé (F6/FR-035…) tient
+> toujours — la conformité reste un cas d'usage exemplaire, pas un beachhead
+> rouvert.
 
 ---
 
