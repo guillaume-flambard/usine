@@ -27,6 +27,7 @@ apportent leurs vraies traces, il faut durcir et prouver.
 - `threat-model`: modèle de menace documenté et tenu à jour.
 - `audit-log`: journal des actions sensibles par identité et org.
 - `secrets-management`: cycle de vie des secrets, jamais côté client.
+- `security-headers`: en-têtes de durcissement sur les réponses du service.
 
 ## Impact
 

@@ -11,15 +11,17 @@ qu'elle est propre.
 
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import Any
 
 import httpx
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 
+from .audit import AuditLog, InMemoryAuditLog
 from .evaluation import evaluate, measure
 from .identity import (
     SESSION_TTL_SECONDS,
@@ -42,6 +44,8 @@ from .reasoning import DEFAULT_MODEL, Reasoning, Refusal, reason
 from .runs import InMemoryRunStore, RunStore, Stored, new_id, read_archive
 from .sources import SourceRefusal, catalogue, fetch_source
 from .tracing import trace_of
+
+logger = logging.getLogger("usine.service")
 
 
 def address_of(request: Request) -> str:
@@ -131,6 +135,7 @@ def create_app(
     tokens: TokenStore | None = None,
     sessions: SessionStore | None = None,
     email: EmailSender | None = None,
+    audit: AuditLog | None = None,
     secure_cookies: bool = True,
 ) -> FastAPI:
     """Construit le service. Tout ce qui touche l'extérieur est injectable."""
@@ -157,6 +162,7 @@ def create_app(
     seats: SessionStore = sessions or (pg.sessions if pg is not None else InMemorySessionStore())
     # L'email : SMTP si configuré, journal sinon (dev). Un test injecte le sien.
     mailer: EmailSender = email or _default_email_sender()
+    journal: AuditLog = audit or (pg.audit if pg is not None else InMemoryAuditLog())
     # Nommés par nous, comme les sources. Vide par défaut : un serveur d'outils
     # est une décision de déploiement, pas un défaut qu'on découvre.
     tool_servers: dict[str, Server] = servers or {}
@@ -165,6 +171,9 @@ def create_app(
     api_key = key if key is not None else os.environ.get("OPENROUTER_API_KEY", "")
     chosen_model = model or os.environ.get("USINE_MODEL", DEFAULT_MODEL)
     site_origin = origin or os.environ.get("USINE_ORIGIN", "https://usine.memolabs.dev")
+    if not api_key:
+        # Un déploiement dégradé doit se remarquer, pas servir un rejeu en silence.
+        logger.warning("aucune clé fournisseur configurée : la page rejouera une démonstration")
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -180,6 +189,17 @@ def create_app(
         redoc_url=None,
         lifespan=lifespan,
     )
+
+    @app.middleware("http")
+    async def harden(request: Request, call_next: Any) -> Response:
+        # Défense en profondeur : le navigateur refuse de lui-même le détournement
+        # de type, l'encadrement en iframe et la fuite de référent. N'écrase pas
+        # le `cache-control: no-store` posé par les réponses.
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["X-Frame-Options"] = "DENY"
+        return response
 
     def no_store(body: dict[str, Any], status: int = 200) -> JSONResponse:
         # Rien de ce que rend ce service n'est cachable : une capacité mise en
@@ -215,6 +235,12 @@ def create_app(
         """L'org derrière la session, ou `None` pour un visiteur anonyme."""
         who = identity_of(request)
         return who.organization.id if who is not None else None
+
+    def note(org: str, action: str, target: str) -> None:
+        """Trace une action sensible, sans jamais bloquer l'action elle-même."""
+        # Un journal muet ne fait pas échouer un partage : l'action utile prime.
+        with suppress(Exception):
+            journal.record(org, action, target)
 
     @app.get("/health")
     async def health(request: Request) -> JSONResponse:
@@ -412,6 +438,7 @@ def create_app(
             return no_store({"error": "connexion requise"}, 401)
         if not store.share(run_id, who.organization.id):
             return no_store({"error": "run inconnu"}, 404)
+        note(who.organization.id, "share", run_id)
         return no_store({"shared": True})
 
     @app.post("/runs/{run_id}/revoke")
@@ -421,6 +448,7 @@ def create_app(
             return no_store({"error": "connexion requise"}, 401)
         if not store.revoke(run_id, who.organization.id):
             return no_store({"error": "run inconnu"}, 404)
+        note(who.organization.id, "revoke", run_id)
         return no_store({"shared": False})
 
     @app.delete("/runs/{run_id}")
@@ -432,6 +460,7 @@ def create_app(
             return no_store({"error": "run inconnu"}, 404)
         # Corbeille, pas destruction : réversible. La purge, elle, efface la trace
         # interne — jamais un effet de bord externe (AD-41).
+        note(who.organization.id, "trash", run_id)
         return no_store({"trashed": True})
 
     @app.post("/runs/{run_id}/restore")
@@ -441,6 +470,7 @@ def create_app(
             return no_store({"error": "connexion requise"}, 401)
         if not store.restore(run_id, who.organization.id):
             return no_store({"error": "run inconnu"}, 404)
+        note(who.organization.id, "restore", run_id)
         return no_store({"restored": True})
 
     @app.post("/runs/{run_id}/purge")
@@ -450,7 +480,16 @@ def create_app(
             return no_store({"error": "connexion requise"}, 401)
         if not store.purge(run_id, who.organization.id):
             return no_store({"error": "run inconnu"}, 404)
+        note(who.organization.id, "purge", run_id)
         return no_store({"purged": True})
+
+    @app.get("/audit")
+    async def read_audit(request: Request) -> JSONResponse:
+        who = identity_of(request)
+        if who is None:
+            return no_store({"error": "connexion requise"}, 401)
+        entries = journal.entries(who.organization.id)
+        return no_store({"entries": [entry.as_json() for entry in entries]})
 
     @app.get("/runs/{run_id}/export")
     async def export_run(run_id: str, request: Request) -> Response:
