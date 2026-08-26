@@ -18,12 +18,13 @@ async function mount() {
 // The run is born at the replayed model's pace: the wait follows that pace, it
 // does not guess it.
 const startRun = async () => {
-  // The field starts empty, so a run starts the way a visitor starts one:
-  // by writing. The first example is the one the replay knows.
+  // The field starts empty. In demo mode the recorded-run entry writes the one
+  // brief the replay knows and launches it — the way a keyless visitor starts.
   const brief = document.querySelector<HTMLTextAreaElement>('#brief')
   if (brief !== null && brief.value.length === 0) {
-    document.querySelector<HTMLButtonElement>('.picker')?.click()
-    await wait(120)
+    document.querySelector<HTMLButtonElement>('.recorded-run')?.click()
+    await wait(9000)
+    return
   }
   document.querySelector<HTMLButtonElement>('.composer .button')?.click()
   await wait(9000)
@@ -84,7 +85,9 @@ describe('the shell in a browser', () => {
     // brief ne produirait rien, et un bouton actif qui ne fait rien est pire
     // qu'un bouton éteint.
     expect(button?.disabled).toBe(true)
-    document.querySelector<HTMLButtonElement>('.picker')?.click()
+    // Writing a need enables the launch — no example chip does it for us.
+    brief!.value = 'un minuteur pomodoro'
+    brief!.dispatchEvent(new Event('input', { bubbles: true }))
     await wait(150)
 
     const ready = document.querySelector<HTMLButtonElement>('.composer .button')
@@ -243,27 +246,23 @@ describe('measurement, as the shell produces it', () => {
 describe('changing the need from the page', () => {
   it('warns when the demo cannot play the chosen need', async () => {
     await mount()
-    const pickers = [...document.querySelectorAll<HTMLButtonElement>('.picker')]
-    expect(pickers.length, 'the examples are missing').toBeGreaterThanOrEqual(3)
 
-    // The field starts empty: an example that arrived prefilled and was
-    // submitted as it stands would prove nothing about the run.
-    const empty = document.querySelector<HTMLTextAreaElement>('#brief')
-    expect(empty?.value).toBe('')
-
-    // Clicking writes into the field. It does not launch.
-    pickers[1]?.click()
-    await wait(200)
-
+    // No jargon example chips any more: the field starts empty.
+    expect(document.querySelectorAll('.examples').length).toBe(0)
     const brief = document.querySelector<HTMLTextAreaElement>('#brief')
-    expect(brief?.value ?? '').toContain('publicitaires')
+    expect(brief?.value).toBe('')
 
-    // The demo only knows how to replay one need. It says so next to the
-    // launch button rather than spawning a European lawyer for something else.
+    // A need the demo cannot replay: it says so next to the launch button
+    // rather than spawning a European lawyer for a syllable counter.
+    brief!.value = 'un convertisseur de devises'
+    brief!.dispatchEvent(new Event('input', { bubbles: true }))
+    await wait(150)
+
     const hint = document.querySelector('.composer-hint')?.textContent ?? ''
     expect(hint).toContain('ne produira rien')
 
-    await startRun()
+    document.querySelector<HTMLButtonElement>('.composer .button')?.click()
+    await wait(9000)
     const born = [...document.querySelectorAll<SVGGElement>('.node')]
     expect(born).toHaveLength(1)
   })
@@ -367,5 +366,49 @@ describe('la zone du run tient sa géométrie', () => {
     expect(app.getBoundingClientRect().width).toBeGreaterThan(
       canvas.getBoundingClientRect().width * 0.9,
     )
+  })
+})
+
+// The redesign (change atelier-redesign): the scene is legible and honest in
+// every state, and the composer no longer confuses with jargon example chips.
+describe('the atelier redesign', () => {
+  it('starts with no jargon example chips, and a recorded-run entry instead', async () => {
+    await mount()
+    // composer-clarity: no example-need chips; the field starts empty.
+    expect(document.querySelectorAll('.examples').length).toBe(0)
+    expect(document.querySelector<HTMLTextAreaElement>('#brief')?.value).toBe('')
+    // Keyless demo mode keeps one recorded-run entry so the site is not mute.
+    const recorded = document.querySelector<HTMLButtonElement>('.recorded-run')
+    expect(recorded, 'the recorded-run entry is missing').not.toBeNull()
+    expect(recorded?.textContent ?? '').toContain('enregistré')
+  })
+
+  it('explains the workshop before any run, without faking a run', async () => {
+    await mount()
+    // scene-legibility: an intro naming the three beats, not a void.
+    const intro = document.querySelector('.intro')
+    expect(intro, 'the scene intro is missing before a run').not.toBeNull()
+    expect(intro?.textContent ?? '').toContain('Forke la timeline')
+    expect(intro?.textContent ?? '').toContain('intra-runtime')
+    // No fake run content before a run: no application frame, no skeleton.
+    expect(document.querySelector('.live-app')).toBeNull()
+    expect(document.querySelector('.skeleton')).toBeNull()
+  })
+
+  it('yields the intro to the graph once the run starts', async () => {
+    await mount()
+    await startRun()
+    // Once started, the intro is gone and the graph is what the scene shows.
+    expect(document.querySelector('.intro')).toBeNull()
+    expect(document.querySelectorAll('.node').length).toBeGreaterThan(0)
+  })
+
+  it('surfaces the fork with its why on a forkable run', async () => {
+    await mount()
+    await startRun()
+    // scene-legibility: the fork gesture is present with a one-line reason.
+    expect(document.querySelector('.fork-start')).not.toBeNull()
+    const why = document.querySelector('.fork-why')?.textContent ?? ''
+    expect(why).toContain('trajectoire qui a planté')
   })
 })

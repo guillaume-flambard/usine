@@ -1118,3 +1118,88 @@ button.picker:hover {
   gap: 6px;
   margin: 0;
 }
+
+/* Le run enregistré : une entrée discrète mais présente, pour que le site sans
+   clé ne soit pas muet. */
+.recorded-run {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.recorded-run:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* ------------------------------------------------------------------ */
+/* Intro de scène : avant tout run, la scène dit ce que fait l'atelier */
+/* en trois temps. Cadrage statique, pas un faux run.                  */
+/* ------------------------------------------------------------------ */
+.intro {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  justify-content: center;
+  padding: 48px min(72px, 6vw);
+  max-width: 760px;
+}
+.intro-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.intro-title {
+  font-size: clamp(28px, 3.4vw, 44px);
+  font-weight: 500;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  max-width: 20ch;
+}
+.intro-beats {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 8px 0 0;
+  padding: 0;
+}
+.intro-beat {
+  display: flex;
+  gap: 16px;
+  align-items: baseline;
+}
+.intro-beat-num {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 50%;
+}
+.intro-beat-text {
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--muted);
+  max-width: 56ch;
+}
+.intro-beat-text strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+.intro-honesty {
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+  max-width: 60ch;
+}

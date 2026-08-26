@@ -31,7 +31,10 @@ body {
     system-ui,
     -apple-system,
     sans-serif;
-  font-weight: 300;
+  /* 400 plutôt que 300 : à 300, Oswald condensé lit « filaire », pas
+     « produit ». La hiérarchie garde ses graisses propres (500 sur les
+     repères). */
+  font-weight: 400;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
 }
