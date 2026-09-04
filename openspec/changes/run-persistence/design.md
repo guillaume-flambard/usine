@@ -29,7 +29,7 @@ corbeille vivent à côté du flux.
   un run en corbeille ; `purge_expired(older_than)` retire ceux en corbeille
   au-delà de la fenêtre. Aucune autre voie ne détruit un run. Fenêtre par
   `RUN_TRASH_RETENTION_DAYS` (défaut raisonnable). Le déclenchement périodique
-  est de l'infra (cron Coolify), pas un thread caché.
+  est de l'infra (un timer systemd sur le VPS), pas un thread caché.
 - **Horloge injectée** dans les stores (défaut `time.time`) : la purge par
   fenêtre se teste sans attendre. Cohérent avec `TokenStore`/`SessionStore`.
 - **Export = l'archive, telle quelle.** `GET /runs/{id}/export`, propriétaire

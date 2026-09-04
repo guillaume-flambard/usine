@@ -9,9 +9,13 @@ opèrent contre la base seule (le service peut être arrêté).
 DATABASE_URL=postgresql://user:pass@host:5432/usine ./deployment/backup.sh /chemin/backups
 ```
 
-Écrit `usine-<horodatage>.dump` (format `pg_dump -Fc`). À planifier via un cron
-Coolify, et à **copier hors de l'hôte** — une sauvegarde sur la machine qui peut
-tomber ne protège de rien.
+Écrit `usine-<horodatage>.dump` (format `pg_dump -Fc`). À planifier par un
+`systemd` timer sur le VPS (Coolify, qui aurait porté ce cron, a été supprimé le
+2026-09-03), et à **copier hors de l'hôte** — une sauvegarde sur la machine qui
+peut tomber ne protège de rien.
+
+> Rien à sauvegarder pour l'instant : `services/api` n'est pas déployé, donc
+> aucune base de l'atelier ne tourne. Ces scripts attendent ce jour-là.
 
 ## Restaurer
 

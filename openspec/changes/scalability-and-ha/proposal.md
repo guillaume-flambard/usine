@@ -26,6 +26,9 @@ d'hôte. À traiter une fois le produit réellement utilisé, pas avant.
 
 ## Impact
 
-- Contrainte projet maintenue : déploiement **uniquement** via Coolify.
+- Contrainte projet maintenue : déploiement **uniquement** par la chaîne du lab
+  (push sur `main` → runner du VPS → registre local → `autodeploy.timer`).
+  Coolify, qui tenait ce rôle, a été supprimé le 2026-09-03 ; la contrainte est
+  la même, aucun déploiement à la main.
 - S'appuie sur les SLO de `product-observability` pour savoir quand scaler.
 - Interagit avec `usage-quotas-and-billing` (les quotas bornent la charge).

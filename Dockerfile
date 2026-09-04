@@ -1,8 +1,8 @@
 # Le site et son relais dans une seule image. Deux conteneurs obligeraient à
-# résoudre l'un depuis l'autre — et Coolify ne donne pas d'alias DNS stable à
-# ses conteneurs, ce qui imposait d'exposer le relais publiquement pour que le
-# nginx de la même machine puisse l'atteindre. Un seul conteneur, une boucle
-# locale, et le problème n'existe plus.
+# résoudre l'un depuis l'autre — et le control plane d'alors (Coolify, supprimé
+# depuis) ne donnait pas d'alias DNS stable à ses conteneurs, ce qui imposait
+# d'exposer le relais publiquement pour que le nginx de la même machine puisse
+# l'atteindre. Un seul conteneur, une boucle locale, et le problème n'existe pas.
 #
 # Aucun secret dans l'image : la clé arrive par l'environnement, à l'exécution.
 

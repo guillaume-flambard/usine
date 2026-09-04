@@ -27,5 +27,5 @@
 
 ## 7. Infra (user actions — documented, not blocking CI)
 
-- [ ] 7.1 Schedule `purge_expired` (a small CLI/endpoint) periodically on Coolify. Verify: trashed runs past the window disappear on schedule.
+- [ ] 7.1 Schedule `purge_expired` (a small CLI/endpoint) periodically with a systemd timer on the VPS. Verify: trashed runs past the window disappear on schedule.
 - [ ] 7.2 Schedule `deployment/backup.sh` and store dumps off-host. Verify: a dump exists off-host and a test restore works.

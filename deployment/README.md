@@ -7,22 +7,40 @@ déterministe.
 
 ## Comment l'usine est déployée aujourd'hui
 
-En ligne sur **https://usine.memolabs.dev**, servie par Coolify (projet Memo
-Labs) derrière Traefik, certificat Let's Encrypt.
+En ligne sur **https://usine.memolabs.dev**, derrière Traefik, certificat
+Let's Encrypt. **Coolify a été supprimé le 2026-09-03** ; ce qui suit est la
+chaîne réelle, vérifiée le 2026-09-04.
 
-L'application y est déclarée en type **image Docker** et non en build pack
-`dockerfile`, parce que le dépôt `guillaume-flambard/usine` n'existe pas
-encore sur GitHub. L'image est donc construite **sur le serveur**, depuis
-`/opt/usine`, et poussée dans un registre local (`127.0.0.1:5000`) que Coolify
-tire ensuite.
+**Il n'y a rien à faire à la main. Un `git push` sur `main` suffit.**
 
-Pour redéployer après un changement : `./deployment/redeploy.sh`
+1. Le push déclenche `.github/workflows/build.yml` sur le runner GitHub
+   auto-hébergé du VPS (`lab-usine`).
+2. Le runner construit l'image **sur place** et la pousse dans le registre
+   local, en `127.0.0.1:5000/usine:<sha>` puis `:latest`. Construire sur la
+   machine qui sert évite un jeton : le dépôt est privé, donc son paquet GHCR
+   le serait aussi, et le VPS ne pourrait pas le tirer sans `read:packages`.
+3. `autodeploy.timer`, toutes les deux minutes, tire `:latest`, sonde le
+   conteneur, et **restaure la version précédente si la sonde échoue**.
 
-**À convertir dès que le dépôt existe** : créer `guillaume-flambard/usine`,
-pousser, puis dans Coolify passer l'application en build pack `dockerfile`
-avec cette source. Le `git push` déclenchera alors le déploiement, comme pour
-les quatorze autres applications, et le registre local comme ce script
-deviendront inutiles.
+Compter environ trois minutes entre le merge et le conteneur neuf.
+
+Pour comprendre ou reprendre la main, l'infrastructure est décrite en IaC dans
+`~/projects/active/infra/lab-infra` :
+
+```sh
+make status                      # l'état des stacks
+make why app=usine               # pourquoi ce déploiement a fait ça
+make rollback app=usine sha=…    # revenir à une révision
+make logs app=usine
+```
+
+La stack vit dans `/opt/stacks/usine` sur le VPS. `/opt/usine` est un reliquat
+de l'époque « image construite depuis un tarball », il ne sert plus à rien.
+
+> `deployment/redeploy.sh` a été **supprimé** : il poussait une archive par scp
+> puis appelait `docker exec coolify php artisan tinker`. Son propre en-tête
+> disait qu'il deviendrait inutile le jour où le dépôt GitHub existerait. Il
+> existe.
 
 ## Le relais de raisonnement (`services/relay`)
 
@@ -52,23 +70,25 @@ Ce qu'il fait, et rien d'autre :
 Une seule image, deux processus : nginx au premier plan, le relais sur la
 boucle locale en `127.0.0.1:3000`. `deployment/entrypoint.sh` démarre les deux.
 
-C'est un choix, et il vient d'une contrainte réelle : **Coolify ne donne pas
-d'alias DNS stable à ses conteneurs** — leur nom porte un horodatage qui change
-à chaque déploiement. Deux conteneurs auraient obligé à exposer le relais sur un
-domaine public pour que le nginx *de la même machine* puisse l'atteindre : une
-sortie sur Internet pour revenir chez soi. Un conteneur, une boucle locale, et
-le problème n'existe pas.
+C'est un choix, et il venait d'une contrainte réelle : le control plane d'alors
+(Coolify) ne donnait **pas d'alias DNS stable** à ses conteneurs, leur nom
+portant un horodatage qui changeait à chaque déploiement. Deux conteneurs
+auraient obligé à exposer le relais sur un domaine public pour que le nginx *de
+la même machine* puisse l'atteindre : une sortie sur Internet pour revenir chez
+soi. Un conteneur, une boucle locale, et le problème n'existe pas. La contrainte
+a disparu avec Coolify ; le choix reste bon, et le défaire ne rapporterait rien.
 
-Ce qu'il faut donc côté Coolify, sur l'application **usine** et nulle part
+Ce qu'il faut donc dans l'environnement de la stack **usine**, et nulle part
 ailleurs :
 
-- `OPENROUTER_API_KEY` — **collée dans Coolify, jamais dans le dépôt, jamais
-  dans une conversation**
+- `OPENROUTER_API_KEY` — **jamais dans le dépôt, jamais dans une conversation**
 - facultatif : `MODEL` (défaut `deepseek/deepseek-v4-flash`), `ORIGIN` (défaut
   `https://usine.memolabs.dev`), `RELAY_PORT` (défaut `3000`)
 
 `RELAY_PORT` et non `PORT` : une PaaS renseigne `PORT` avec le port public du
-conteneur — Coolify y met 80 — et le relais se battait avec nginx pour l'avoir.
+conteneur — Coolify y mettait 80 — et le relais se battait avec nginx pour
+l'avoir. Coolify est parti, la raison de `RELAY_PORT` non : ne pas le
+« simplifier ».
 Il n'écoute que sur la boucle : personne hors du conteneur ne l'atteint.
 
 Le relais mort ne fait pas tomber le site : `/api` rend 502, la sonde échoue, et

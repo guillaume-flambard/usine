@@ -30,5 +30,5 @@
 
 ## 8. Infra (user actions — documented, not blocking CI)
 
-- [ ] 8.1 Schedule `python -m usine_api.maintenance` periodically on Coolify. Verify: expired credentials and long-trashed runs disappear on schedule.
+- [ ] 8.1 Schedule `python -m usine_api.maintenance` periodically with a systemd timer on the VPS. Verify: expired credentials and long-trashed runs disappear on schedule.
 - [ ] 8.2 Confirm the DPA sub-processors (VPS host, SMTP, reasoning provider) and fill the template. Verify: the DPA names the real sub-processors.
