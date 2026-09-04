@@ -42,10 +42,12 @@ bâti. Rien n'est jeté ; le récit change.
 
 `name · path · family · status · stack · Vault note`
 
-`usine · ~/usine · Memo Labs · active · Vue 3 / TS / Vite / Cordis + services/{api,relay} · memory usine-project`
+`usine · ~/projects/active/ai/usine · Memo Labs · active · Vue 3 / TS / Vite / Cordis + services/{api,relay} · memory usine-project`
 
-> Root citizen, outside `~/projects` by design (flagship product, own repo). Cross-listed in
-> `~/projects/PROJECTS.md` under "External repos".
+> Moved under `~/projects/active/ai/` by the 2026-08-22 home-map reorg; it used to
+> live at `~/usine`, and stale absolute paths from before that date still bite (a
+> venv's console scripts, for one). Own repo, cross-listed in
+> `~/projects/PROJECTS.md`.
 
 ## Commandes
 
@@ -143,13 +145,33 @@ Ils sont écrits ici parce qu'aucun n'était devinable, et qu'ils reviendront.
 - **Traefik ne route pas vers un conteneur marqué malsain**, et une sonde sur
   `localhost` résolvant en IPv6 face à un nginx en IPv4 produit un 404
   inexplicable.
-- **Coolify renseigne `PORT=80`**, ce qui faisait entrer le relais en collision
-  avec nginx. D'où `RELAY_PORT`.
+- **Un PaaS qui renseigne `PORT=80`** faisait entrer le relais en collision avec
+  nginx. C'était Coolify, parti depuis ; `RELAY_PORT` reste, et c'est toute la
+  raison de son existence — ne pas le « simplifier » en `PORT`.
 
 ## Ce qui se fait, et ce qui ne se fait pas
 
-- **Ne jamais déployer hors de Coolify.** Le déploiement est décrit dans
-  `deployment/` et dans la mémoire projet.
+- **Le déploiement est automatique, et Coolify n'existe plus** (supprimé le
+  2026-09-03). La chaîne, vérifiée le 2026-09-04 : un push sur `main` déclenche
+  `.github/workflows/build.yml` sur le runner auto-hébergé du VPS, qui construit
+  l'image **sur place** et la pousse dans le registre local
+  (`127.0.0.1:5000/usine:{sha,latest}`). C'est délibéré : le dépôt est privé,
+  donc son paquet GHCR le serait aussi, et le VPS ne pourrait pas le tirer sans
+  jeton `read:packages`. Ensuite `autodeploy.timer` (toutes les 2 minutes) tire
+  `:latest`, sonde, et restaure la version précédente si la sonde échoue. Il n'y
+  a rien à faire à la main, et surtout aucune interface à cliquer.
+  L'infrastructure vit dans `~/projects/active/infra/lab-infra` : `make status`,
+  `make why app=usine` pour comprendre un déploiement, `make rollback app=usine
+  sha=…`, `make logs`.
+- **L'image ne contient que la SPA et le relais Node.** `services/api` (FastAPI)
+  **n'est déployé nulle part** : nginx proxifie `/api/*` vers le relais, qui ne
+  sert que `/health` et `POST /reason`. Conséquence à connaître avant d'annoncer
+  qu'une fonctionnalité est « en production » : la connexion est impossible en
+  ligne, donc comptes, persistance des runs, partage, corbeille, export,
+  évaluation et RGPD sont **éteints**. Ça ne se voit pas, les clients du front
+  rendant `null` sur erreur réseau. Vérification en une commande :
+  `curl -o /dev/null -w "%{http_code}" https://usine.memolabs.dev/api/runs`
+  (404 = toujours pas déployé).
 - **Ne pas faire évoluer `services/relay`** (Node). Il est gelé et sert la
   production actuelle ; toute correction va dans `services/api` (FastAPI), au
   contrat HTTP identique. Deux relais au même contrat finiraient par diverger.

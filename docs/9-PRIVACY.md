@@ -3,6 +3,15 @@
 Ce que l'atelier collecte, pourquoi, où, combien de temps, et comment une
 personne exerce ses droits. Tenu à jour avec le code.
 
+> **État au 2026-09-04 — rien de ce registre n'est encore actif en ligne.**
+> `services/api`, qui porte les comptes, la persistance et ces droits, **n'est
+> pas déployé** : l'image ne contient que la page et le relais Node, et
+> `/api/*` rend 404 en production hors `/health` et `/reason`. La connexion
+> étant impossible, **aucune des données listées ci-dessous n'est collectée**.
+> Ce document décrit donc le dispositif tel qu'il entrera en service, pas un
+> traitement en cours. À rerelire le jour du déploiement — et à ne pas publier
+> comme une politique active avant.
+
 ## Données traitées
 
 | Catégorie | Contenu | Finalité |
@@ -33,13 +42,18 @@ La purge s'exécute en commande, contre la base seule :
 DATABASE_URL=… uv run python -m usine_api.maintenance
 ```
 
-À planifier (cron Coolify). Sauvegardes : voir `deployment/BACKUP.md`.
+À planifier — par un `systemd` timer sur le VPS, comme `autodeploy.timer`, le
+control plane qui aurait porté un cron (Coolify) ayant été supprimé le
+2026-09-03. Sauvegardes : voir `deployment/BACKUP.md`.
 
 ## Localisation
 
-Les données vivent dans PostgreSQL sur le VPS Memo Labs (Coolify). Le raisonnement
-passe par un fournisseur externe nommé (voir `deployment/DPA-TEMPLATE.md`) ; les
-emails de connexion par un fournisseur SMTP.
+Une fois `services/api` déployé, les données vivront dans PostgreSQL sur le VPS
+Memo Labs (Netcup, Allemagne), déployé en IaC depuis `lab-infra` — plus par un
+control plane, Coolify ayant été supprimé le 2026-09-03. **Aujourd'hui aucune de
+ces données n'existe en ligne**, faute de service déployé. Le raisonnement passe
+par un fournisseur externe nommé (voir `deployment/DPA-TEMPLATE.md`) ; les emails
+de connexion par un fournisseur SMTP.
 
 ## Droits des personnes
 

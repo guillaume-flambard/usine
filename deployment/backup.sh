@@ -3,7 +3,7 @@
 #
 # Opérable sans le service : ne touche que PostgreSQL. Écrit un dump compressé
 # (`pg_dump -Fc`) horodaté dans le dossier de sortie. Le déclenchement régulier
-# (cron Coolify) et le stockage hors-hôte sont de l'infra.
+# (un timer systemd sur le VPS) et le stockage hors-hôte sont de l'infra.
 #
 # Usage :
 #   DATABASE_URL=postgresql://user:pass@host:5432/db ./deployment/backup.sh [out_dir]

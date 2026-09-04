@@ -45,5 +45,5 @@ pour qu'une panne d'hôte ne perde pas le travail.
 - **Honnêteté (AD-41)** : purger un run efface la trace **interne**, pas un effet
   de bord externe qu'un agent aurait produit. La corbeille protège de la perte
   accidentelle ; elle ne prétend pas annuler le monde.
-- **Infra (utilisateur)** : planifier la purge et la sauvegarde (cron Coolify).
+- **Infra (utilisateur)** : planifier la purge et la sauvegarde (timer systemd sur le VPS).
 - Reste hors périmètre : recherche plein-texte (listing simple pour l'instant).

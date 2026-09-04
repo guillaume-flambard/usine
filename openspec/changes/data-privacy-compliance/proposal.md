@@ -16,7 +16,8 @@ européens. C'est un bloquant commercial, pas cosmétique.
 - **DPA** : accord de sous-traitance type pour les clients.
 - **Traitement à l'import** : signaler/retirer les données personnelles
   évidentes d'une trace importée, ou avertir clairement.
-- **Localisation des données** : savoir où elles vivent (VPS Coolify) et le dire.
+- **Localisation des données** : savoir où elles vivent (VPS Memo Labs, Netcup,
+  Allemagne — plus de control plane depuis la suppression de Coolify) et le dire.
 
 ## Capabilities
 
