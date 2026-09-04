@@ -6,7 +6,7 @@
 // sandboxed frame, keeps it in step with what the agents publish, and shows
 // the one thing the visitor could not otherwise see: what the hot replacement
 // spared them.
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { createFrameHost, type FrameHost } from '../app/frame-host'
 import type { Behaviour } from '../app/behaviour'
 import type { Interaction, Session } from '../app/session'
@@ -35,6 +35,12 @@ const frame = ref<HTMLIFrameElement | null>(null)
 const refused = ref<readonly string[]>([])
 const interactions = ref(0)
 let host: FrameHost | undefined
+
+// Un run peut poser un écran vide : les agents ont parlé, aucun markup n'est
+// sorti. On le dit honnêtement plutôt que de montrer un grand cadre blanc qui
+// laisse croire à une application qui marche. Le cadre reste monté (le host en
+// dépend) mais masqué tant qu'il n'y a rien à rendre.
+const hasScreen = computed(() => props.screen.markup.trim().length > 0)
 
 onMounted(() => {
   if (frame.value === null) return
@@ -79,10 +85,16 @@ onBeforeUnmount(() => host?.dispose())
     <iframe
       ref="frame"
       class="live-frame"
+      :class="{ 'is-empty': !hasScreen }"
       title="L'application produite par ce run"
       src="/sandbox.html"
       sandbox="allow-scripts"
     ></iframe>
+
+    <p v-if="!hasScreen" class="live-empty" role="status">
+      L'application n'a encore rien posé — les agents ont parlé, mais aucun écran
+      n'est sorti du run.
+    </p>
 
     <p class="live-counter">
       <span>{{ props.session.counts.replacements }} remplacement(s) à chaud</span>
@@ -112,6 +124,11 @@ onBeforeUnmount(() => host?.dispose())
       <button v-if="forkable" class="picker fork-start" @click="emit('fork')">Forker ce run</button>
       <a class="product-contact" :href="`mailto:${contact}`">Écrire à Memo Labs</a>
     </div>
+    <p v-if="forkable" class="fork-why">
+      Forker : rejoue cette trajectoire, change l'agent à chaud sur la branche, et
+      regarde deux futurs diverger — pour tester un correctif sur la vraie
+      trajectoire qui a planté, avant la prod.
+    </p>
     <p v-if="shareLink" class="live-help"><code>{{ shareLink }}</code> — il rejoue ce run à l’identique, application comprise.</p>
   </section>
 </template>
@@ -143,6 +160,37 @@ onBeforeUnmount(() => host?.dispose())
   flex: 1 1 auto;
   border: 1px solid var(--line, #e0dbd4);
   background: #fff;
+}
+/* Rien à rendre : on ne montre pas un grand cadre blanc trompeur. Le cadre
+   reste dans le DOM (le host en dépend) mais ne prend plus de place. */
+.live-frame.is-empty {
+  display: none;
+}
+.live-empty {
+  margin: 0;
+  padding: 20px 16px;
+  border: 1px dashed var(--line, #e0dbd4);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted, #6b6560);
+}
+
+/* Le fork est le geste phare : il se distingue des autres pickers. */
+.fork-start {
+  border-color: var(--accent, #ad4c16);
+  color: var(--accent, #ad4c16);
+  font-weight: 500;
+}
+.fork-start:hover {
+  background: var(--accent, #ad4c16);
+  color: var(--bg, #faf9f7);
+}
+.fork-why {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted, #6b6560);
+  max-width: 62ch;
 }
 
 .live-counter {

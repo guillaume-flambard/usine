@@ -11,6 +11,7 @@ from __future__ import annotations
 import secrets
 import time
 
+from psycopg.errors import UniqueViolation
 from psycopg.types.json import Json
 from psycopg_pool import ConnectionPool
 
@@ -24,7 +25,7 @@ from .identity import (
     Organization,
     _hash,
 )
-from .runs import Archive, Owned
+from .runs import Archive, Owned, Stored
 
 
 class PostgresIdentityStore:
@@ -69,6 +70,13 @@ class PostgresIdentityStore:
             found = conn.execute(query, (account_id,)).fetchone()
         return self._row(found) if found is not None else None
 
+    def forget(self, account_id: str) -> bool:
+        # Org avant compte (clé étrangère). Sessions supprimées à part par la route.
+        with self._pool.connection() as conn, conn.transaction():
+            conn.execute("DELETE FROM organizations WHERE owner_account_id = %s", (account_id,))
+            result = conn.execute("DELETE FROM accounts WHERE id = %s", (account_id,))
+            return result.rowcount > 0
+
 
 class PostgresTokenStore:
     def __init__(self, pool: ConnectionPool, *, ttl_seconds: float = TOKEN_TTL_SECONDS) -> None:
@@ -100,6 +108,16 @@ class PostgresTokenStore:
             )
             return found[0]
 
+    def forget(self, email: str) -> int:
+        with self._pool.connection() as conn:
+            return conn.execute("DELETE FROM magic_link_tokens WHERE email = %s", (email,)).rowcount
+
+    def purge_expired(self) -> int:
+        with self._pool.connection() as conn:
+            return conn.execute(
+                "DELETE FROM magic_link_tokens WHERE expires_at < %s", (time.time(),)
+            ).rowcount
+
 
 class PostgresSessionStore:
     def __init__(self, pool: ConnectionPool, *, ttl_seconds: float = SESSION_TTL_SECONDS) -> None:
@@ -129,18 +147,36 @@ class PostgresSessionStore:
         with self._pool.connection() as conn:
             conn.execute("DELETE FROM sessions WHERE session_id = %s", (session_id,))
 
+    def forget(self, account_id: str) -> int:
+        with self._pool.connection() as conn:
+            return conn.execute(
+                "DELETE FROM sessions WHERE account_id = %s", (account_id,)
+            ).rowcount
+
+    def purge_expired(self) -> int:
+        with self._pool.connection() as conn:
+            return conn.execute(
+                "DELETE FROM sessions WHERE expires_at < %s", (time.time(),)
+            ).rowcount
+
 
 class PostgresRunStore:
     def __init__(self, pool: ConnectionPool) -> None:
         self._pool = pool
 
-    def put(self, run_id: str, archive: Archive, owner: str) -> None:
-        with self._pool.connection() as conn:
-            conn.execute(
-                "INSERT INTO runs (run_id, version, brief, events, owner) "
-                "VALUES (%s, %s, %s, %s, %s)",
-                (run_id, archive.version, archive.brief, Json(archive.events), owner),
-            )
+    def create(self, run_id: str, archive: Archive, owner: str) -> None:
+        try:
+            with self._pool.connection() as conn:
+                conn.execute(
+                    "INSERT INTO runs (run_id, version, brief, events, owner) "
+                    "VALUES (%s, %s, %s, %s, %s)",
+                    (run_id, archive.version, archive.brief, Json(archive.events), owner),
+                )
+        except UniqueViolation as collision:
+            # La contrainte disait déjà non ; sans cette traduction elle sortait
+            # en 500, c'est-à-dire indistincte d'une base en panne. Le même
+            # refus qu'en mémoire, avec le même code.
+            raise Stored(409, "un run existe déjà sous cet identifiant") from collision
 
     def _archive(self, row: tuple) -> Archive:
         # events : jsonb relu par psycopg en liste Python, tel qu'il a été stocké.
@@ -241,6 +277,10 @@ class PostgresRunStore:
             )
             return result.rowcount
 
+    def forget_owner(self, owner: str) -> int:
+        with self._pool.connection() as conn:
+            return conn.execute("DELETE FROM runs WHERE owner = %s", (owner,)).rowcount
+
     def count(self) -> int:
         with self._pool.connection() as conn:
             return conn.execute("SELECT count(*) FROM runs").fetchone()[0]
@@ -272,6 +312,10 @@ class PostgresAuditLog:
             AuditEntry(org=row[0], action=row[1], target=row[2], at=row[3].timestamp())
             for row in rows
         ]
+
+    def forget(self, org: str) -> int:
+        with self._pool.connection() as conn:
+            return conn.execute("DELETE FROM audit_entries WHERE org = %s", (org,)).rowcount
 
 
 class PostgresStores:

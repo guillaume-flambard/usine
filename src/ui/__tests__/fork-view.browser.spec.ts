@@ -37,8 +37,10 @@ async function mount() {
 const startRun = async () => {
   const brief = document.querySelector<HTMLTextAreaElement>('#brief')
   if (brief !== null && brief.value.length === 0) {
-    document.querySelector<HTMLButtonElement>('.picker')?.click()
-    await wait(120)
+    // Demo mode: the recorded-run entry writes the known brief and launches.
+    document.querySelector<HTMLButtonElement>('.recorded-run')?.click()
+    await wait(9000)
+    return
   }
   document.querySelector<HTMLButtonElement>('.composer .button')?.click()
   await wait(9000)

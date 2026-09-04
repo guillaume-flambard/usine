@@ -62,13 +62,9 @@ describe('importing a foreign trace', () => {
   it('keeps the fork affordance for an internal recorded run', async () => {
     render(FactoryApp)
     await wait(60)
-    // Start a run the way a visitor does: pick the first example, then launch.
-    const brief = document.querySelector<HTMLTextAreaElement>('#brief')
-    if (brief !== null && brief.value.length === 0) {
-      document.querySelector<HTMLButtonElement>('.examples .picker')?.click()
-      await wait(120)
-    }
-    document.querySelector<HTMLButtonElement>('.composer .button')?.click()
+    // Start a run the way a keyless visitor does: the recorded-run entry writes
+    // the known brief and launches.
+    document.querySelector<HTMLButtonElement>('.recorded-run')?.click()
     await wait(9000)
     expect(document.querySelector('.fork-start')).not.toBeNull()
   })

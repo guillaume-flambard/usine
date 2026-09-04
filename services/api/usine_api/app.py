@@ -395,7 +395,12 @@ def create_app(
             return no_store({"error": refused.message}, refused.status)
 
         run_id = make_id()
-        store.put(run_id, archive, who.organization.id)
+        try:
+            store.create(run_id, archive, who.organization.id)
+        except Stored as collision:
+            # `make_id` ne devrait jamais rendre un id déjà pris ; si ça arrive,
+            # le dire est plus honnête que d'écraser le run de quelqu'un.
+            return no_store({"error": collision.message}, collision.status)
         # Rien d'autre ne ressort : le run est déjà chez celui qui l'a poussé,
         # et le renvoyer doublerait la charge pour rien.
         return no_store({"id": run_id, "events": len(archive.events)}, 201)
@@ -490,6 +495,61 @@ def create_app(
             return no_store({"error": "connexion requise"}, 401)
         entries = journal.entries(who.organization.id)
         return no_store({"entries": [entry.as_json() for entry in entries]})
+
+    @app.get("/account")
+    async def account_summary(request: Request) -> JSONResponse:
+        # Droit d'accès : ce qu'on détient sur la personne.
+        who = identity_of(request)
+        if who is None:
+            return no_store({"error": "connexion requise"}, 401)
+        org = who.organization.id
+        return no_store(
+            {
+                "email": who.account.email,
+                "org": org,
+                "runs": len(store.list_for(org)),
+                "trashed": len(store.list_trashed(org)),
+            }
+        )
+
+    @app.get("/account/export")
+    async def account_export(request: Request) -> Response:
+        # Droit à la portabilité : compte + toutes les archives (vivantes et corbeille).
+        who = identity_of(request)
+        if who is None:
+            return no_store({"error": "connexion requise"}, 401)
+        org = who.organization.id
+        owned = store.list_for(org) + store.list_trashed(org)
+        return JSONResponse(
+            {
+                "account": {"email": who.account.email, "org": org},
+                "runs": [entry.archive.as_json() for _run_id, entry in owned],
+            },
+            headers={
+                "cache-control": "no-store",
+                "content-disposition": 'attachment; filename="mes-donnees-usine.json"',
+            },
+        )
+
+    @app.delete("/account")
+    async def account_erase(request: Request) -> JSONResponse:
+        # Droit à l'effacement : cascade cross-stores, dans l'ordre des clés
+        # étrangères (sessions et org avant compte). Efface la trace interne —
+        # jamais un effet de bord externe (AD-41).
+        who = identity_of(request)
+        if who is None:
+            return no_store({"error": "connexion requise"}, 401)
+        account_id = who.account.id
+        org = who.organization.id
+        email = who.account.email
+        seats.forget(account_id)
+        store.forget_owner(org)
+        links.forget(email)
+        journal.forget(org)
+        people.forget(account_id)
+        response = no_store({"erased": True})
+        response.delete_cookie(SESSION_COOKIE, path="/")
+        return response
 
     @app.get("/runs/{run_id}/export")
     async def export_run(run_id: str, request: Request) -> Response:

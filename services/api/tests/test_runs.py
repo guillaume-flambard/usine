@@ -9,12 +9,13 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from usine_api.app import create_app
 from usine_api.identity import RecordingEmailSender
-from usine_api.runs import ARCHIVE_VERSION, Archive, InMemoryRunStore
+from usine_api.runs import ARCHIVE_VERSION, Archive, InMemoryRunStore, Stored
 
 # Une archive prête pour les tests du store directement (hors HTTP).
 ARCHIVE_IM = Archive(
@@ -225,7 +226,7 @@ def test_stored_events_are_byte_for_byte_unchanged() -> None:
 
 def test_delete_trashes_a_run_reversibly() -> None:
     store = InMemoryRunStore()
-    store.put("r1", ARCHIVE_IM, "orgA")
+    store.create("r1", ARCHIVE_IM, "orgA")
     assert store.delete("r1", "orgA") is True
     # Invisible : ni listé, ni résolu — mais retenu.
     assert store.get("r1", "orgA") is None
@@ -239,7 +240,7 @@ def test_delete_trashes_a_run_reversibly() -> None:
 
 def test_a_trashed_shared_run_stops_resolving() -> None:
     store = InMemoryRunStore()
-    store.put("r1", ARCHIVE_IM, "orgA")
+    store.create("r1", ARCHIVE_IM, "orgA")
     store.share("r1", "orgA")
     assert store.get("r1", None) is not None
     store.delete("r1", "orgA")
@@ -249,7 +250,7 @@ def test_a_trashed_shared_run_stops_resolving() -> None:
 
 def test_only_the_owner_administers_lifecycle() -> None:
     store = InMemoryRunStore()
-    store.put("r1", ARCHIVE_IM, "orgA")
+    store.create("r1", ARCHIVE_IM, "orgA")
     assert store.delete("r1", "orgB") is False
     store.delete("r1", "orgA")
     assert store.restore("r1", "orgB") is False
@@ -261,11 +262,47 @@ def test_only_the_owner_administers_lifecycle() -> None:
 
 def test_purge_only_removes_a_trashed_run() -> None:
     store = InMemoryRunStore()
-    store.put("r1", ARCHIVE_IM, "orgA")
+    store.create("r1", ARCHIVE_IM, "orgA")
     # Un run vivant ne se purge pas : ça contournerait la corbeille.
     assert store.purge("r1", "orgA") is False
     store.delete("r1", "orgA")
     assert store.purge("r1", "orgA") is True
+
+
+# --- Le contrat de `create` : un id est pris une fois, et les deux impls le
+# disent pareil. C'est ce que ces deux tests tiennent, avec leurs jumeaux dans
+# test_postgres.py. ---
+
+
+def test_creating_a_run_twice_under_the_same_id_is_refused() -> None:
+    # Le défaut que ça ferme : l'entrée entière était réécrite, donc un run
+    # repoussé sous le même id repartait non partagé. Postgres, lui, refusait
+    # déjà l'insertion, mais en 500. Un port dont les deux implémentations ne
+    # répondent pas la même chose à la même entrée n'est pas un port.
+    store = InMemoryRunStore()
+    store.create("r1", ARCHIVE_IM, "orgA")
+    store.share("r1", "orgA")
+
+    autre = Archive(version=1, brief="autre", events=[{"type": "work-finished", "sequence": 9}])
+    with pytest.raises(Stored) as refuse:
+        store.create("r1", autre, "orgA")
+    assert refuse.value.status == 409
+
+    # Intact : mêmes événements, et toujours partagé.
+    assert store.get("r1", None) == ARCHIVE_IM
+
+
+def test_a_refused_creation_does_not_resurrect_a_trashed_run() -> None:
+    store = InMemoryRunStore()
+    store.create("r1", ARCHIVE_IM, "orgA")
+    store.delete("r1", "orgA")
+
+    with pytest.raises(Stored):
+        store.create("r1", ARCHIVE_IM, "orgA")
+
+    # Toujours en corbeille : une collision ne ressuscite rien.
+    assert store.get("r1", "orgA") is None
+    assert [rid for rid, _ in store.list_trashed("orgA")] == ["r1"]
 
 
 def test_delete_route_trashes_and_restore_route_brings_back() -> None:
@@ -320,9 +357,9 @@ def test_export_route_is_owner_only_and_attaches() -> None:
 def test_purge_expired_removes_only_long_trashed_runs() -> None:
     clock = {"t": 1000.0}
     store = InMemoryRunStore(now=lambda: clock["t"])
-    store.put("old", ARCHIVE_IM, "orgA")
-    store.put("recent", ARCHIVE_IM, "orgA")
-    store.put("live", ARCHIVE_IM, "orgA")
+    store.create("old", ARCHIVE_IM, "orgA")
+    store.create("recent", ARCHIVE_IM, "orgA")
+    store.create("live", ARCHIVE_IM, "orgA")
     store.delete("old", "orgA")
     clock["t"] += 100
     store.delete("recent", "orgA")

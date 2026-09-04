@@ -36,6 +36,11 @@ class AuditLog(Protocol):
 
     def entries(self, org: str) -> list[AuditEntry]: ...
 
+    def forget(self, org: str) -> int:
+        """Efface le journal d'une org. Seule exception à l'append-only :
+        le droit à l'effacement (RGPD)."""
+        ...
+
 
 class InMemoryAuditLog:
     """Suffisant pour les tests ; un redémarrage perd le journal (assumé)."""
@@ -50,3 +55,8 @@ class InMemoryAuditLog:
     def entries(self, org: str) -> list[AuditEntry]:
         # Une org ne lit que les siennes.
         return [entry for entry in self._entries if entry.org == org]
+
+    def forget(self, org: str) -> int:
+        before = len(self._entries)
+        self._entries = [entry for entry in self._entries if entry.org != org]
+        return before - len(self._entries)

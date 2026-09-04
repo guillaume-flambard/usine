@@ -4,8 +4,8 @@
 // that is what makes the wiring testable without a browser.
 import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { createPilot } from '../orchestration/pilot'
-import { CONTACT, EXAMPLES } from '../examples'
-import { demoReasoner } from '../examples/demo'
+import { CONTACT } from '../examples'
+import { demoReasoner, DEMO_BRIEF } from '../examples/demo'
 import type { NodeView } from '../state/model'
 import LiveGraph from './LiveGraph.vue'
 import NodePanel from './NodePanel.vue'
@@ -30,12 +30,13 @@ import {
   trashRun,
   type RunSummary,
 } from '../app/runs-client'
+import { accountExportUrl, eraseAccount } from '../app/account-client'
 import { fetchEvaluation, formatEvaluation, type Evaluation } from '../app/eval-client'
 import { availableSources, serviceFetcher } from '../app/sources'
 import type { Interaction } from '../app/session'
 import { takeawayHtml, takeawayOf } from '../app/takeaway'
 import type { ReasoningOrigin } from '../runtime/reasoner'
-import { gateReached, newRun, productServed, runStarted, checkSubmitted } from '../telemetry'
+import { gateReached, productServed, runStarted, checkSubmitted } from '../telemetry'
 
 const pilot = createPilot()
 // With no model, the factory can invent nothing. Rather than a blank screen it
@@ -215,6 +216,18 @@ async function onPurgeRun(id: string) {
 async function onToggleShare(run: RunSummary) {
   const done = run.shared ? await revokeRunById(run.id) : await shareRunById(run.id)
   if (done) await refreshRuns()
+}
+
+// Mes données (RGPD) : exporter tout, ou effacer son compte (irréversible).
+const accountExport = accountExportUrl()
+const eraseConfirm = ref(false)
+
+async function onEraseAccount() {
+  if (await eraseAccount()) {
+    session.value = { authenticated: false }
+    runsOpen.value = false
+    eraseConfirm.value = false
+  }
 }
 
 /**
@@ -509,20 +522,13 @@ function onForkExit() {
   branchNotice.value = undefined
 }
 
-async function pickExample(key: string) {
-  const found = EXAMPLES.find((example) => example.key === key)
-  if (found === undefined) return
-  await pilot.stop()
-  brief.value = found.brief
-  selected.value = undefined
-  error.value = undefined
-  started.value = false
-  // Starting from another brief closes the current run, measurement included.
-  newRun()
-  pilot.store.reset()
-  stopClock()
-  startedAt.value = 0
-  now.value = 0
+// Le site sans clé n'a rien à taper qui produise un run : le modèle est ce qui
+// fait naître les agents. Plutôt qu'un champ mort, une seule entrée rejoue le
+// run enregistré — le seul besoin que la démo sait rejouer — sans exposer au
+// visiteur le libellé jargon qui le déclenche.
+async function playRecordedRun() {
+  brief.value = DEMO_BRIEF
+  await restart()
 }
 
 function onEscape(event: KeyboardEvent) {
@@ -712,6 +718,22 @@ onBeforeUnmount(() => {
             </span>
           </li>
         </ul>
+
+        <!-- Mes données (RGPD) : emporter ou effacer. L'effacement est
+             irréversible et demande une confirmation explicite. -->
+        <div class="my-data">
+          <a class="status-toggle" :href="accountExport">exporter mes données</a>
+          <template v-if="!eraseConfirm">
+            <button class="status-toggle my-data-erase" @click="eraseConfirm = true">
+              supprimer mon compte
+            </button>
+          </template>
+          <template v-else>
+            <span class="my-data-warn">Effacer définitivement compte et runs ?</span>
+            <button class="status-toggle my-data-erase" @click="onEraseAccount">confirmer</button>
+            <button class="status-toggle" @click="eraseConfirm = false">annuler</button>
+          </template>
+        </div>
       </div>
 
       <!-- Une ligne, pas cinq boîtes. Chaque fait y est un mot, et le point
@@ -793,19 +815,19 @@ onBeforeUnmount(() => {
           @keydown.ctrl.enter="restart"
         ></textarea>
         <div class="composer-row">
-          <span v-if="brief.trim().length === 0 && !started" class="examples">
-            <button
-              v-for="example in EXAMPLES"
-              :key="example.key"
-              type="button"
-              class="picker"
-              @click="pickExample(example.key)"
-            >
-              {{ example.title }}
-            </button>
-          </span>
-          <span v-else class="composer-hint">
-            {{ mode === 'demo' && !briefReplayable ? 'Sans modèle branché, ce besoin ne produira rien.' : '⌘↵' }}
+          <!-- Le site sans clé ne peut rien inventer : une seule entrée rejoue
+               le run enregistré, pour qu'il ne soit pas muet. Rien de jargon
+               n'est exposé — le libellé du besoin reste caché. -->
+          <button
+            v-if="mode === 'demo' && !started"
+            type="button"
+            class="picker recorded-run"
+            @click="playRecordedRun"
+          >
+            Voir un run enregistré
+          </button>
+          <span class="composer-hint">
+            {{ mode === 'demo' && brief.trim().length > 0 && !briefReplayable ? 'Sans modèle branché, ce besoin ne produira rien.' : '⌘↵' }}
           </span>
           <!-- Importer une trace d'un agent étranger (LangGraph, OTLP) : elle est
                rejouée et mesurée, mais non forkable. -->
@@ -840,6 +862,30 @@ onBeforeUnmount(() => {
         @reject="onBranchReject"
         @exit="onForkExit"
       />
+
+      <!-- Avant tout run, la scène n'est pas un vide blanc : elle dit ce que
+           fait l'atelier, en trois temps. C'est du cadrage statique — pas un
+           faux graphe, pas un squelette de progression — et il disparaît dès que
+           le run démarre. -->
+      <section v-else-if="!started" class="intro" aria-label="Ce que fait l'atelier">
+        <p class="intro-eyebrow">L'atelier</p>
+        <h2 class="intro-title">Rejoue la trajectoire d'un agent, forke-la, teste le correctif avant la prod.</h2>
+        <ol class="intro-beats">
+          <li class="intro-beat">
+            <span class="intro-beat-num">1</span>
+            <span class="intro-beat-text"><strong>Décris un besoin.</strong> Rien n'existe encore : des agents naissent, se parlent et écrivent l'application en direct.</span>
+          </li>
+          <li class="intro-beat">
+            <span class="intro-beat-num">2</span>
+            <span class="intro-beat-text"><strong>Regarde-la se faire.</strong> Le graphe montre qui existe et ce qui se remplace à chaud ; une porte humaine valide ou rejette.</span>
+          </li>
+          <li class="intro-beat">
+            <span class="intro-beat-num">3</span>
+            <span class="intro-beat-text"><strong>Forke la timeline.</strong> Change l'agent sur la branche et regarde deux futurs diverger côte à côte — pour tester un correctif sur la vraie trajectoire qui a planté.</span>
+          </li>
+        </ol>
+        <p class="intro-honesty">Le retour arrière est intra-runtime : il prévient avant un effet externe, il ne le répare pas après.</p>
+      </section>
 
       <!-- The panel overlays the graph, never the counters: they stay readable
            while a node is inspected. An open panel eats the bottom of the
