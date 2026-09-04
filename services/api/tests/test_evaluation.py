@@ -132,6 +132,21 @@ def test_the_route_reports_on_everything_stored() -> None:
     assert body["replacedRatio"] == 0.5
 
 
+def test_a_trashed_run_stops_feeding_the_public_report() -> None:
+    # /evaluation est public et délibérément agrégé sur tous les runs : c'est la
+    # preuve affichée aux visiteurs. Mais la corbeille doit valoir là aussi,
+    # sinon un run que la personne a supprimé continue de nourrir la statistique.
+    store = InMemoryRunStore()
+    store.create("un", run(AGENT, SCREEN, BEHAVIOUR, REPLACED), "org")
+    store.create("deux", run(AGENT), "org")
+    client = TestClient(create_app(key="clé", call=None, runs=store))
+    assert client.get("/evaluation").json()["runs"] == 2
+
+    store.delete("deux", "org")
+
+    assert client.get("/evaluation").json()["runs"] == 1
+
+
 def test_the_route_reports_on_one_run() -> None:
     store = InMemoryRunStore()
     store.create("un", run(AGENT, SCREEN, BEHAVIOUR), "org")

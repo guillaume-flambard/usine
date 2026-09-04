@@ -111,7 +111,14 @@ class RunStore(Protocol):
 
     def count(self) -> int: ...
 
-    def all(self) -> list[Archive]: ...
+    def all(self) -> list[Archive]:
+        """Les archives vivantes, corbeille exclue.
+
+        C'est ce qui alimente l'évaluation publique. Un run mis à la corbeille
+        cesse d'être listé et résolu ; le laisser nourrir une statistique
+        publique contredirait la corbeille.
+        """
+        ...
 
 
 class InMemoryRunStore:
@@ -235,7 +242,7 @@ class InMemoryRunStore:
         return len(self._runs)
 
     def all(self) -> list[Archive]:
-        return [entry.archive for entry in self._runs.values()]
+        return [entry.archive for entry in self._runs.values() if entry.trashed_at is None]
 
 
 def read_archive(body: Any, *, raw_size: int) -> Archive:

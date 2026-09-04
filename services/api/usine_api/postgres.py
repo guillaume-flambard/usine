@@ -287,7 +287,10 @@ class PostgresRunStore:
 
     def all(self) -> list[Archive]:
         with self._pool.connection() as conn:
-            rows = conn.execute("SELECT version, brief, events FROM runs").fetchall()
+            # Corbeille exclue, comme en mémoire : la même règle des deux côtés.
+            rows = conn.execute(
+                "SELECT version, brief, events FROM runs WHERE trashed_at IS NULL"
+            ).fetchall()
         return [Archive(version=row[0], brief=row[1], events=list(row[2])) for row in rows]
 
 

@@ -11,7 +11,9 @@ from typing import Any
 from fastapi.testclient import TestClient
 
 from usine_api.app import create_app
+from usine_api.identity import RecordingEmailSender
 from usine_api.memory import DIMENSIONS, Fact, InMemoryMemory, embed, similarity
+from usine_api.runs import ARCHIVE_VERSION, Archive, InMemoryRunStore
 
 
 def fact(text: str, run: str = "r1", author: str = "juriste") -> Fact:
@@ -87,8 +89,49 @@ def test_the_store_does_not_grow_without_bound() -> None:
     assert len(memory.recall("r1", "fait", limit=10)) == 3
 
 
+ARCHIVE = Archive(
+    version=ARCHIVE_VERSION, brief="un besoin", events=[{"type": "work-finished", "sequence": 1}]
+)
+
+
+def sign_in(client: TestClient, mailer: RecordingEmailSender, email: str) -> None:
+    """Connecte ce client (lien magique) : son bocal à cookies porte la session."""
+    client.post("/auth/request-link", json={"email": email})
+    _addr, link = mailer.sent[-1]
+    token = link.split("token=", 1)[1]
+    client.get("/auth/redeem", params={"token": token}, follow_redirects=False)
+
+
+def app_with_owner(**kwargs: Any) -> tuple[TestClient, RecordingEmailSender, InMemoryRunStore]:
+    """Une app, un client connecté propriétaire du run « r1 », et de quoi
+    connecter une seconde org dessus.
+
+    La mémoire suit l'autorisation de son run : sans run possédé, il n'y a
+    rien à quoi rattacher un fait. C'est ce que ces tests exercent maintenant.
+    """
+    mailer = RecordingEmailSender()
+    runs: InMemoryRunStore = kwargs.pop("runs", None) or InMemoryRunStore()
+    app = create_app(key="clé", call=None, email=mailer, secure_cookies=False, runs=runs, **kwargs)
+    client = TestClient(app)
+    sign_in(client, mailer, "owner@atelier.co")
+    runs.create("r1", ARCHIVE, _org_of(client))
+    return client, mailer, runs
+
+
 def client_for(**kwargs: Any) -> TestClient:
-    return TestClient(create_app(key="clé", call=None, **kwargs))
+    client, _mailer, _runs = app_with_owner(**kwargs)
+    return client
+
+
+def _org_of(client: TestClient) -> str:
+    """L'org derrière la session de ce client, telle que le service la voit."""
+    return str(client.get("/auth/session").json()["org"])
+
+
+def anonymous_client(**kwargs: Any) -> TestClient:
+    """Un visiteur qui n'est connecté à rien. Il ne doit toucher aucune mémoire."""
+    kwargs.setdefault("runs", InMemoryRunStore())
+    return TestClient(create_app(key="clé", call=None, secure_cookies=False, **kwargs))
 
 
 def test_the_route_remembers_and_recalls() -> None:
@@ -117,3 +160,56 @@ def test_forgetting_is_reachable_because_reversibility_does_not_stop_at_the_tab(
 
     assert client.delete("/memory/r1").json()["forgotten"] == 1
     assert client.get("/memory/r1", params={"q": "fait"}).json()["facts"] == []
+
+
+# --- La mémoire suit l'autorisation de son run. Ces routes datent d'avant la
+# multi-tenance et ne contrôlaient rien : les tests d'alors appelaient
+# « /memory/r1 » anonymement, sur un run qui n'existait pas. ---
+
+
+def test_an_anonymous_visitor_touches_no_memory() -> None:
+    memory = InMemoryMemory()
+    memory.remember(Fact(run="r1", author="juriste", text="un fait établi"))
+    visitor = anonymous_client(memory=memory)
+
+    # Lire, écrire, effacer : les trois se refusent, et se refusent en 404,
+    # indistinct d'un run absent — on ne confirme pas l'existence du run.
+    assert visitor.get("/memory/r1", params={"q": "fait"}).status_code == 404
+    assert visitor.post("/memory/r1", json={"author": "a", "text": "b"}).status_code == 404
+    assert visitor.delete("/memory/r1").status_code == 404
+    # Et rien n'a bougé : le refus n'est pas un effacement déguisé.
+    assert len(memory.recall("r1", "fait", limit=10)) == 1
+
+
+def test_another_org_reaches_neither_the_facts_nor_the_forgetting() -> None:
+    memory = InMemoryMemory()
+    owner, mailer, _runs = app_with_owner(memory=memory)
+    owner.post("/memory/r1", json={"author": "juriste", "text": "un fait établi"})
+
+    # Une seconde org, connectée pour de bon sur la même app, qui ne possède
+    # simplement pas ce run.
+    stranger = TestClient(owner.app)
+    sign_in(stranger, mailer, "stranger@ailleurs.co")
+    assert stranger.get("/auth/session").json()["authenticated"] is True
+
+    assert stranger.get("/memory/r1", params={"q": "fait"}).status_code == 404
+    assert stranger.post("/memory/r1", json={"author": "a", "text": "b"}).status_code == 404
+    assert stranger.delete("/memory/r1").status_code == 404
+    # Et le fait du propriétaire est intact.
+    assert len(memory.recall("r1", "fait", limit=10)) == 1
+
+
+def test_a_shared_run_lets_its_facts_be_read_but_not_written() -> None:
+    memory = InMemoryMemory()
+    runs = InMemoryRunStore()
+    owner, _mailer, _runs = app_with_owner(memory=memory, runs=runs)
+    owner.post("/memory/r1", json={"author": "juriste", "text": "un fait établi"})
+    runs.share("r1", _org_of(owner))
+
+    visitor = anonymous_client(memory=memory, runs=runs)
+
+    # Partagé : la lecture suit le run, exactement comme GET /runs/{run_id}.
+    assert visitor.get("/memory/r1", params={"q": "fait"}).json()["facts"] != []
+    # Mais le partage n'ouvre ni l'écriture ni l'effacement.
+    assert visitor.post("/memory/r1", json={"author": "a", "text": "b"}).status_code == 404
+    assert visitor.delete("/memory/r1").status_code == 404

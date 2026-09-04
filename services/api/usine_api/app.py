@@ -236,6 +236,19 @@ def create_app(
         who = identity_of(request)
         return who.organization.id if who is not None else None
 
+    def owns_run(request: Request, run_id: str) -> bool:
+        """Le run appartient-il, vivant, à l'org derrière la session ?
+
+        La mémoire est indexée par run, donc elle suit l'autorisation du run,
+        comme la trace et l'évaluation. Les routes de mémoire dataient d'avant
+        la multi-tenance et n'avaient jamais été repassées : n'importe qui
+        pouvait y écrire, y lire et y effacer.
+        """
+        org = viewer_org(request)
+        if org is None:
+            return False
+        return any(known == run_id for known, _entry in store.list_for(org))
+
     def note(org: str, action: str, target: str) -> None:
         """Trace une action sensible, sans jamais bloquer l'action elle-même."""
         # Un journal muet ne fait pas échouer un partage : l'action utile prime.
@@ -543,6 +556,11 @@ def create_app(
         org = who.organization.id
         email = who.account.email
         seats.forget(account_id)
+        # La mémoire est indexée par run : sans ce passage, les faits établis
+        # pendant les runs survivaient à l'effacement du compte. Avant
+        # `forget_owner`, qui fait disparaître les runs et donc leurs clés.
+        for run_id, _entry in store.list_for(org) + store.list_trashed(org):
+            recollection.forget(run_id)
         store.forget_owner(org)
         links.forget(email)
         journal.forget(org)
@@ -575,6 +593,12 @@ def create_app(
 
     @app.post("/memory/{run_id}")
     async def remember(run_id: str, request: Request) -> JSONResponse:
+        # Écrire dans la mémoire d'un run demande de le posséder. Sans ce
+        # refus, un tiers y glissait un fait — et la mémoire nourrit les agents
+        # des tours suivants, donc c'était une injection d'un locataire à
+        # l'autre. 404 plutôt que 403 : indistinct d'un run absent.
+        if not owns_run(request, run_id):
+            return no_store({"error": "run inconnu"}, 404)
         try:
             body = await request.json()
         except Exception:  # noqa: BLE001
@@ -601,15 +625,22 @@ def create_app(
 
     @app.get("/memory/{run_id}")
     async def recall(run_id: str, request: Request) -> JSONResponse:
+        # Lire les faits d'un run demande de pouvoir lire le run : propriétaire
+        # ou run partagé, exactement la règle de `GET /runs/{run_id}`.
+        if store.get(run_id, viewer_org(request)) is None:
+            return no_store({"error": "run inconnu"}, 404)
         query = request.query_params.get("q", "")
         limit = request.query_params.get("limit", "5")
         found = recollection.recall(run_id, query, int(limit) if limit.isdigit() else 5)
         return no_store({"facts": [fact.as_json() for fact in found]})
 
     @app.delete("/memory/{run_id}")
-    async def forget(run_id: str) -> JSONResponse:
+    async def forget(run_id: str, request: Request) -> JSONResponse:
         # La persistance ne contourne pas la réversibilité, elle la suit : ce
-        # qui appartenait à un run part avec lui.
+        # qui appartenait à un run part avec lui. Et l'effacer demande de le
+        # posséder, comme la corbeille et la purge.
+        if not owns_run(request, run_id):
+            return no_store({"error": "run inconnu"}, 404)
         return no_store({"forgotten": recollection.forget(run_id)})
 
     @app.get("/tools")

@@ -15,6 +15,7 @@ from usine_api.identity import (
     RecordingEmailSender,
 )
 from usine_api.maintenance import run_purge
+from usine_api.memory import InMemoryMemory
 from usine_api.runs import Archive, InMemoryRunStore
 
 
@@ -85,6 +86,30 @@ def test_erasure_removes_everything_and_deauthenticates() -> None:
     sign_in(client, mailer, "a@b.co")
     assert client.get("/account").json()["runs"] == 0
     assert client.get("/audit").json()["entries"] == []
+
+
+def test_erasure_also_takes_the_memory_of_ones_runs() -> None:
+    # La mémoire est indexée par run, pas par org : elle ne partait donc pas
+    # avec le compte. Un droit à l'effacement qui laisse derrière lui les faits
+    # établis pendant les runs n'est pas un effacement.
+    memory = InMemoryMemory()
+    mailer = RecordingEmailSender()
+    app = create_app(key="clé", call=None, email=mailer, secure_cookies=False, memory=memory)
+    client = TestClient(app)
+    sign_in(client, mailer, "a@b.co")
+
+    vivant = client.post("/runs", json=archive()).json()["id"]
+    corbeille = client.post("/runs", json=archive()).json()["id"]
+    client.delete(f"/runs/{corbeille}")  # à la corbeille, pas détruit
+    for run_id in (vivant, corbeille):
+        client.post(f"/memory/{run_id}", json={"author": "juriste", "text": "un fait établi"})
+    assert len(memory.recall(vivant, "fait", limit=10)) == 1
+
+    assert client.delete("/account").json() == {"erased": True}
+
+    # Vivants comme en corbeille : plus rien.
+    assert memory.recall(vivant, "fait", limit=10) == []
+    assert memory.recall(corbeille, "fait", limit=10) == []
 
 
 def test_erasure_touches_no_one_else() -> None:
