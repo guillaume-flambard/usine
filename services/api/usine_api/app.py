@@ -22,6 +22,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from .audit import AuditLog, InMemoryAuditLog
+from .erasure import Erasure, erasure_for
 from .evaluation import evaluate, measure
 from .identity import (
     SESSION_TTL_SECONDS,
@@ -163,6 +164,11 @@ def create_app(
     # L'email : SMTP si configuré, journal sinon (dev). Un test injecte le sien.
     mailer: EmailSender = email or _default_email_sender()
     journal: AuditLog = audit or (pg.audit if pg is not None else InMemoryAuditLog())
+    # L'effacement traverse cinq stores : il est tout-ou-rien quand ils sont
+    # bien ceux d'un même pool, et honnêtement séquentiel sinon.
+    eraser: Erasure = erasure_for(
+        pg, runs=store, identities=people, tokens=links, sessions=seats, audit=journal
+    )
     # Nommés par nous, comme les sources. Vide par défaut : un serveur d'outils
     # est une décision de déploiement, pas un défaut qu'on découvre.
     tool_servers: dict[str, Server] = servers or {}
@@ -555,16 +561,21 @@ def create_app(
         account_id = who.account.id
         org = who.organization.id
         email = who.account.email
-        seats.forget(account_id)
-        # La mémoire est indexée par run : sans ce passage, les faits établis
-        # pendant les runs survivaient à l'effacement du compte. Avant
-        # `forget_owner`, qui fait disparaître les runs et donc leurs clés.
-        for run_id, _entry in store.list_for(org) + store.list_trashed(org):
+        # Les clés se lisent AVANT : après l'effacement, les runs n'existent
+        # plus et la mémoire n'aurait plus de quoi être retrouvée.
+        run_ids = [run_id for run_id, _entry in store.list_for(org) + store.list_trashed(org)]
+
+        # Tout ou rien : une exception ici veut dire que rien n'a été effacé,
+        # et la personne garde de quoi se reconnecter et réessayer.
+        eraser.erase(account_id=account_id, org=org, email=email)
+
+        # La mémoire des runs n'est pas adossée à la base, elle ne peut donc pas
+        # entrer dans la transaction. Elle se vide après le commit, à partir des
+        # clés lues plus haut. Idempotent, et sans effet si l'effacement a
+        # échoué — on n'y arrive pas.
+        for run_id in run_ids:
             recollection.forget(run_id)
-        store.forget_owner(org)
-        links.forget(email)
-        journal.forget(org)
-        people.forget(account_id)
+
         response = no_store({"erased": True})
         response.delete_cookie(SESSION_COOKIE, path="/")
         return response

@@ -98,18 +98,18 @@ def test_erasure_also_takes_the_memory_of_ones_runs() -> None:
     client = TestClient(app)
     sign_in(client, mailer, "a@b.co")
 
-    vivant = client.post("/runs", json=archive()).json()["id"]
-    corbeille = client.post("/runs", json=archive()).json()["id"]
-    client.delete(f"/runs/{corbeille}")  # à la corbeille, pas détruit
-    for run_id in (vivant, corbeille):
+    live = client.post("/runs", json=archive()).json()["id"]
+    trashed = client.post("/runs", json=archive()).json()["id"]
+    client.delete(f"/runs/{trashed}")  # à la corbeille, pas détruit
+    for run_id in (live, trashed):
         client.post(f"/memory/{run_id}", json={"author": "juriste", "text": "un fait établi"})
-    assert len(memory.recall(vivant, "fait", limit=10)) == 1
+    assert len(memory.recall(live, "fait", limit=10)) == 1
 
     assert client.delete("/account").json() == {"erased": True}
 
     # Vivants comme en corbeille : plus rien.
-    assert memory.recall(vivant, "fait", limit=10) == []
-    assert memory.recall(corbeille, "fait", limit=10) == []
+    assert memory.recall(live, "fait", limit=10) == []
+    assert memory.recall(trashed, "fait", limit=10) == []
 
 
 def test_erasure_touches_no_one_else() -> None:

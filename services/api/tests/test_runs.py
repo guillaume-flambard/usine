@@ -283,10 +283,10 @@ def test_creating_a_run_twice_under_the_same_id_is_refused() -> None:
     store.create("r1", ARCHIVE_IM, "orgA")
     store.share("r1", "orgA")
 
-    autre = Archive(version=1, brief="autre", events=[{"type": "work-finished", "sequence": 9}])
-    with pytest.raises(Stored) as refuse:
-        store.create("r1", autre, "orgA")
-    assert refuse.value.status == 409
+    other = Archive(version=1, brief="autre", events=[{"type": "work-finished", "sequence": 9}])
+    with pytest.raises(Stored) as refused:
+        store.create("r1", other, "orgA")
+    assert refused.value.status == 409
 
     # Intact : mêmes événements, et toujours partagé.
     assert store.get("r1", None) == ARCHIVE_IM
