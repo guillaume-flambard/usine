@@ -395,7 +395,12 @@ def create_app(
             return no_store({"error": refused.message}, refused.status)
 
         run_id = make_id()
-        store.put(run_id, archive, who.organization.id)
+        try:
+            store.create(run_id, archive, who.organization.id)
+        except Stored as collision:
+            # `make_id` ne devrait jamais rendre un id déjà pris ; si ça arrive,
+            # le dire est plus honnête que d'écraser le run de quelqu'un.
+            return no_store({"error": collision.message}, collision.status)
         # Rien d'autre ne ressort : le run est déjà chez celui qui l'a poussé,
         # et le renvoyer doublerait la charge pour rien.
         return no_store({"id": run_id, "events": len(archive.events)}, 201)

@@ -71,7 +71,15 @@ class RunStore(Protocol):
     run a été explicitement partagé — et jamais s'il est en corbeille.
     """
 
-    def put(self, run_id: str, archive: Archive, owner: str) -> None: ...
+    def create(self, run_id: str, archive: Archive, owner: str) -> None:
+        """Conserve un run sous un id neuf.
+
+        Un id déjà pris lève `Stored(409)` au lieu d'écraser. Le dire ici plutôt
+        que dans chaque implémentation est le point : le flux d'un run, son
+        partage et sa corbeille vivent sous la même clé, et un écrasement
+        silencieux les perdrait tous les trois.
+        """
+        ...
 
     def get(self, run_id: str, viewer: str | None) -> Archive | None: ...
 
@@ -129,7 +137,13 @@ class InMemoryRunStore:
             return None
         return entry
 
-    def put(self, run_id: str, archive: Archive, owner: str) -> None:
+    def create(self, run_id: str, archive: Archive, owner: str) -> None:
+        # Un id déjà pris est un conflit, jamais un écrasement. Sans ce refus,
+        # un run repoussé sous le même id repartait partagé à `False` et sorti
+        # de la corbeille, alors que Postgres, lui, refusait déjà l'insertion :
+        # deux implémentations du même port ne peuvent pas diverger là-dessus.
+        if run_id in self._runs:
+            raise Stored(409, "un run existe déjà sous cet identifiant")
         if len(self._runs) >= self._capacity:
             # Le plus ancien part. Un stockage sans borne sur un service public
             # est une fuite de mémoire avec un nom flatteur.

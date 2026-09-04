@@ -11,6 +11,7 @@ from __future__ import annotations
 import secrets
 import time
 
+from psycopg.errors import UniqueViolation
 from psycopg.types.json import Json
 from psycopg_pool import ConnectionPool
 
@@ -24,7 +25,7 @@ from .identity import (
     Organization,
     _hash,
 )
-from .runs import Archive, Owned
+from .runs import Archive, Owned, Stored
 
 
 class PostgresIdentityStore:
@@ -163,13 +164,19 @@ class PostgresRunStore:
     def __init__(self, pool: ConnectionPool) -> None:
         self._pool = pool
 
-    def put(self, run_id: str, archive: Archive, owner: str) -> None:
-        with self._pool.connection() as conn:
-            conn.execute(
-                "INSERT INTO runs (run_id, version, brief, events, owner) "
-                "VALUES (%s, %s, %s, %s, %s)",
-                (run_id, archive.version, archive.brief, Json(archive.events), owner),
-            )
+    def create(self, run_id: str, archive: Archive, owner: str) -> None:
+        try:
+            with self._pool.connection() as conn:
+                conn.execute(
+                    "INSERT INTO runs (run_id, version, brief, events, owner) "
+                    "VALUES (%s, %s, %s, %s, %s)",
+                    (run_id, archive.version, archive.brief, Json(archive.events), owner),
+                )
+        except UniqueViolation as collision:
+            # La contrainte disait déjà non ; sans cette traduction elle sortait
+            # en 500, c'est-à-dire indistincte d'une base en panne. Le même
+            # refus qu'en mémoire, avec le même code.
+            raise Stored(409, "un run existe déjà sous cet identifiant") from collision
 
     def _archive(self, row: tuple) -> Archive:
         # events : jsonb relu par psycopg en liste Python, tel qu'il a été stocké.

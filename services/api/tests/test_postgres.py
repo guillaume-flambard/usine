@@ -18,7 +18,7 @@ import os
 
 import pytest
 
-from usine_api.runs import Archive
+from usine_api.runs import Archive, Stored
 
 DSN = os.environ.get("USINE_TEST_DATABASE_URL", "")
 
@@ -82,7 +82,7 @@ def test_sessions_open_resolve_and_close(stores) -> None:  # type: ignore[no-unt
 
 
 def test_runs_are_owned_private_and_shareable(stores) -> None:  # type: ignore[no-untyped-def]
-    stores.runs.put("r1", archive(1, 2), "orgA")
+    stores.runs.create("r1", archive(1, 2), "orgA")
     # Le propriétaire lit ; une autre org non ; anonyme non plus.
     assert stores.runs.get("r1", "orgA") is not None
     assert stores.runs.get("r1", "orgB") is None
@@ -100,22 +100,22 @@ def test_runs_are_owned_private_and_shareable(stores) -> None:  # type: ignore[n
 
 
 def test_events_survive_the_round_trip(stores) -> None:  # type: ignore[no-untyped-def]
-    stores.runs.put("r2", archive(3, 1, 2), "orgA")
+    stores.runs.create("r2", archive(3, 1, 2), "orgA")
     got = stores.runs.get("r2", "orgA")
     assert got is not None
     assert [e["sequence"] for e in got.events] == [3, 1, 2]
 
 
 def test_listing_returns_only_ones_own(stores) -> None:  # type: ignore[no-untyped-def]
-    stores.runs.put("r1", archive(1), "orgA")
-    stores.runs.put("r2", archive(1), "orgA")
-    stores.runs.put("r3", archive(1), "orgB")
+    stores.runs.create("r1", archive(1), "orgA")
+    stores.runs.create("r2", archive(1), "orgA")
+    stores.runs.create("r3", archive(1), "orgB")
     assert len(stores.runs.list_for("orgA")) == 2
     assert len(stores.runs.list_for("orgB")) == 1
 
 
 def test_lifecycle_trash_restore_purge(stores) -> None:  # type: ignore[no-untyped-def]
-    stores.runs.put("r1", archive(1), "orgA")
+    stores.runs.create("r1", archive(1), "orgA")
     stores.runs.share("r1", "orgA")
     # Corbeille : invisible, y compris par lien partagé, mais retenu.
     assert stores.runs.delete("r1", "orgA") is True
@@ -136,7 +136,7 @@ def test_lifecycle_trash_restore_purge(stores) -> None:  # type: ignore[no-untyp
 
 
 def test_purge_expired_on_postgres(stores) -> None:  # type: ignore[no-untyped-def]
-    stores.runs.put("r1", archive(1), "orgA")
+    stores.runs.create("r1", archive(1), "orgA")
     stores.runs.delete("r1", "orgA")
     # Fenêtre large : rien ne part (corbeille toute récente).
     assert stores.runs.purge_expired(older_than_seconds=3600) == 0
@@ -159,8 +159,8 @@ def test_erasure_across_stores_on_postgres(stores) -> None:  # type: ignore[no-u
     who = stores.identities.ensure("leaver@b.co")
     org = who.organization.id
     keeper = stores.identities.ensure("keeper@b.co")
-    stores.runs.put("r1", archive(1), org)
-    stores.runs.put("k1", archive(1), keeper.organization.id)
+    stores.runs.create("r1", archive(1), org)
+    stores.runs.create("k1", archive(1), keeper.organization.id)
     sid = stores.sessions.open(who.account.id)
     stores.tokens.issue("leaver@b.co")
     stores.audit.record(org, "share", "r1")
@@ -213,3 +213,21 @@ def test_full_flow_through_the_app_on_postgres(stores, monkeypatch) -> None:  # 
         assert signed_in.get(f"/runs/{run_id}").status_code == 200
         # Un visiteur anonyme ne voit pas ce run privé.
         assert TestClient(app).get(f"/runs/{run_id}").status_code == 404
+
+
+def test_creating_a_run_twice_under_the_same_id_is_refused(stores) -> None:  # type: ignore[no-untyped-def]
+    # Le jumeau de test_runs.py : même entrée, même refus, même code. Avant, la
+    # contrainte d'unicité sortait en UniqueViolation, donc en 500, quand la
+    # version en mémoire écrasait sans rien dire.
+    stores.runs.create("r1", archive(1), "orgA")
+    stores.runs.share("r1", "orgA")
+
+    with pytest.raises(Stored) as refuse:
+        stores.runs.create("r1", archive(9), "orgA")
+    assert refuse.value.status == 409
+
+    # Intact, et le pool reste utilisable après l'échec (la transaction est
+    # défaite en sortant du bloc, la connexion retourne saine au pool).
+    kept = stores.runs.get("r1", None)
+    assert kept is not None
+    assert [e["sequence"] for e in kept.events] == [1]

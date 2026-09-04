@@ -131,7 +131,7 @@ def test_run_purge_removes_expired_credentials_and_old_trash() -> None:
     tokens = InMemoryTokenStore(ttl_seconds=60, now=now)
     sessions = InMemorySessionStore(ttl_seconds=60, now=now)
 
-    runs.put(
+    runs.create(
         "r1",
         Archive(version=1, brief="x", events=[{"type": "work-finished", "sequence": 1}]),
         "orgA",

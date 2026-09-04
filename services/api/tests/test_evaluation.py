@@ -121,8 +121,8 @@ def test_an_empty_set_is_a_report_with_no_runs_not_a_crash() -> None:
 
 def test_the_route_reports_on_everything_stored() -> None:
     store = InMemoryRunStore()
-    store.put("un", run(AGENT, SCREEN, BEHAVIOUR, REPLACED), "org")
-    store.put("deux", run(AGENT), "org")
+    store.create("un", run(AGENT, SCREEN, BEHAVIOUR, REPLACED), "org")
+    store.create("deux", run(AGENT), "org")
     client = TestClient(create_app(key="clé", call=None, runs=store))
 
     body = client.get("/evaluation").json()
@@ -134,7 +134,7 @@ def test_the_route_reports_on_everything_stored() -> None:
 
 def test_the_route_reports_on_one_run() -> None:
     store = InMemoryRunStore()
-    store.put("un", run(AGENT, SCREEN, BEHAVIOUR), "org")
+    store.create("un", run(AGENT, SCREEN, BEHAVIOUR), "org")
     # Partagé pour être lisible par un client anonyme (la tenancy le protège
     # sinon ; ici on teste la forme de la mesure, pas l'accès).
     store.share("un", "org")
