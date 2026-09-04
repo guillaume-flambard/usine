@@ -15,9 +15,12 @@ mémoire (mêmes comportements que test_identity / test_runs).
 from __future__ import annotations
 
 import os
+from contextlib import contextmanager
+from typing import Any
 
 import pytest
 
+from usine_api.erasure import PostgresErasure, SequentialErasure
 from usine_api.runs import Archive, Stored
 
 DSN = os.environ.get("USINE_TEST_DATABASE_URL", "")
@@ -222,12 +225,133 @@ def test_creating_a_run_twice_under_the_same_id_is_refused(stores) -> None:  # t
     stores.runs.create("r1", archive(1), "orgA")
     stores.runs.share("r1", "orgA")
 
-    with pytest.raises(Stored) as refuse:
+    with pytest.raises(Stored) as refused:
         stores.runs.create("r1", archive(9), "orgA")
-    assert refuse.value.status == 409
+    assert refused.value.status == 409
 
     # Intact, et le pool reste utilisable après l'échec (la transaction est
     # défaite en sortant du bloc, la connexion retourne saine au pool).
     kept = stores.runs.get("r1", None)
     assert kept is not None
     assert [e["sequence"] for e in kept.events] == [1]
+
+
+class _ConnFailingAt:
+    """La vraie connexion, mais dont le Nième `execute` lève, en comptant à
+    travers TOUTES les connexions empruntées au pool.
+
+    C'est le seul moyen de prouver la promesse. Attention au piège rencontré en
+    l'écrivant : retirer `conn.transaction()` ne suffit PAS à casser
+    l'atomicité, parce que `pool.connection()` défait déjà tout en sortant sur
+    une exception. Ce qui la casse, c'est d'emprunter **cinq** connexions au
+    lieu d'une — chacune valide ce qu'elle a fait avant que la suivante
+    n'échoue. D'où le test ci-dessous, qui oppose les deux implémentations sur
+    les mêmes données plutôt que de bricoler la nouvelle.
+    """
+
+    def __init__(self, conn: Any, state: dict[str, int]) -> None:
+        self._conn = conn
+        self._state = state
+
+    def transaction(self) -> Any:
+        return self._conn.transaction()
+
+    def execute(self, *args: Any, **kwargs: Any) -> Any:
+        self._state["seen"] += 1
+        if self._state["seen"] == self._state["fail_on"]:
+            raise RuntimeError("panne au milieu de l'effacement")
+        return self._conn.execute(*args, **kwargs)
+
+
+class _PoolFailingAt:
+    def __init__(self, pool: Any, fail_on: int) -> None:
+        self._pool = pool
+        # Partagé entre connexions : la cascade séquentielle en emprunte cinq.
+        self._state = {"seen": 0, "fail_on": fail_on}
+
+    @contextmanager
+    def connection(self) -> Any:
+        with self._pool.connection() as conn:
+            yield _ConnFailingAt(conn, self._state)
+
+
+def _sessions_of(stores: Any, account_id: str) -> list[str]:
+    with stores.pool.connection() as conn:
+        rows = conn.execute(
+            "SELECT session_id FROM sessions WHERE account_id = %s", (account_id,)
+        ).fetchall()
+    return [row[0] for row in rows]
+
+
+def _someone(stores: Any) -> tuple[str, str]:
+    """Un compte avec un run, une session, un jeton et une entrée d'audit."""
+    identity = stores.identities.ensure("a@b.co")
+    account_id, org = identity.account.id, identity.organization.id
+    stores.runs.create("r1", archive(1), org)
+    stores.sessions.open(account_id)
+    stores.tokens.issue("a@b.co")
+    stores.audit.record(org, "share", "r1")
+    return account_id, org
+
+
+def test_the_sequential_cascade_leaves_a_half_erased_account(stores) -> None:  # type: ignore[no-untyped-def]
+    # Ce que faisait la route avant : cinq ports, donc cinq connexions, donc
+    # cinq transactions. C'est le défaut que la version transactionnelle ferme,
+    # et ce test le garde visible plutôt que de le raconter.
+    from usine_api.postgres import (
+        PostgresAuditLog,
+        PostgresIdentityStore,
+        PostgresRunStore,
+        PostgresSessionStore,
+        PostgresTokenStore,
+    )
+
+    account_id, org = _someone(stores)
+    failing_pool = _PoolFailingAt(stores.pool, 4)
+    sequential = SequentialErasure(
+        runs=PostgresRunStore(failing_pool),
+        identities=PostgresIdentityStore(failing_pool),
+        tokens=PostgresTokenStore(failing_pool),
+        sessions=PostgresSessionStore(failing_pool),
+        audit=PostgresAuditLog(failing_pool),
+    )
+
+    with pytest.raises(RuntimeError):
+        sequential.erase(account_id=account_id, org=org, email="a@b.co")
+
+    # La panne tombe sur le 4e DELETE : les trois premiers sont déjà validés.
+    assert stores.runs.get("r1", org) is None
+    assert _sessions_of(stores, account_id) == []
+    # Et le compte, lui, est toujours là : à moitié effacé.
+    assert stores.identities.by_account(account_id) is not None
+
+
+def test_erasure_is_all_or_nothing(stores) -> None:  # type: ignore[no-untyped-def]
+    # La même panne, au même endroit, sur la version transactionnelle.
+    account_id, org = _someone(stores)
+
+    failing = PostgresErasure(_PoolFailingAt(stores.pool, 4))
+    with pytest.raises(RuntimeError):
+        failing.erase(account_id=account_id, org=org, email="a@b.co")
+
+    # Rien n'est parti : une seule connexion, donc une seule transaction.
+    assert stores.runs.get("r1", org) is not None
+    assert stores.identities.by_account(account_id) is not None
+    assert stores.audit.entries(org) != []
+    assert _sessions_of(stores, account_id) != []
+
+
+def test_erasure_through_the_app_leaves_nothing(stores) -> None:  # type: ignore[no-untyped-def]
+    # Le chemin nominal, sur la vraie base : ce que la transaction efface quand
+    # rien ne tombe en panne.
+    identity = stores.identities.ensure("a@b.co")
+    account_id, org = identity.account.id, identity.organization.id
+    stores.runs.create("r1", archive(1), org)
+    stores.audit.record(org, "share", "r1")
+
+    stores.erasure.erase(account_id=account_id, org=org, email="a@b.co")
+
+    assert stores.runs.get("r1", org) is None
+    assert stores.identities.by_account(account_id) is None
+    assert stores.audit.entries(org) == []
+    assert _sessions_of(stores, account_id) == []

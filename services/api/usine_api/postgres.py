@@ -17,6 +17,7 @@ from psycopg_pool import ConnectionPool
 
 from .audit import AuditEntry
 from .db import migrate, open_pool
+from .erasure import PostgresErasure
 from .identity import (
     SESSION_TTL_SECONDS,
     TOKEN_TTL_SECONDS,
@@ -332,3 +333,6 @@ class PostgresStores:
         self.sessions = PostgresSessionStore(self.pool)
         self.runs = PostgresRunStore(self.pool)
         self.audit = PostgresAuditLog(self.pool)
+        # L'effacement traverse les cinq tables : il tient sa propre
+        # transaction, sur le même pool.
+        self.erasure = PostgresErasure(self.pool)
