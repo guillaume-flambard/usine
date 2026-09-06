@@ -43,6 +43,11 @@ export default mergeConfig(
               enabled: true,
               provider: playwright(),
               headless: true,
+              // The verify workflow shares a self-hosted runner with the deploy
+              // timer and other CI, so a cold chromium launch can outrun the
+              // 30s default and fail with "Failed to connect to the browser
+              // session within the timeout" (a flake, not a real test failure).
+              connectTimeout: 120_000,
               // Fixed size: "the page never scrolls" is checked at a known
               // dimension, not at whatever the provider picks.
               viewport: { width: 1440, height: 900 },
