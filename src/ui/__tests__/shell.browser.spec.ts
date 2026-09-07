@@ -16,6 +16,25 @@ async function mount() {
 }
 
 /**
+ * The commands the composer exposes, in document order, named by the stable
+ * attribute each carries. An example chip would appear here as an extra
+ * entry — which is the point: counting a class the product never declares
+ * would pass however many chips came back.
+ */
+function composerCommands(): string[] {
+  const composer = document.querySelector('[data-brief]')?.closest('div')?.parentElement
+  return [...(composer?.querySelectorAll('button') ?? [])].map(
+    (button) =>
+      [...button.attributes]
+        .map((a) => a.name)
+        // `data-slot` is the library's own marker, on every button it renders.
+        .find((name) => name.startsWith('data-') && name !== 'data-slot') ??
+      button.textContent?.trim() ??
+      '?',
+  )
+}
+
+/**
  * For each node: its state, and whether it carries a signal that is not
  * colour — shape mark, dashes, stroke width, opacity or strike-through.
  */
@@ -52,8 +71,12 @@ describe('the shell in a browser', () => {
     const app = document.querySelector('.app')
     expect(app).not.toBeNull()
     expect(app?.getBoundingClientRect().height ?? 0).toBeGreaterThan(window.innerHeight * 0.9)
-    // The original editorial page had a hero; the application has none.
-    expect(document.querySelector('.hero')).toBeNull()
+    // The original editorial page scrolled. This one has nothing below the
+    // fold — asserting on a `.hero` class the product never declares would
+    // pass whatever we shipped.
+    expect(document.documentElement.scrollHeight).toBeLessThanOrEqual(
+      document.documentElement.clientHeight + 1,
+    )
   })
 
   it('reaches the critical path from the keyboard', async () => {
@@ -184,7 +207,7 @@ describe('the application, end to end in a browser', () => {
 
     // No approval, no click on the gate. If this test ever needs a decision
     // first, the product has gone back to delivering at the end.
-    const frame = document.querySelector<HTMLIFrameElement>('.live-frame')
+    const frame = document.querySelector<HTMLIFrameElement>('[data-live-frame]')
     expect(frame, "l'application n'est pas apparue").not.toBeNull()
 
     // The frame is sandboxed with an opaque origin: the host page cannot read
@@ -226,7 +249,7 @@ describe('the application, end to end in a browser', () => {
   it('says what the hot replacement spared, without overstating it', async () => {
     await mount()
     await startRun()
-    const counter = document.querySelector('.live-counter')?.textContent ?? ''
+    const counter = document.querySelector('[data-live-counter]')?.textContent ?? ''
 
     expect(counter).toContain('remplacement')
     // Zero restarts is the half of the claim that must be measured rather
@@ -258,8 +281,10 @@ describe('changing the need from the page', () => {
   it('warns when the demo cannot play the chosen need', async () => {
     await mount()
 
-    // No jargon example chips any more: the field starts empty.
-    expect(document.querySelectorAll('.examples').length).toBe(0)
+    // No jargon example chips any more: the field starts empty, and nothing
+    // in the composer fills it. Naming the class a chip *used* to carry would
+    // pass however many chips we added back.
+    expect(composerCommands()).toEqual(['data-recorded-run', 'data-launch'])
     const brief = document.querySelector<HTMLTextAreaElement>('#brief')
     expect(brief?.value).toBe('')
 
@@ -311,7 +336,7 @@ describe('the replay, announced', () => {
 
     // Permanent, not a toast that fades: a visitor arriving mid-run must be
     // able to tell a replay from a live run without having seen the start.
-    expect(document.querySelector('.status')?.textContent ?? '').toContain('rejoué')
+    expect(document.querySelector('[data-status-line]')?.textContent ?? '').toContain('rejoué')
 
     document.querySelector<HTMLButtonElement>('[data-status-toggle]')?.click()
     await wait(60)
@@ -331,7 +356,7 @@ describe('the replay, announced', () => {
     // Same graph, same gate, same application. If a replay needed its own
     // path, it would drift from the live one and stop being a proof.
     expect(document.querySelectorAll('.node').length).toBeGreaterThan(3)
-    expect(document.querySelector('.live-frame')).not.toBeNull()
+    expect(document.querySelector('[data-live-frame]')).not.toBeNull()
     expect(document.querySelectorAll('[data-gate-action]')).toHaveLength(2)
   })
 })
@@ -414,8 +439,9 @@ describe('la zone du run tient sa géométrie', () => {
 describe('the atelier redesign', () => {
   it('starts with no jargon example chips, and a recorded-run entry instead', async () => {
     await mount()
-    // composer-clarity: no example-need chips; the field starts empty.
-    expect(document.querySelectorAll('.examples').length).toBe(0)
+    // composer-clarity: the composer exposes two commands and no example
+    // chip, and the field starts empty.
+    expect(composerCommands()).toEqual(['data-recorded-run', 'data-launch'])
     expect(document.querySelector<HTMLTextAreaElement>('#brief')?.value).toBe('')
     // Keyless demo mode keeps one recorded-run entry so the site is not mute.
     const recorded = document.querySelector<HTMLButtonElement>('[data-recorded-run]')
@@ -426,20 +452,22 @@ describe('the atelier redesign', () => {
   it('explains the workshop before any run, without faking a run', async () => {
     await mount()
     // scene-legibility: an intro naming the three beats, not a void.
-    const intro = document.querySelector('.intro')
+    const intro = document.querySelector('[data-scene-intro]')
     expect(intro, 'the scene intro is missing before a run').not.toBeNull()
     expect(intro?.textContent ?? '').toContain('Forke la timeline')
     expect(intro?.textContent ?? '').toContain('intra-runtime')
-    // No fake run content before a run: no application frame, no skeleton.
+    // No fake run content before a run: no application frame, and nothing
+    // moving. A skeleton is an animation, so that is what we look for —
+    // a `.skeleton` class the product never declares proves nothing.
     expect(document.querySelector('.live-app')).toBeNull()
-    expect(document.querySelector('.skeleton')).toBeNull()
+    expect(document.getAnimations().filter((a) => a.playState === 'running')).toEqual([])
   })
 
   it('yields the intro to the graph once the run starts', async () => {
     await mount()
     await startRun()
     // Once started, the intro is gone and the graph is what the scene shows.
-    expect(document.querySelector('.intro')).toBeNull()
+    expect(document.querySelector('[data-scene-intro]')).toBeNull()
     expect(document.querySelectorAll('.node').length).toBeGreaterThan(0)
   })
 
@@ -447,8 +475,8 @@ describe('the atelier redesign', () => {
     await mount()
     await startRun()
     // scene-legibility: the fork gesture is present with a one-line reason.
-    expect(document.querySelector('.fork-start')).not.toBeNull()
-    const why = document.querySelector('.fork-why')?.textContent ?? ''
+    expect(document.querySelector('[data-fork-start]')).not.toBeNull()
+    const why = document.querySelector('[data-fork-why]')?.textContent ?? ''
     expect(why).toContain('trajectoire qui a planté')
   })
 })

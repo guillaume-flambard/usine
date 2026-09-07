@@ -51,9 +51,8 @@ const brief = ref('')
 /** The demo only knows how to replay one need; the screen does not hide it. */
 const briefReplayable = computed(
   () =>
-    ['allégation', 'santé', 'complément', 'conformité'].filter((word) =>
-      brief.value.includes(word),
-    ).length >= 2,
+    ['allégation', 'santé', 'complément', 'conformité'].filter((word) => brief.value.includes(word))
+      .length >= 2,
 )
 // The layout follows the graph: it is no longer a snapshot taken before the
 // run, it is recomputed whenever the factory brings an agent into existence.
@@ -224,9 +223,7 @@ const screen = computed(() => {
  * least one behaviour. Showing the frame before that would be a promise the
  * run has not yet kept.
  */
-const product = computed(
-  () => screen.value.revision > 0 && behaviours.value.length > 0,
-)
+const product = computed(() => screen.value.revision > 0 && behaviours.value.length > 0)
 
 /** The agents this run brought into existence. None existed before the brief. */
 const malformed = computed(() => {
@@ -234,14 +231,11 @@ const malformed = computed(() => {
   return pilot.malformedTurns()
 })
 
-
 const replacementsSaid = computed(() =>
   count(state.value.replacements, 'remplacement à chaud', 'remplacements à chaud'),
 )
 
-const restartsSaid = computed(() =>
-  count(state.value.restarts, 'redémarrage', 'redémarrages'),
-)
+const restartsSaid = computed(() => count(state.value.restarts, 'redémarrage', 'redémarrages'))
 
 const selectedNode = computed<NodeView | undefined>(
   () => state.value.nodes.find((node) => node.id === selected.value) as NodeView | undefined,
@@ -321,8 +315,16 @@ async function reject() {
 // Le fork et l'import de trace : deux blocs entiers, chacun avec ses propres
 // modes d'échec, qui n'ont besoin que du pilote et d'un endroit où dire ce qui
 // n'a pas marché.
-const { fork, forkArchive, forkAt, branchNotice, startFork, replaceOnBranch, rejectBranch, exitFork } =
-  useFork(pilot, (message) => (error.value = message))
+const {
+  fork,
+  forkArchive,
+  forkAt,
+  branchNotice,
+  startFork,
+  replaceOnBranch,
+  rejectBranch,
+  exitFork,
+} = useFork(pilot, (message) => (error.value = message))
 
 const { foreignMeasure, forkable, importFromFileEvent } = useTraceImport(
   pilot,
@@ -429,8 +431,10 @@ onBeforeUnmount(() => {
           >
             mes runs
           </UButton>
-          <span class="account-email truncate text-xs text-muted">{{ session.email }}</span>
-          <UButton variant="link" color="neutral" size="xs" data-logout @click="signOut">quitter</UButton>
+          <span data-account-email class="truncate text-xs text-muted">{{ session.email }}</span>
+          <UButton variant="link" color="neutral" size="xs" data-logout @click="signOut"
+            >quitter</UButton
+          >
         </span>
         <UButton
           v-else
@@ -562,26 +566,51 @@ onBeforeUnmount(() => {
            le run démarre. -->
       <section
         v-else-if="!started"
-        class="intro mx-auto flex h-full max-w-[54ch] flex-col justify-center gap-5 px-8 py-12"
+        data-scene-intro
+        class="mx-auto flex h-full max-w-[54ch] flex-col gap-5 px-8 pb-12 pt-[12vh]"
         aria-label="Ce que fait l'atelier"
       >
         <p class="text-xs uppercase tracking-wide text-muted">L'atelier</p>
-        <h2 class="text-3xl/tight font-semibold tracking-tight text-highlighted text-balance">Rejoue la trajectoire d'un agent, forke-la, teste le correctif avant la prod.</h2>
+        <h2 class="text-3xl/tight font-semibold tracking-tight text-highlighted text-balance">
+          Rejoue la trajectoire d'un agent, forke-la, teste le correctif avant la prod.
+        </h2>
         <ol class="flex flex-col gap-4">
           <li class="grid grid-cols-[1.5rem_1fr] items-start gap-3">
-            <span class="flex size-6 items-center justify-center rounded-full bg-elevated text-xs text-toned">1</span>
-            <span class="text-toned"><strong>Décris un besoin.</strong> Rien n'existe encore : des agents naissent, se parlent et écrivent l'application en direct.</span>
+            <span
+              class="flex size-6 items-center justify-center rounded-full bg-elevated text-xs text-toned"
+              >1</span
+            >
+            <span class="text-toned"
+              ><strong>Décris un besoin.</strong> Rien n'existe encore : des agents naissent, se
+              parlent et écrivent l'application en direct.</span
+            >
           </li>
           <li class="grid grid-cols-[1.5rem_1fr] items-start gap-3">
-            <span class="flex size-6 items-center justify-center rounded-full bg-elevated text-xs text-toned">2</span>
-            <span class="text-toned"><strong>Regarde-la se faire.</strong> Le graphe montre qui existe et ce qui se remplace à chaud ; une porte humaine valide ou rejette.</span>
+            <span
+              class="flex size-6 items-center justify-center rounded-full bg-elevated text-xs text-toned"
+              >2</span
+            >
+            <span class="text-toned"
+              ><strong>Regarde-la se faire.</strong> Le graphe montre qui existe et ce qui se
+              remplace à chaud ; une porte humaine valide ou rejette.</span
+            >
           </li>
           <li class="grid grid-cols-[1.5rem_1fr] items-start gap-3">
-            <span class="flex size-6 items-center justify-center rounded-full bg-elevated text-xs text-toned">3</span>
-            <span class="text-toned"><strong>Forke la timeline.</strong> Change l'agent sur la branche et regarde deux futurs diverger côte à côte — pour tester un correctif sur la vraie trajectoire qui a planté.</span>
+            <span
+              class="flex size-6 items-center justify-center rounded-full bg-elevated text-xs text-toned"
+              >3</span
+            >
+            <span class="text-toned"
+              ><strong>Forke la timeline.</strong> Change l'agent sur la branche et regarde deux
+              futurs diverger côte à côte — pour tester un correctif sur la vraie trajectoire qui a
+              planté.</span
+            >
           </li>
         </ol>
-        <p class="mt-1 border-t border-default pt-4 text-sm text-muted">Le retour arrière est intra-runtime : il prévient avant un effet externe, il ne le répare pas après.</p>
+        <p class="mt-1 border-t border-default pt-4 text-sm text-muted">
+          Le retour arrière est intra-runtime : il prévient avant un effet externe, il ne le répare
+          pas après.
+        </p>
       </section>
 
       <!-- The panel overlays the graph, never the counters: they stay readable
@@ -640,7 +669,7 @@ onBeforeUnmount(() => {
         <Transition name="sheet">
           <HumanGate
             v-if="state.gate && state.gate.decision === undefined"
-          :gate="state.gate"
+            :gate="state.gate"
             :serving="product"
             @approve="approve"
             @reject="reject"
@@ -650,20 +679,20 @@ onBeforeUnmount(() => {
         <Transition name="sheet">
           <LiveApplication
             v-if="product"
-          :archive="Boolean(pilot.archive())"
-          :replay="pilot.isReplay()"
-          :forkable="forkable"
-          :docked="!graphOpen"
-          :sharing="sharing"
-          :share-link="shareLink"
-          @share="shareRun"
-          @take-away="takeAway"
-          @fork="onFork"
-          :behaviours="behaviours"
-          :screen="screen"
-          :session="pilot.session()"
-          :pulse="state.lastSequence"
-          :contact="CONTACT"
+            :archive="Boolean(pilot.archive())"
+            :replay="pilot.isReplay()"
+            :forkable="forkable"
+            :docked="!graphOpen"
+            :sharing="sharing"
+            :share-link="shareLink"
+            @share="shareRun"
+            @take-away="takeAway"
+            @fork="onFork"
+            :behaviours="behaviours"
+            :screen="screen"
+            :session="pilot.session()"
+            :pulse="state.lastSequence"
+            :contact="CONTACT"
             @interaction="onVisitorInteraction"
           />
         </Transition>

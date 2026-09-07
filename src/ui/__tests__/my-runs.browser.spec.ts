@@ -57,7 +57,7 @@ describe('my runs', () => {
     ;(document.querySelector('[data-run-trash]') as HTMLButtonElement).click()
     await wait(120)
     expect(byText('.my-runs-open', 'mon run')).toBeUndefined()
-    expect(document.querySelector('.my-runs-empty')).not.toBeNull()
+    expect(document.querySelector('[data-my-runs-empty]')).not.toBeNull()
   })
 
   // Les deux onglets étaient un `role="tablist"` sans panneau, sans

@@ -115,7 +115,8 @@ onBeforeUnmount(() => {
     -->
     <iframe
       ref="frame"
-      class="live-frame min-h-[260px] w-full flex-1 rounded-md border border-default bg-white"
+      data-live-frame
+      class="min-h-[260px] w-full flex-1 rounded-md border border-default bg-white"
       :class="{ hidden: !hasScreen || frameSilent }"
       title="L'application produite par ce run"
       src="/sandbox.html"
@@ -124,11 +125,12 @@ onBeforeUnmount(() => {
 
     <p
       v-if="!hasScreen && !frameSilent"
-      class="live-empty rounded-md border border-dashed border-accented p-5 text-sm text-muted"
+      data-live-empty
+      class="rounded-md border border-dashed border-accented p-5 text-sm text-muted"
       role="status"
     >
-      L'application n'a encore rien posé — les agents ont parlé, mais aucun écran
-      n'est sorti du run.
+      L'application n'a encore rien posé — les agents ont parlé, mais aucun écran n'est sorti du
+      run.
     </p>
 
     <!-- Un échec est un état normal : il dit ce qui s'est passé et quoi faire,
@@ -139,14 +141,16 @@ onBeforeUnmount(() => {
       data-frame-silent
       role="status"
     >
-      Le cadre de l'application ne s'est pas chargé. Le run continue et le fil dit
-      ce que les agents ont fait — mais l'application ne peut pas être utilisée ici.
-      Un bloqueur de contenu ou une politique du navigateur refuse parfois une iframe
-      sablée : la rouvrir dans une autre fenêtre suffit en général.
+      Le cadre de l'application ne s'est pas chargé. Le run continue et le fil dit ce que les agents
+      ont fait — mais l'application ne peut pas être utilisée ici. Un bloqueur de contenu ou une
+      politique du navigateur refuse parfois une iframe sablée : la rouvrir dans une autre fenêtre
+      suffit en général.
     </p>
 
-    <p class="live-counter flex flex-wrap gap-2 text-xs text-muted tabular-nums">
-      <span>{{ count(props.session.counts.replacements, 'remplacement à chaud', 'remplacements à chaud') }}</span>
+    <p data-live-counter class="flex flex-wrap gap-2 text-xs text-muted tabular-nums">
+      <span>{{
+        count(props.session.counts.replacements, 'remplacement à chaud', 'remplacements à chaud')
+      }}</span>
       <span>·</span>
       <span>{{ count(props.session.counts.restarts, 'redémarrage', 'redémarrages') }}</span>
       <span>·</span>
@@ -181,19 +185,21 @@ onBeforeUnmount(() => {
         {{ sharing ? 'Conservation…' : 'Lien de rejeu' }}
       </UButton>
       <!-- Le fork est le geste phare : il se distingue des autres. -->
-      <UButton v-if="forkable" size="sm" class="fork-start" data-fork @click="emit('fork')">
+      <UButton v-if="forkable" size="sm" data-fork-start @click="emit('fork')">
         Forker ce run
       </UButton>
       <UButton variant="link" color="neutral" :to="`mailto:${contact}`" external>
         Écrire à Memo Labs
       </UButton>
     </div>
-    <p v-if="forkable" class="fork-why max-w-[62ch] text-sm text-muted">
-      Forker : rejoue cette trajectoire, change l'agent à chaud sur la branche, et
-      regarde deux futurs diverger — pour tester un correctif sur la vraie
-      trajectoire qui a planté, avant la prod.
+    <p v-if="forkable" data-fork-why class="max-w-[62ch] text-sm text-muted">
+      Forker : rejoue cette trajectoire, change l'agent à chaud sur la branche, et regarde deux
+      futurs diverger — pour tester un correctif sur la vraie trajectoire qui a planté, avant la
+      prod.
     </p>
-    <p v-if="shareLink" class="text-sm text-muted"><code>{{ shareLink }}</code> — il rejoue ce run à l’identique, application comprise.</p>
+    <p v-if="shareLink" class="text-sm text-muted">
+      <code>{{ shareLink }}</code> — il rejoue ce run à l’identique, application comprise.
+    </p>
   </section>
 </template>
 

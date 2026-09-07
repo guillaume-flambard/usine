@@ -70,7 +70,7 @@ function onOpenChange(open: boolean) {
         <article class="mt-2 rounded-md border border-default p-3">
           <h3>{{ node.artifact.title }}</h3>
           <p v-if="node.artifact.derivedFrom" class="text-sm text-muted">
-            Découle de {{ node.artifact.derivedFrom }}.
+            Découle {{ node.artifact.derivedFrom }}.
           </p>
           <pre class="artifact-body mt-2 text-xs">{{ node.artifact.body }}</pre>
         </article>

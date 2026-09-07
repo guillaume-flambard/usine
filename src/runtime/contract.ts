@@ -33,7 +33,12 @@ export interface Artifact {
   title: string
   /** The body, in French, readable by a non-technical person. */
   body: string
-  /** What it follows from: the brief, the memory, or an upstream artifact. */
+  /**
+   * What it follows from: the brief, the memory, or an upstream artifact.
+   * Written as the whole complement, article included — « du besoin », « de ta
+   * mission » — because the screen reads « Découle … » and French will not
+   * elide for us.
+   */
   derivedFrom?: string
 }
 
