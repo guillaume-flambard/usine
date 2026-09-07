@@ -29,9 +29,9 @@ const gateIsAsking = () => document.querySelector('[data-gate-action]') !== null
 export async function startRun(): Promise<void> {
   const brief = document.querySelector<HTMLTextAreaElement>('#brief')
   if (brief !== null && brief.value.length === 0) {
-    document.querySelector<HTMLButtonElement>('.recorded-run')?.click()
+    document.querySelector<HTMLButtonElement>('[data-recorded-run]')?.click()
   } else {
-    document.querySelector<HTMLButtonElement>('.composer .button')?.click()
+    document.querySelector<HTMLButtonElement>('[data-launch]')?.click()
   }
   await waitFor(gateIsAsking, { why: 'que la porte demande une décision' })
   // The gate appears while the last nodes are still landing; a short settle

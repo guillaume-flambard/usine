@@ -60,7 +60,7 @@ describe('the shell in a browser', () => {
   it('reaches the critical path from the keyboard', async () => {
     await mount()
     const brief = document.querySelector<HTMLTextAreaElement>('#brief')
-    const button = document.querySelector<HTMLButtonElement>('.composer .button')
+    const button = document.querySelector<HTMLButtonElement>('[data-launch]')
     expect(brief).not.toBeNull()
     expect(button).not.toBeNull()
 
@@ -76,7 +76,7 @@ describe('the shell in a browser', () => {
     brief!.dispatchEvent(new Event('input', { bubbles: true }))
     await wait(150)
 
-    const ready = document.querySelector<HTMLButtonElement>('.composer .button')
+    const ready = document.querySelector<HTMLButtonElement>('[data-launch]')
     expect(ready?.disabled).toBe(false)
     ready?.focus()
     expect(document.activeElement).toBe(ready)
@@ -273,7 +273,7 @@ describe('changing the need from the page', () => {
     const hint = document.querySelector('.composer-hint')?.textContent ?? ''
     expect(hint).toContain('ne produira rien')
 
-    document.querySelector<HTMLButtonElement>('.composer .button')?.click()
+    document.querySelector<HTMLButtonElement>('[data-launch]')?.click()
     await wait(9000)
     const born = [...document.querySelectorAll<SVGGElement>('.node')]
     expect(born).toHaveLength(1)
@@ -314,7 +314,7 @@ describe('the replay, announced', () => {
     // able to tell a replay from a live run without having seen the start.
     expect(document.querySelector('.status')?.textContent ?? '').toContain('rejoué')
 
-    document.querySelector<HTMLButtonElement>('.status-toggle')?.click()
+    document.querySelector<HTMLButtonElement>('[data-status-toggle]')?.click()
     await wait(60)
     const explanation = document.querySelector('#status-detail')?.textContent ?? ''
 
@@ -390,7 +390,7 @@ describe('the atelier redesign', () => {
     expect(document.querySelectorAll('.examples').length).toBe(0)
     expect(document.querySelector<HTMLTextAreaElement>('#brief')?.value).toBe('')
     // Keyless demo mode keeps one recorded-run entry so the site is not mute.
-    const recorded = document.querySelector<HTMLButtonElement>('.recorded-run')
+    const recorded = document.querySelector<HTMLButtonElement>('[data-recorded-run]')
     expect(recorded, 'the recorded-run entry is missing').not.toBeNull()
     expect(recorded?.textContent ?? '').toContain('enregistré')
   })

@@ -43,7 +43,7 @@ describe('my data', () => {
     stubService()
     render(FactoryApp)
     await wait(120)
-    ;(byText('.account .status-toggle', 'mes runs') as HTMLButtonElement).click()
+    ;(document.querySelector('[data-runs-toggle]') as HTMLButtonElement).click()
     await wait(120)
 
     // Export link points at the export endpoint.
@@ -52,12 +52,12 @@ describe('my data', () => {
     expect(exportLink.getAttribute('href')).toBe('/api/account/export')
 
     // Delete asks for confirmation before doing anything.
-    ;(byText('.my-data .status-toggle', 'supprimer mon compte') as HTMLButtonElement).click()
+    ;(document.querySelector('[data-account-erase]') as HTMLButtonElement).click()
     await wait(30)
     expect(document.querySelector('.my-data-warn')).not.toBeNull()
 
     // Confirm: the account is erased and the view returns to signed-out.
-    ;(byText('.my-data .status-toggle', 'confirmer') as HTMLButtonElement).click()
+    ;(document.querySelector('[data-account-erase-confirm]') as HTMLButtonElement).click()
     await wait(120)
     expect(byText('.account-signin', 'se connecter')).toBeDefined()
     expect(document.querySelector('#my-runs')).toBeNull()

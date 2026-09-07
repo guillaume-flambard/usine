@@ -188,6 +188,12 @@ const runsOpen = ref(false)
 const runsTab = ref<'live' | 'trash'>('live')
 const myRuns = ref<RunSummary[]>([])
 const myTrash = ref<RunSummary[]>([])
+// Les deux onglets de « mes runs ». Le compte est dans le libellé : c'est la
+// seule information que l'onglet porte, et elle change avec la liste.
+const runsTabs = computed(() => [
+  { label: `actifs (${myRuns.value.length})`, value: 'live', slot: 'live' as const },
+  { label: `corbeille (${myTrash.value.length})`, value: 'trash', slot: 'trash' as const },
+])
 const runExportUrl = exportUrl
 
 async function refreshRuns() {
@@ -611,33 +617,45 @@ onBeforeUnmount(() => {
         <span class="brand-square" aria-hidden="true"></span>
         <span class="brand-name">Memo&nbsp;Labs</span>
         <span class="brand-lab">usine agentique</span>
-        <button
-          class="status-toggle"
+        <UButton
+          variant="link"
+          color="neutral"
           :aria-expanded="modeHelp"
           aria-controls="status-detail"
+          data-status-toggle
           @click="modeHelp = !modeHelp"
         >
           {{ modeHelp ? 'masquer' : 'détail' }}
-        </button>
+        </UButton>
 
         <!-- La connexion vit dans la ligne de marque, pas dans une zone de plus.
              Anonyme : un lien « se connecter » ; connecté : l'email et « quitter ». -->
         <span v-if="session.authenticated" class="account">
-          <button class="status-toggle" :aria-expanded="runsOpen" aria-controls="my-runs" @click="toggleRuns">
+          <UButton
+            variant="link"
+            color="neutral"
+            :aria-expanded="runsOpen"
+            aria-controls="my-runs"
+            data-runs-toggle
+            @click="toggleRuns"
+          >
             mes runs
-          </button>
+          </UButton>
           <span class="account-email">{{ session.email }}</span>
-          <button class="status-toggle" @click="onLogout">quitter</button>
+          <UButton variant="link" color="neutral" data-logout @click="onLogout">quitter</UButton>
         </span>
-        <button
+        <UButton
           v-else
-          class="status-toggle account-signin"
+          variant="link"
+          color="neutral"
+          class="account-signin"
           :aria-expanded="signInOpen"
           aria-controls="signin-panel"
+          data-signin-toggle
           @click="signInOpen = !signInOpen"
         >
           se connecter
-        </button>
+        </UButton>
       </header>
 
       <!-- Le panneau de connexion : un email, un lien magique. Aucun mot de passe. -->
@@ -652,80 +670,100 @@ onBeforeUnmount(() => {
         </p>
         <template v-else>
           <label class="hidden-title" for="signin-email">Votre email</label>
-          <input
+          <UInput
             id="signin-email"
             v-model="signInEmail"
             type="email"
-            class="brief-field signin-field"
+            class="signin-field w-full"
             placeholder="vous@equipe.co"
             autocomplete="email"
+            data-signin-email
           />
-          <button class="button" type="submit" :disabled="signInEmail.trim().length === 0">
+          <UButton type="submit" :disabled="signInEmail.trim().length === 0" data-signin-submit>
             Recevoir un lien
-          </button>
+          </UButton>
         </template>
       </form>
 
       <!-- Mes runs : lister, ouvrir, partager, mettre à la corbeille, restaurer. -->
       <div v-if="runsOpen && session.authenticated" id="my-runs" class="my-runs">
-        <div class="my-runs-tabs" role="tablist">
-          <button
-            class="status-toggle"
-            role="tab"
-            :aria-selected="runsTab === 'live'"
-            @click="runsTab = 'live'"
-          >
-            actifs ({{ myRuns.length }})
-          </button>
-          <button
-            class="status-toggle"
-            role="tab"
-            :aria-selected="runsTab === 'trash'"
-            @click="runsTab = 'trash'"
-          >
-            corbeille ({{ myTrash.length }})
-          </button>
-        </div>
+        <!-- Deux onglets, avec leur vrai contrat : chaque onglet nomme le
+             panneau qu'il commande, un seul est tabulable, les flèches
+             circulent. C'était un `role="tablist"` sans panneau ni
+             `aria-controls`. -->
+        <UTabs v-model="runsTab" :items="runsTabs" class="my-runs-tabs">
+          <template #live>
+            <ul class="my-runs-list">
+              <li v-if="myRuns.length === 0" class="my-runs-empty">Aucun run conservé.</li>
+              <li v-for="run in myRuns" :key="run.id" class="my-runs-row">
+                <UButton variant="link" color="neutral" class="my-runs-open" data-run-open @click="openRun(run.id)">
+                  {{ run.brief || 'run' }}
+                </UButton>
+                <span class="my-runs-meta">{{ run.events }} évts{{ run.shared ? ' · partagé' : '' }}</span>
+                <span class="my-runs-actions">
+                  <UButton variant="link" color="neutral" data-run-share @click="onToggleShare(run)">
+                    {{ run.shared ? 'révoquer' : 'partager' }}
+                  </UButton>
+                  <UButton variant="link" color="neutral" :to="runExportUrl(run.id)" external data-run-export>
+                    exporter
+                  </UButton>
+                  <UButton variant="link" color="neutral" data-run-trash @click="onTrashRun(run.id)">
+                    corbeille
+                  </UButton>
+                </span>
+              </li>
+            </ul>
+          </template>
 
-        <ul v-if="runsTab === 'live'" class="my-runs-list">
-          <li v-if="myRuns.length === 0" class="my-runs-empty">Aucun run conservé.</li>
-          <li v-for="run in myRuns" :key="run.id" class="my-runs-row">
-            <button class="my-runs-open" @click="openRun(run.id)">{{ run.brief || 'run' }}</button>
-            <span class="my-runs-meta">{{ run.events }} évts{{ run.shared ? ' · partagé' : '' }}</span>
-            <span class="my-runs-actions">
-              <button class="status-toggle" @click="onToggleShare(run)">
-                {{ run.shared ? 'révoquer' : 'partager' }}
-              </button>
-              <a class="status-toggle" :href="runExportUrl(run.id)">exporter</a>
-              <button class="status-toggle" @click="onTrashRun(run.id)">corbeille</button>
-            </span>
-          </li>
-        </ul>
-
-        <ul v-else class="my-runs-list">
-          <li v-if="myTrash.length === 0" class="my-runs-empty">Corbeille vide.</li>
-          <li v-for="run in myTrash" :key="run.id" class="my-runs-row">
-            <span class="my-runs-open">{{ run.brief || 'run' }}</span>
-            <span class="my-runs-actions">
-              <button class="status-toggle" @click="onRestoreRun(run.id)">restaurer</button>
-              <button class="status-toggle" @click="onPurgeRun(run.id)">purger</button>
-            </span>
-          </li>
-        </ul>
+          <template #trash>
+            <ul class="my-runs-list">
+              <li v-if="myTrash.length === 0" class="my-runs-empty">Corbeille vide.</li>
+              <li v-for="run in myTrash" :key="run.id" class="my-runs-row">
+                <span class="my-runs-open">{{ run.brief || 'run' }}</span>
+                <span class="my-runs-actions">
+                  <UButton variant="link" color="neutral" data-run-restore @click="onRestoreRun(run.id)">
+                    restaurer
+                  </UButton>
+                  <UButton variant="link" color="neutral" data-run-purge @click="onPurgeRun(run.id)">
+                    purger
+                  </UButton>
+                </span>
+              </li>
+            </ul>
+          </template>
+        </UTabs>
 
         <!-- Mes données (RGPD) : emporter ou effacer. L'effacement est
              irréversible et demande une confirmation explicite. -->
         <div class="my-data">
-          <a class="status-toggle" :href="accountExport">exporter mes données</a>
+          <UButton variant="link" color="neutral" :to="accountExport" external data-account-export>
+            exporter mes données
+          </UButton>
           <template v-if="!eraseConfirm">
-            <button class="status-toggle my-data-erase" @click="eraseConfirm = true">
+            <UButton
+              variant="link"
+              color="error"
+              class="my-data-erase"
+              data-account-erase
+              @click="eraseConfirm = true"
+            >
               supprimer mon compte
-            </button>
+            </UButton>
           </template>
           <template v-else>
             <span class="my-data-warn">Effacer définitivement compte et runs ?</span>
-            <button class="status-toggle my-data-erase" @click="onEraseAccount">confirmer</button>
-            <button class="status-toggle" @click="eraseConfirm = false">annuler</button>
+            <UButton
+              variant="link"
+              color="error"
+              class="my-data-erase"
+              data-account-erase-confirm
+              @click="onEraseAccount"
+            >
+              confirmer
+            </UButton>
+            <UButton variant="link" color="neutral" data-account-erase-cancel @click="eraseConfirm = false">
+              annuler
+            </UButton>
           </template>
         </div>
       </div>
@@ -799,27 +837,31 @@ onBeforeUnmount(() => {
       <div class="composer">
         <h1 class="hidden-title">L'usine agentique — l'application qui se refait sous vous</h1>
         <label class="hidden-title" for="brief">Le besoin</label>
-        <textarea
+        <UTextarea
           id="brief"
           v-model="brief"
-          class="brief-field"
-          rows="2"
+          class="brief-field w-full"
+          :rows="2"
           placeholder="Décrivez un besoin. L’usine n’existe pas encore."
+          data-brief
           @keydown.meta.enter="restart"
           @keydown.ctrl.enter="restart"
-        ></textarea>
+        />
         <div class="composer-row">
           <!-- Le site sans clé ne peut rien inventer : une seule entrée rejoue
                le run enregistré, pour qu'il ne soit pas muet. Rien de jargon
                n'est exposé — le libellé du besoin reste caché. -->
-          <button
+          <UButton
             v-if="mode === 'demo' && !started"
             type="button"
-            class="picker recorded-run"
+            variant="outline"
+            color="neutral"
+            class="recorded-run"
+            data-recorded-run
             @click="playRecordedRun"
           >
             Voir un run enregistré
-          </button>
+          </UButton>
           <span class="composer-hint">
             {{ mode === 'demo' && brief.trim().length > 0 && !briefReplayable ? 'Sans modèle branché, ce besoin ne produira rien.' : '⌘↵' }}
           </span>
@@ -835,9 +877,13 @@ onBeforeUnmount(() => {
               @change="onImportTrace"
             />
           </label>
-          <button class="button" :disabled="starting || brief.trim().length === 0" @click="restart">
+          <UButton
+            :disabled="starting || brief.trim().length === 0"
+            data-launch
+            @click="restart"
+          >
             {{ started ? 'Relancer' : "Lancer l'usine" }}
-          </button>
+          </UButton>
         </div>
       </div>
     </section>

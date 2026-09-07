@@ -48,16 +48,51 @@ describe('my runs', () => {
     await wait(120)
 
     // Open the panel from the brand line.
-    ;(byText('.account .status-toggle', 'mes runs') as HTMLButtonElement).click()
+    ;(document.querySelector('[data-runs-toggle]') as HTMLButtonElement).click()
     await wait(120)
 
     expect(document.querySelector('#my-runs')).not.toBeNull()
     expect(byText('.my-runs-open', 'mon run')).toBeDefined()
 
     // Trash it: the row disappears from the live list.
-    ;(byText('.my-runs-row .status-toggle', 'corbeille') as HTMLButtonElement).click()
+    ;(document.querySelector('[data-run-trash]') as HTMLButtonElement).click()
     await wait(120)
     expect(byText('.my-runs-open', 'mon run')).toBeUndefined()
     expect(document.querySelector('.my-runs-empty')).not.toBeNull()
+  })
+
+  // Les deux onglets étaient un `role="tablist"` sans panneau, sans
+  // `aria-controls` et sans tabindex tournant : au clavier, on ne pouvait pas
+  // passer de l'un à l'autre.
+  it('moves between the two tabs from the keyboard', async () => {
+    stubService()
+    render(FactoryApp)
+    await wait(120)
+    ;(document.querySelector('[data-runs-toggle]') as HTMLButtonElement).click()
+    await wait(150)
+
+    const tabs = [...document.querySelectorAll<HTMLElement>('[role="tab"]')]
+    expect(tabs).toHaveLength(2)
+
+    // La liste d'onglets ne prend qu'un arrêt dans l'ordre de tabulation : on
+    // entre une fois, on circule ensuite aux flèches.
+    expect(tabs.filter((tab) => tab.tabIndex >= 0).length).toBeLessThanOrEqual(1)
+
+    const panelOf = (tab: HTMLElement) => {
+      const id = tab.getAttribute('aria-controls')
+      expect(id, "l'onglet doit nommer le panneau qu'il commande").not.toBeNull()
+      return document.getElementById(id!)
+    }
+    expect(panelOf(tabs[0]!)).not.toBeNull()
+
+    tabs[0]!.focus()
+    tabs[0]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+    await wait(150)
+
+    expect(document.activeElement).toBe(tabs[1])
+    expect(tabs[1]!.getAttribute('aria-selected')).toBe('true')
+    expect(tabs[0]!.getAttribute('aria-selected')).toBe('false')
+    // Et le panneau montré est bien celui de l'onglet choisi.
+    expect(panelOf(tabs[1]!)?.textContent).toContain('Corbeille')
   })
 })
