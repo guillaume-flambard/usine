@@ -25,7 +25,7 @@ describe('sign-in in the brand line', () => {
     await wait(80)
     const signin = byText('.account-signin', 'se connecter')
     expect(signin).toBeDefined()
-    expect(document.querySelector('.account-email')).toBeNull()
+    expect(document.querySelector('[data-account-email]')).toBeNull()
 
     ;(signin as HTMLButtonElement).click()
     await wait(30)
@@ -46,7 +46,7 @@ describe('sign-in in the brand line', () => {
 
     render(FactoryApp)
     await wait(120)
-    expect(document.querySelector('.account-email')?.textContent?.trim()).toBe('moi@equipe.co')
+    expect(document.querySelector('[data-account-email]')?.textContent?.trim()).toBe('moi@equipe.co')
     expect(byText('.account-signin', 'se connecter')).toBeUndefined()
   })
 })

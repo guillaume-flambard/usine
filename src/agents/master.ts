@@ -144,7 +144,7 @@ async function seed(
     ]
       .filter((line) => line.length > 0)
       .join('\n'),
-    derivedFrom: 'le besoin',
+    derivedFrom: 'du besoin',
   })
 
   context.emit('Le run attend votre décision.')

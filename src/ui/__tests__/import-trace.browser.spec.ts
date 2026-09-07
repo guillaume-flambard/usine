@@ -22,7 +22,7 @@ const LANGGRAPH_TRACE = JSON.stringify({
 async function importTraceFile(json: string) {
   render(FactoryApp)
   await wait(60)
-  const input = document.querySelector<HTMLInputElement>('.import-trace input[type="file"]')
+  const input = document.querySelector<HTMLInputElement>('[data-import-trace] input[type="file"]')
   if (input === null) throw new Error('file input not found')
   const file = new File([json], 'trace.json', { type: 'application/json' })
   const data = new DataTransfer()
@@ -52,7 +52,7 @@ describe('importing a foreign trace', () => {
 
   it('offers no fork affordance for a foreign run', async () => {
     await importTraceFile(LANGGRAPH_TRACE)
-    expect(document.querySelector('.fork-start')).toBeNull()
+    expect(document.querySelector('[data-fork-start]')).toBeNull()
     const buttons = [...document.querySelectorAll('button')].map((b) => b.textContent?.trim())
     expect(buttons).not.toContain('Forker ce run')
   })
@@ -65,6 +65,6 @@ describe('importing a foreign trace', () => {
     // Start a run the way a keyless visitor does: the recorded-run entry writes
     // the known brief and launches.
     await startRun()
-    expect(document.querySelector('.fork-start')).not.toBeNull()
+    expect(document.querySelector('[data-fork-start]')).not.toBeNull()
   })
 })

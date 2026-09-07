@@ -19,6 +19,7 @@ import { createFrameHost, type FrameHost } from '../app/frame-host'
 import { createSession } from '../app/session'
 import { behaviourKey, type Behaviour } from '../app/behaviour'
 import { measureDelta, measureRun } from '../app/measure'
+import { count } from '../app/plural'
 import { liveBehaviours } from '../orchestration/factory'
 import type { Fork } from '../orchestration/pilot'
 import type { RunArchive } from '../app/replay'
@@ -43,6 +44,19 @@ const emit = defineEmits<{
   reject: []
   exit: []
 }>()
+
+/**
+ * Chaque cadre s'est-il annoncé ? Un cadre qui ne vient jamais est, à l'œil,
+ * indistinct d'une application qui marche : une dalle vide. C'est le défaut
+ * déjà payé dans `LiveApplication`, et il vaut ici pour les deux futurs.
+ */
+const trunkAnswered = ref(false)
+const branchAnswered = ref(false)
+const trunkSilent = ref(false)
+const branchSilent = ref(false)
+/** Le temps qu'on laisse à un cadre avant de dire qu'il n'est pas venu. */
+const FRAME_GRACE_MS = 4000
+let graceTimer: ReturnType<typeof setTimeout> | undefined
 
 const trunkFrame = ref<HTMLIFrameElement | null>(null)
 const branchFrame = ref<HTMLIFrameElement | null>(null)
@@ -142,9 +156,7 @@ const branchMeasure = computed(() => {
 })
 
 /** Y a-t-il seulement de quoi mesurer ? Sinon, pas de bandeau (pas de zéros). */
-const hasData = computed(
-  () => trunkMeasure.value.events > 0 || branchMeasure.value.events > 0,
-)
+const hasData = computed(() => trunkMeasure.value.events > 0 || branchMeasure.value.events > 0)
 
 /** Une ligne du bandeau : la clé, les deux mesures, et l'écart. */
 const rows = computed(() => {
@@ -174,6 +186,10 @@ onMounted(() => {
       behaviours: () => props.fork.trunk.behaviours,
       screen: () => props.fork.trunk.screen,
       session: trunkSession,
+      onReady: () => {
+        trunkAnswered.value = true
+        trunkSilent.value = false
+      },
       onInteraction: () => (trunkInteractions.value = trunkSession.counts.interactions),
     })
     trunkHost.sync()
@@ -184,10 +200,18 @@ onMounted(() => {
       behaviours: () => branchBehaviours.value,
       screen: () => props.fork.branch.screen,
       session: branchSession,
+      onReady: () => {
+        branchAnswered.value = true
+        branchSilent.value = false
+      },
       onInteraction: () => (branchInteractions.value = branchSession.counts.interactions),
     })
     branchHost.sync()
   }
+  graceTimer = setTimeout(() => {
+    if (!trunkAnswered.value) trunkSilent.value = true
+    if (!branchAnswered.value) branchSilent.value = true
+  }, FRAME_GRACE_MS)
 })
 
 // Un remplacement sur la branche change la version qui répond : on repousse au
@@ -198,25 +222,37 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  if (graceTimer !== undefined) clearTimeout(graceTimer)
   trunkHost?.dispose()
   branchHost?.dispose()
 })
 </script>
 
 <template>
-  <section class="fork flex h-full min-h-0 flex-col gap-4 p-5" aria-label="Deux futurs du run, côte à côte">
+  <section
+    class="fork flex h-full min-h-0 flex-col gap-4 p-5"
+    aria-label="Deux futurs du run, côte à côte"
+  >
     <header class="flex flex-wrap items-start gap-3">
-      <p class="text-xs font-semibold uppercase tracking-wider text-muted">Fork — deux futurs du même run, sous votre décision</p>
+      <p class="text-xs font-semibold uppercase tracking-wider text-muted">
+        Fork — deux futurs du même run, sous votre décision
+      </p>
       <p class="max-w-[68ch] text-sm text-muted">
-        Le retour arrière est intra-runtime : on prévient avant un effet externe, on ne le
-        répare pas après.
+        Le retour arrière est intra-runtime : on prévient avant un effet externe, on ne le répare
+        pas après.
       </p>
       <!-- Une porte par branche, deux gestes de poids égal (DESIGN, AD-39). -->
       <div class="ml-auto flex shrink-0 gap-2">
         <UButton size="sm" variant="outline" color="neutral" data-fork-keep @click="emit('exit')">
           Garder la branche · revenir au run
         </UButton>
-        <UButton size="sm" variant="outline" color="neutral" data-fork-reject @click="emit('reject')">
+        <UButton
+          size="sm"
+          variant="outline"
+          color="neutral"
+          data-fork-reject
+          @click="emit('reject')"
+        >
           Rejeter la branche
         </UButton>
       </div>
@@ -224,39 +260,83 @@ onBeforeUnmount(() => {
 
     <div class="fork-panels grid min-h-0 flex-1 gap-4 md:grid-cols-2">
       <!-- Le tronc : un recording, en lecture seule (AD-37/48). -->
-      <section class="fork-panel flex min-h-0 flex-col gap-2 rounded-md border border-default p-3" data-side="trunk" aria-label="Tronc — enregistrement">
+      <section
+        data-fork-panel
+        class="flex min-h-0 flex-col gap-2 rounded-md border border-default p-3"
+        data-side="trunk"
+        aria-label="Tronc — enregistrement"
+      >
         <p class="flex flex-wrap items-baseline gap-2">
           <span class="font-semibold text-highlighted">Tronc</span>
           <span class="text-xs text-muted">enregistrement · lecture seule</span>
         </p>
         <iframe
           ref="trunkFrame"
+          :class="{ hidden: trunkSilent }"
           class="fork-frame min-h-[220px] w-full flex-1 rounded border border-default bg-white"
           title="L'application du tronc, à N"
           src="/sandbox.html"
           sandbox="allow-scripts"
         ></iframe>
-        <p class="font-mono text-xs text-muted tabular-nums">{{ trunkInteractions }} interaction(s)</p>
+        <p
+          v-if="trunkSilent"
+          data-fork-frame-silent="trunk"
+          class="min-h-[220px] flex-1 rounded border border-dashed border-accented p-4 text-sm text-muted"
+          role="status"
+        >
+          Le cadre du tronc ne s'est pas chargé. La comparaison mesurée reste juste : un bloqueur de
+          contenu ou une politique du navigateur refuse parfois une iframe sablée.
+        </p>
+        <p class="text-xs text-muted tabular-nums">
+          {{ count(trunkInteractions, 'interaction', 'interactions') }}
+        </p>
       </section>
 
       <!-- La branche : une exécution neuve, où l'on édite un comportement. -->
-      <section class="fork-panel flex min-h-0 flex-col gap-2 rounded-md border border-default p-3" data-side="branch" aria-label="Branche — exécution neuve">
+      <section
+        data-fork-panel
+        class="flex min-h-0 flex-col gap-2 rounded-md border border-default p-3"
+        data-side="branch"
+        aria-label="Branche — exécution neuve"
+      >
         <p class="flex flex-wrap items-baseline gap-2">
           <span class="font-semibold text-highlighted">Branche</span>
           <span class="text-xs text-muted">exécution neuve</span>
         </p>
         <iframe
           ref="branchFrame"
+          :class="{ hidden: branchSilent }"
           class="fork-frame min-h-[220px] w-full flex-1 rounded border border-default bg-white"
           title="L'application de la branche, vivante"
           src="/sandbox.html"
           sandbox="allow-scripts"
         ></iframe>
+        <p
+          v-if="branchSilent"
+          data-fork-frame-silent="branch"
+          class="min-h-[220px] flex-1 rounded border border-dashed border-accented p-4 text-sm text-muted"
+          role="status"
+        >
+          Le cadre de la branche ne s'est pas chargé. Faire diverger reste possible, et l'écart se
+          lit dans la table ci-dessous.
+        </p>
 
-        <form class="fork-edit flex flex-col gap-2" @submit.prevent="applyEdit">
-          <label class="text-xs font-semibold uppercase tracking-wider text-muted" for="fork-behaviour">Éditer un comportement</label>
-          <select id="fork-behaviour" v-model="editedName" class="w-full rounded border border-accented bg-default px-2 py-1 text-sm">
-            <option v-for="behaviour in branchBehaviours" :key="behaviour.name" :value="behaviour.name">
+        <form data-fork-edit class="flex flex-col gap-2" @submit.prevent="applyEdit">
+          <label
+            class="text-xs font-semibold uppercase tracking-wider text-muted"
+            for="fork-behaviour"
+            >Éditer un comportement</label
+          >
+          <select
+            id="fork-behaviour"
+            v-model="editedName"
+            class="w-full rounded border border-accented bg-default px-2 py-1 text-sm"
+          >
+            <option
+              v-for="behaviour in branchBehaviours"
+              :key="behaviour.name"
+              :value="behaviour.name"
+            >
               {{ behaviour.name }} — v{{ behaviour.version }}
             </option>
           </select>
@@ -269,10 +349,17 @@ onBeforeUnmount(() => {
             placeholder="(input) => …"
           ></textarea>
           <div class="flex flex-wrap items-center gap-2">
-            <UButton type="submit" size="sm" data-fork-apply :disabled="editedCode.trim().length === 0">
+            <UButton
+              type="submit"
+              size="sm"
+              data-fork-apply
+              :disabled="editedCode.trim().length === 0"
+            >
               Faire diverger la branche
             </UButton>
-            <span class="font-mono text-xs text-muted tabular-nums">{{ branchInteractions }} interaction(s)</span>
+            <span class="text-xs text-muted tabular-nums">
+              {{ count(branchInteractions, 'interaction', 'interactions') }}
+            </span>
           </div>
           <p v-if="notice" class="text-sm text-error" role="status">{{ notice }}</p>
         </form>
@@ -287,21 +374,37 @@ onBeforeUnmount(() => {
       aria-label="Comparaison mesurée tronc / branche"
       aria-live="polite"
     >
+      <!-- Trois colonnes de chiffres, alignées à droite avec leurs en-têtes :
+           sans ça les valeurs flottaient au milieu, loin de la colonne
+           qu'elles servaient, et la clé mangeait toute la largeur. -->
       <table class="fork-table w-full text-sm">
+        <colgroup>
+          <col />
+          <col class="w-24" />
+          <col class="w-24" />
+          <col class="w-24" />
+        </colgroup>
         <thead>
           <tr>
-            <th scope="col" class="fork-table-key py-1 pr-3 text-left font-normal text-muted">Mesure</th>
-            <th scope="col">Tronc</th>
-            <th scope="col">Branche</th>
-            <th scope="col">Écart</th>
+            <th scope="col" class="fork-table-key py-1 pr-3 text-left font-normal text-muted">
+              Mesure
+            </th>
+            <th scope="col" class="py-1 pl-3 text-right font-normal text-muted">Tronc</th>
+            <th scope="col" class="py-1 pl-3 text-right font-normal text-muted">Branche</th>
+            <th scope="col" class="py-1 pl-3 text-right font-normal text-muted">Écart</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="row in rows" :key="row.key">
-            <th scope="row" class="fork-table-key py-1 pr-3 text-left font-normal text-muted">{{ row.key }}</th>
-            <td>{{ row.trunk ?? '—' }}</td>
-            <td>{{ row.branch ?? '—' }}</td>
-            <td class="py-1 text-right font-mono tabular-nums" :data-diverged="row.delta !== null && row.delta !== 0">
+            <th scope="row" class="fork-table-key py-1 pr-3 text-left font-normal text-muted">
+              {{ row.key }}
+            </th>
+            <td class="py-1 pl-3 text-right tabular-nums">{{ row.trunk ?? '—' }}</td>
+            <td class="py-1 pl-3 text-right tabular-nums">{{ row.branch ?? '—' }}</td>
+            <td
+              class="py-1 pl-3 text-right tabular-nums"
+              :data-diverged="row.delta !== null && row.delta !== 0"
+            >
               {{ deltaLabel(row.delta) }}
             </td>
           </tr>

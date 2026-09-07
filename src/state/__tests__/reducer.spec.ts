@@ -245,11 +245,11 @@ describe('artifacts and builds', () => {
       ev({
         type: 'artifact-published',
         id: id('planner'),
-        artifact: { title: 'Découpage', body: 'version finale', derivedFrom: 'le besoin' },
+        artifact: { title: 'Découpage', body: 'version finale', derivedFrom: 'du besoin' },
       }),
     ])
     expect(node(state, 'planner')?.artifact?.title).toBe('Découpage')
-    expect(node(state, 'planner')?.artifact?.derivedFrom).toBe('le besoin')
+    expect(node(state, 'planner')?.artifact?.derivedFrom).toBe('du besoin')
   })
 
   it('keeps the artifact of a component that later fails', () => {

@@ -39,11 +39,11 @@ describe('the living application, empty', () => {
   it('says nothing was posted instead of showing a blank frame', async () => {
     mountWith('   ')
     await wait(60)
-    const note = document.querySelector('.live-empty')
+    const note = document.querySelector('[data-live-empty]')
     expect(note, 'the honest empty state is missing').not.toBeNull()
     expect(note?.textContent ?? '').toContain("n'a encore rien posé")
     // The frame stays in the DOM (the host depends on it) but is not shown.
-    const frame = document.querySelector<HTMLIFrameElement>('.live-frame')
+    const frame = document.querySelector<HTMLIFrameElement>('[data-live-frame]')
     expect(frame).not.toBeNull()
     expect(getComputedStyle(frame!).display).toBe('none')
   })
@@ -51,8 +51,8 @@ describe('the living application, empty', () => {
   it('shows the frame and no empty note once a screen is posted', async () => {
     mountWith('<p>bonjour</p>')
     await wait(60)
-    expect(document.querySelector('.live-empty')).toBeNull()
-    const frame = document.querySelector<HTMLIFrameElement>('.live-frame')
+    expect(document.querySelector('[data-live-empty]')).toBeNull()
+    const frame = document.querySelector<HTMLIFrameElement>('[data-live-frame]')
     expect(frame).not.toBeNull()
     expect(getComputedStyle(frame!).display).not.toBe('none')
   })
@@ -73,7 +73,7 @@ describe('the living application, when the frame never answers', () => {
 
     // Le cadre réel s'annonce en quelques dizaines de millisecondes ; celui-ci
     // est neutralisé pour tenir le cas où il ne s'annonce jamais.
-    const frame = document.querySelector<HTMLIFrameElement>('.live-frame')
+    const frame = document.querySelector<HTMLIFrameElement>('[data-live-frame]')
     expect(frame).not.toBeNull()
     frame!.src = 'about:blank'
 

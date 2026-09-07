@@ -105,3 +105,34 @@ describe('les listes blanches', () => {
     for (const attribute of [...ATTRIBUTES, ...WIRING]) expect(page).toContain(`"${attribute}"`)
   })
 })
+
+// L'iframe et le fichier emporté ont une origine opaque : ils ne peuvent pas
+// consommer le CSS du produit et gardent chacun leur copie des jetons. Elles
+// divergeaient — `--muted` valait deux valeurs différentes — et rien ne le
+// signalait. La troisième copie, `tokens.css`, n'existe plus : la refonte l'a
+// supprimée au profit de la bibliothèque.
+describe('les deux copies de jetons, celles qu’aucune feuille ne peut atteindre', () => {
+  const tokensOf = (source: string): Record<string, string> =>
+    Object.fromEntries(
+      [...source.matchAll(/(--[a-z-]+):\s*(#[0-9a-f]{3,8})/gi)].map(([, name, value]) => [
+        name,
+        value.toLowerCase(),
+      ]),
+    )
+
+  it('déclare les mêmes jetons, aux mêmes valeurs', async () => {
+    // `sandbox.html` est à la racine du dépôt ; le fichier emporté est produit.
+    const { readFileSync } = await import('node:fs')
+    const inSandbox = tokensOf(
+      readFileSync(new URL('../../../sandbox.html', import.meta.url), 'utf8'),
+    )
+    const made = takeawayOf('un besoin', SCREEN, [behaviour('compter')], () => 'x => x')
+    expect(made, "le fichier emporté n'a pas été produit").toBeDefined()
+    const inTakeaway = tokensOf(takeawayHtml(made!))
+
+    // Sans ces deux gardes, un fichier illisible ferait passer le test à vide.
+    expect(Object.keys(inTakeaway).length).toBeGreaterThan(0)
+    expect(Object.keys(inSandbox).length).toBe(Object.keys(inTakeaway).length)
+    expect(inTakeaway).toEqual(inSandbox)
+  })
+})

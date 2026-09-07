@@ -36,7 +36,7 @@ async function mount() {
 async function enterFork() {
   await mount()
   await startRun()
-  const start = document.querySelector<HTMLButtonElement>('.fork-start')
+  const start = document.querySelector<HTMLButtonElement>('[data-fork-start]')
   expect(start, 'le bouton « Forker ce run » est absent').not.toBeNull()
   start?.click()
   // Le fork recompile les comportements du tronc et hydrate un kernel de
@@ -53,6 +53,36 @@ function compareRow(key: string): [string, string, string] | undefined {
   return [cells[0] ?? '', cells[1] ?? '', cells[2] ?? '']
 }
 
+// Le même défaut que `LiveApplication` a payé, ici pour les deux futurs : un
+// cadre qui ne s'annonce jamais est, à l'œil, indistinct d'une application qui
+// marche. Deux dalles vides côte à côte, et rien qui dise pourquoi.
+describe('le fork, quand un cadre ne répond jamais', () => {
+  it('nomme la panne au lieu de montrer deux dalles vides', async () => {
+    await enterFork()
+
+    // Avant le délai de grâce, on ne dit rien : un cadre a le droit d'être lent.
+    expect(document.querySelector('[data-fork-frame-silent]')).toBeNull()
+
+    await wait(4600)
+    const notes = [...document.querySelectorAll('[data-fork-frame-silent]')]
+    // L'invariant vaut dans les deux cas : un cadre montré, ou une phrase à sa
+    // place, jamais une dalle muette. Mesuré ici le 2026-09-08, les deux cadres
+    // restent muets sous vitest-browser, donc c'est bien la phrase qui est
+    // exercée — mais le test ne se casse pas le jour où ils répondront.
+    for (const side of ['trunk', 'branch']) {
+      const panel = document.querySelector(`[data-fork-panel][data-side="${side}"]`)
+      const frame = panel?.querySelector('iframe')
+      const note = notes.find((n) => n.getAttribute('data-fork-frame-silent') === side)
+      const frameShown = frame !== null && getComputedStyle(frame!).display !== 'none'
+      expect(frameShown || note !== undefined, `${side} : ni cadre montré ni phrase`).toBe(true)
+      if (note !== undefined) {
+        expect(note.textContent ?? '').toContain("ne s'est pas chargé")
+        expect(frameShown, `${side} : le cadre muet reste montré`).toBe(false)
+      }
+    }
+  }, 20_000)
+})
+
 describe('le panneau à deux futurs', () => {
   it('montre deux panneaux — tronc (enregistrement) et branche (exécution) — dans la zone scène', async () => {
     await enterFork()
@@ -63,11 +93,11 @@ describe('le panneau à deux futurs', () => {
     // La scène normale a cédé la place : plus une cinquième zone, la même zone.
     expect(document.querySelector('.zone')).toBeNull()
 
-    const panels = [...document.querySelectorAll('.fork-panel')]
+    const panels = [...document.querySelectorAll('[data-fork-panel]')]
     expect(panels).toHaveLength(2)
 
-    const trunk = document.querySelector('.fork-panel[data-side="trunk"]')
-    const branch = document.querySelector('.fork-panel[data-side="branch"]')
+    const trunk = document.querySelector('[data-fork-panel][data-side="trunk"]')
+    const branch = document.querySelector('[data-fork-panel][data-side="branch"]')
     expect(trunk?.textContent ?? '').toContain('Tronc')
     expect(trunk?.textContent ?? '').toContain('enregistrement')
     expect(branch?.textContent ?? '').toContain('Branche')
@@ -85,9 +115,9 @@ describe('le panneau à deux futurs', () => {
     }
 
     // Le tronc est en lecture seule : aucun contrôle d'édition de son côté.
-    expect(trunk?.querySelector('.fork-edit')).toBeNull()
+    expect(trunk?.querySelector('[data-fork-edit]')).toBeNull()
     // La branche est vivante : elle porte l'éditeur de comportement.
-    expect(branch?.querySelector('.fork-edit')).not.toBeNull()
+    expect(branch?.querySelector('[data-fork-edit]')).not.toBeNull()
   })
 
   it('fait diverger la branche par édition — le tronc ne bouge pas — et le bandeau montre l’écart', async () => {
@@ -143,7 +173,7 @@ describe('le panneau à deux futurs', () => {
     // normale ressert, intacte.
     expect(document.querySelector('.fork')).toBeNull()
     expect(document.querySelector('.zone')).not.toBeNull()
-    expect(document.querySelector('.live-frame')).not.toBeNull()
+    expect(document.querySelector('[data-live-frame]')).not.toBeNull()
   })
 
   it('revient au run en gardant la branche, sans casser la scène normale', async () => {
@@ -155,7 +185,7 @@ describe('le panneau à deux futurs', () => {
     await wait(200)
 
     expect(document.querySelector('.fork')).toBeNull()
-    expect(document.querySelector('.live-frame')).not.toBeNull()
+    expect(document.querySelector('[data-live-frame]')).not.toBeNull()
   })
 })
 

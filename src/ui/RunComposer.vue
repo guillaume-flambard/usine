@@ -43,14 +43,14 @@ defineEmits<{ launch: []; playRecorded: []; importTrace: [Event] }>()
         type="button"
         variant="link"
         color="neutral"
-        class="recorded-run px-0"
+        class="px-0"
         size="xs"
         data-recorded-run
         @click="$emit('playRecorded')"
       >
         Voir un run enregistré
       </UButton>
-      <span class="font-mono text-xs text-muted" data-composer-hint>
+      <span class="text-xs text-muted" data-composer-hint>
         {{
           mode === 'demo' && brief.trim().length > 0 && !replayable
             ? 'Sans modèle branché, ce besoin ne produira rien.'
@@ -61,7 +61,7 @@ defineEmits<{ launch: []; playRecorded: []; importTrace: [Event] }>()
            rejouée et mesurée, mais non forkable. -->
       <!-- Un champ de fichier n'est pas stylable : le libellé porte
            l'apparence, l'input reste dans le flux, caché à l'œil. -->
-      <label class="import-trace cursor-pointer text-xs text-muted hover:text-highlighted">
+      <label data-import-trace class="cursor-pointer text-xs text-muted hover:text-highlighted">
         Importer une trace
         <input
           type="file"

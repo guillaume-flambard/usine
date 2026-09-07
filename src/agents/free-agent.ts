@@ -601,7 +601,7 @@ async function execute(
         context.publishArtifact({
           title: `Comportement refusé — ${action.name}`,
           body: `${made.failure}\n\n${action.code}`,
-          derivedFrom: 'ta mission',
+          derivedFrom: 'de ta mission',
         })
         return {
           observation: `le comportement « ${action.name} » ne compile pas : ${made.failure}`,
@@ -697,7 +697,8 @@ async function execute(
       context.publishArtifact({
         title: mission.label,
         body: action.text,
-        derivedFrom: mission.needs.length > 0 ? mission.needs.join(', ') : 'le brief',
+        derivedFrom:
+          mission.needs.length > 0 ? `de ${mission.needs.join(', ')}` : 'du brief',
       })
       return { observation: `« ${action.name} » est publié.` }
     }
