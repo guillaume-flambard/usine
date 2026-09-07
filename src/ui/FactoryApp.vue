@@ -779,8 +779,8 @@ onBeforeUnmount(() => {
           :mode="mode"
           :source="source"
           :relay-ready="relayReady"
-          @use-relay="connectSiteRelay"
-          @use-key="connectKey"
+          @connect-relay="connectSiteRelay"
+          @connect-key="connectKey"
           @disconnect="disconnectModel"
         />
       </div>
