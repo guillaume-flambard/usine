@@ -172,9 +172,15 @@ Ils sont écrits ici parce qu'aucun n'était devinable, et qu'ils reviendront.
   rendant `null` sur erreur réseau. Vérification en une commande :
   `curl -o /dev/null -w "%{http_code}" https://usine.memolabs.dev/api/runs`
   (404 = toujours pas déployé).
-- **Ne pas faire évoluer `services/relay`** (Node). Il est gelé et sert la
-  production actuelle ; toute correction va dans `services/api` (FastAPI), au
-  contrat HTTP identique. Deux relais au même contrat finiraient par diverger.
+- **Ne rien ajouter à `services/relay`** (Node). Il est gelé et sert la
+  production actuelle ; toute fonctionnalité va dans `services/api` (FastAPI),
+  au contrat HTTP identique. Le gel a **une exception, payée le 2026-09-07** :
+  tant qu'il sert la production, il tient le contrat. Les deux relais avaient
+  divergé — la page envoyait un vocabulaire d'outils et attendait des appels,
+  celui-ci ignorait les deux — donc chaque tour retombait sur le JSON dans le
+  texte et échouait au parse (« Expected property name or '}' in JSON at
+  position 1 »), sur le site public. Un trou de contrat n'est pas une
+  fonctionnalité : il se répare des deux côtés.
 - **La clé du fournisseur ne touche jamais le client.** Elle vit dans
   l'environnement du service.
 - **Un agent nomme une source ou un serveur d'outils, jamais une adresse.** Un
