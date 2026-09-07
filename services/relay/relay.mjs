@@ -1,14 +1,20 @@
-// Reasoning relay — **gelé, et remplacé**.
+// Reasoning relay — **gelé, sauf sur le contrat qu'il doit tenir**.
 //
 // Ce fichier sert la production actuelle (conteneur unique, nginx + node) et
 // rien d'autre. Le service qui le remplace est `services/api`, en FastAPI, au
 // contrat HTTP identique ; il porte en plus la persistance des runs, la
 // mémoire, les sources, MCP, l'évaluation et les traces.
 //
-// **Ne pas faire évoluer celui-ci.** Deux relais au même contrat finiront par
-// diverger, et la divergence se découvrira en production. Toute correction va
-// dans `services/api` ; ce fichier disparaît au basculement des trois
-// conteneurs (histoire 10.3).
+// **Ne rien lui ajouter.** Toute fonctionnalité va dans `services/api` ; ce
+// fichier disparaît au basculement des trois conteneurs (histoire 10.3).
+//
+// Le gel a une exception, et elle a été payée : deux relais au même contrat
+// ont divergé, et la divergence s'est découverte en production le 2026-09-07.
+// La page envoyait un vocabulaire d'outils et attendait des appels ; celui-ci
+// ignorait les deux. Chaque tour retombait donc sur le JSON dans le texte et
+// échouait au parse — « Expected property name or '}' in JSON at position 1 »,
+// sur un site public. **Tant qu'il sert la production, il tient le contrat**,
+// et ce qu'il en tient est testé à côté de celui de `services/api`.
 //
 // It exists for one reason: to keep the OpenRouter key
 // server-side. A key in a client bundle is read in the network tab and drained.
@@ -45,6 +51,25 @@ export const ROLES = new Set(['planner', 'architect', 'sceptic', 'agent', 'maste
 // Deliberately minimal: the caller's instruction carries the format — often
 // a strict JSON object. A system prompt demanding "plain text, three
 // sentences" fought it, and every agent turn came back unreadable.
+/**
+ * Relit les appels d'outils. Le fournisseur est une source hostile : tout ce
+ * qui n'est pas un appel nommé est écarté, et des arguments qui ne sont pas
+ * une chaîne deviennent une chaîne vide plutôt qu'une forme que la page
+ * n'attend pas. Même lecture que `_tool_calls` de `services/api`.
+ */
+export function toolCalls(message) {
+  const raw = message?.tool_calls
+  if (!Array.isArray(raw)) return []
+  const calls = []
+  for (const entry of raw) {
+    const name = entry?.function?.name
+    if (typeof name !== 'string' || name.length === 0) continue
+    const args = entry.function.arguments
+    calls.push({ name, arguments: typeof args === 'string' ? args : '' })
+  }
+  return calls
+}
+
 const SYSTEM_PROMPT =
   "Tu es un agent d'une chaîne de production logicielle. Réponds en français. " +
   "Suis exactement le format que l'instruction demande, sans préambule ni commentaire autour."
@@ -188,6 +213,12 @@ export function createHandler({
 
     const instruction = String(body?.instruction ?? '').slice(0, limits.maxInstruction)
     const context = String(body?.context ?? '').slice(0, limits.maxContext)
+    // Pas de borne propre au vocabulaire : `maxBody` la subsume. Un corps de
+    // plus de 20 000 octets est refusé avant d'être lu, et un vocabulaire
+    // démesuré part avec. `services/api` en déclare une à 40 000 octets, donc
+    // inatteignable derrière la même borne de corps — elle n'y sert à rien non
+    // plus.
+    const tools = body?.tools
 
     try {
       const upstream = await call('https://openrouter.ai/api/v1/chat/completions', {
@@ -202,6 +233,12 @@ export function createHandler({
         body: JSON.stringify({
           model,
           max_tokens: limits.maxOutput,
+          // Le vocabulaire vient de l'appelant : il le décrit, et le relais
+          // n'en tient pas une seconde copie qui dériverait. Il le borne, et
+          // c'est tout. `tool_choice: required` parce qu'un tour sans action
+          // est un tour perdu — l'agent a dépensé un appel pour dire quelque
+          // chose et n'a rien fait.
+          ...(tools !== undefined ? { tools, tool_choice: 'required' } : {}),
           // Reasoning off, deliberately. A reasoning model spends the whole
           // output budget thinking and returns empty content: measured, two
           // calls out of three came back with 1200 reasoning tokens and not
@@ -228,11 +265,14 @@ export function createHandler({
 
       const choice = result?.choices?.[0]
       const text = String(choice?.message?.content ?? '').trim()
+      const calls = toolCalls(choice?.message)
       const usage = result?.usage ?? {}
       // An empty answer has a cause, and the cause is worth more than the
       // silence: a model cut off mid-output is not a model that had nothing
       // to say.
-      if (text.length === 0 && choice?.finish_reason === 'length') {
+      // Un modèle qui agit n'a rien à dire en plus : exiger du texte
+      // rejetterait un tour valide fait d'appels seuls.
+      if (text.length === 0 && calls.length === 0 && choice?.finish_reason === 'length') {
         return json(response, 502, {
           error: `réponse coupée à ${limits.maxOutput} tokens sans texte utile`,
         })
@@ -244,6 +284,7 @@ export function createHandler({
           input: Number(usage.prompt_tokens ?? 0),
           output: Number(usage.completion_tokens ?? 0),
         },
+        ...(calls.length > 0 ? { calls } : {}),
       })
     } catch (cause) {
       return json(response, 502, {

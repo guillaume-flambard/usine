@@ -134,6 +134,161 @@ describe('the reasoning relay', () => {
   })
 })
 
+// Le vocabulaire d'actions voyage par le tool calling : le nom de l'action y
+// passe hors du corps JSON, ce qui la met à l'abri du fournisseur qui sérialise
+// les clés par ordre alphabétique. Sans ces deux moitiés — les outils qui
+// montent, les appels qui redescendent — la page retombe sur le JSON dans le
+// texte et échoue au parse. Mesuré en production le 2026-09-07 :
+// « Réponse illisible : Expected property name or '}' in JSON at position 1 ».
+describe('the relay and the tool vocabulary', () => {
+  const TOOLS = [
+    {
+      type: 'function',
+      function: { name: 'create', description: 'Crée un composant.', parameters: {} },
+    },
+  ]
+
+  it('carries the caller vocabulary to the provider, and requires an action', async () => {
+    const call = vi.fn(async () => modelResponse('fait'))
+    await onServer({ key: KEY, call }, async (base) => {
+      await askFor(base, {
+        role: 'agent',
+        instruction: 'Agis.',
+        context: 'rien',
+        tools: TOOLS,
+      })
+    })
+
+    const sent = JSON.parse(call.mock.calls[0][1].body)
+    expect(sent.tools).toEqual(TOOLS)
+    // Un tour sans action est un tour perdu : l'agent a dépensé un appel pour
+    // dire quelque chose et n'a rien fait.
+    expect(sent.tool_choice).toBe('required')
+  })
+
+  it('sends no tool key at all when the caller describes none', async () => {
+    const call = vi.fn(async () => modelResponse('fait'))
+    await onServer({ key: KEY, call }, async (base) => {
+      await askFor(base, { role: 'agent', instruction: 'Agis.', context: 'rien' })
+    })
+
+    const sent = JSON.parse(call.mock.calls[0][1].body)
+    expect('tools' in sent).toBe(false)
+    expect('tool_choice' in sent).toBe(false)
+  })
+
+  it('hands the tool calls back to the page', async () => {
+    const call = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: '',
+                  tool_calls: [
+                    { function: { name: 'create', arguments: '{"name":"compteur"}' } },
+                    { function: { name: 'say', arguments: '' } },
+                  ],
+                },
+              },
+            ],
+            usage: { prompt_tokens: 10, completion_tokens: 5 },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+    )
+
+    await onServer({ key: KEY, call }, async (base) => {
+      const response = await askFor(base, {
+        role: 'agent',
+        instruction: 'Agis.',
+        context: 'rien',
+        tools: TOOLS,
+      })
+      const body = await response.json()
+      expect(body.calls).toEqual([
+        { name: 'create', arguments: '{"name":"compteur"}' },
+        { name: 'say', arguments: '' },
+      ])
+    })
+  })
+
+  it('reads the provider as a hostile source', async () => {
+    const call = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: 'fait',
+                  tool_calls: [
+                    'pas un objet',
+                    { function: null },
+                    { function: { name: '' } },
+                    { function: { name: 'create', arguments: { pas: 'une chaîne' } } },
+                  ],
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+    )
+
+    await onServer({ key: KEY, call }, async (base) => {
+      const response = await askFor(base, { role: 'agent', instruction: 'Agis.', context: 'x' })
+      const body = await response.json()
+      // Seul l'appel nommé survit, et ses arguments deviennent une chaîne vide
+      // plutôt qu'un objet que la page n'attend pas.
+      expect(body.calls).toEqual([{ name: 'create', arguments: '' }])
+    })
+  })
+
+  it('lets the body bound refuse a vocabulary too large to be one', async () => {
+    const call = vi.fn(async () => modelResponse('fait'))
+    await onServer({ key: KEY, call }, async (base) => {
+      // Le corps est coupé avant d'être lu : une borne propre au vocabulaire
+      // ne pourrait jamais se déclencher derrière celle-ci.
+      await expect(
+        askFor(base, {
+          role: 'agent',
+          instruction: 'Agis.',
+          context: 'x',
+          tools: [{ description: 'x'.repeat(LIMITS.maxBody) }],
+        }),
+      ).rejects.toThrow()
+      expect(call).not.toHaveBeenCalled()
+    })
+  })
+
+  it('accepts a turn made of calls alone, with no text', async () => {
+    const call = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                finish_reason: 'length',
+                message: { content: '', tool_calls: [{ function: { name: 'create' } }] },
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+    )
+
+    await onServer({ key: KEY, call }, async (base) => {
+      const response = await askFor(base, { role: 'agent', instruction: 'Agis.', context: 'x' })
+      // Un modèle qui agit n'a rien à dire en plus : couper sur l'absence de
+      // texte rejetterait un tour valide.
+      expect(response.status).toBe(200)
+      expect((await response.json()).calls).toHaveLength(1)
+    })
+  })
+})
+
 describe('the rate limiter', () => {
   it('caps one address per minute, then releases it', () => {
     let instant = Date.parse('2026-08-20T10:00:00Z')
