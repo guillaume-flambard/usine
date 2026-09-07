@@ -244,6 +244,23 @@ def test_an_oversized_vocabulary_is_refused() -> None:
     assert not spy.calls
 
 
+def test_the_vocabulary_bound_bites_under_the_real_body_bound() -> None:
+    """La borne du vocabulaire n'est pas décorative, même derrière celle du corps.
+
+    On pourrait croire qu'un plafond de 40 000 octets ne se déclenche jamais
+    derrière un corps borné à 20 000. C'est faux dès que le vocabulaire est
+    écrit en français : `json.dumps` échappe par défaut tout ce qui n'est pas
+    ASCII en échappements « backslash-u », six caractères pour un seul. Un corps de 14 ko passe
+    donc la première borne et pèse plus de 40 000 une fois re-sérialisé.
+    """
+    client, spy = client_for()  # les limites réelles, corps à 20 000
+
+    response = ask(client, tools=[{"description": "é" * 6_800}])
+
+    assert response.status_code == 400
+    assert not spy.calls
+
+
 def test_tool_calls_are_relayed_with_their_arguments() -> None:
     # C'est la voie fiable : le nom de l'action voyage hors du corps JSON, là
     # où l'ordre alphabétique des clés ne peut pas le brouiller.

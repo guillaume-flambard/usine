@@ -213,11 +213,16 @@ export function createHandler({
 
     const instruction = String(body?.instruction ?? '').slice(0, limits.maxInstruction)
     const context = String(body?.context ?? '').slice(0, limits.maxContext)
-    // Pas de borne propre au vocabulaire : `maxBody` la subsume. Un corps de
-    // plus de 20 000 octets est refusé avant d'être lu, et un vocabulaire
-    // démesuré part avec. `services/api` en déclare une à 40 000 octets, donc
-    // inatteignable derrière la même borne de corps — elle n'y sert à rien non
-    // plus.
+    // Pas de borne propre au vocabulaire : ici, `maxBody` la subsume. Un corps
+    // de plus de 20 000 octets est refusé avant d'être lu, et `JSON.stringify`
+    // n'échappe pas les caractères non-ASCII, donc le vocabulaire re-sérialisé
+    // ne pèse jamais beaucoup plus que ce qui est arrivé.
+    //
+    // `services/api` en déclare une, et elle y sert : `json.dumps` échappe par
+    // défaut le non-ASCII en six caractères pour un, si bien qu'un vocabulaire
+    // écrit en français peut passer la borne de corps et dépasser celle des
+    // outils. Les deux services diffèrent ici parce que leurs sérialiseurs
+    // diffèrent, pas par négligence.
     const tools = body?.tools
 
     try {
