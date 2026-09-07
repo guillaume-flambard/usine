@@ -2,7 +2,7 @@
 // The shell: two panes, 100vh, the page never scrolls.
 // Everything that makes the run live is in the pilot, outside this component:
 // that is what makes the wiring testable without a browser.
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { createPilot } from '../orchestration/pilot'
 import { CONTACT } from '../examples'
 import { demoReasoner, DEMO_BRIEF } from '../examples/demo'
@@ -13,6 +13,10 @@ import HumanGate from './HumanGate.vue'
 import LiveApplication from './LiveApplication.vue'
 import ForkView from './ForkView.vue'
 import ModelSwitch from './ModelSwitch.vue'
+import MyRuns from './MyRuns.vue'
+import StatusLine from './StatusLine.vue'
+import RunConversation from './RunConversation.vue'
+import RunComposer from './RunComposer.vue'
 import { fetchRun, linkFor, requestedRun, storeRun } from '../app/archive-client'
 import { fetchEvaluation, formatEvaluation, type Evaluation } from '../app/eval-client'
 import type { Interaction } from '../app/session'
@@ -77,7 +81,6 @@ const measurements = computed(() => formatEvaluation(evaluation.value))
  * only thing to look at — and folds itself the first time the application
  * serves, because from then on the application deserves the room.
  */
-const threadEl = ref<HTMLElement | null>(null)
 const graphOpen = ref(true)
 let graphFoldedOnce = false
 
@@ -371,17 +374,6 @@ onMounted(() => {
   void probeRelay()
 })
 
-// Le fil suit ce qui arrive : sans ça, la dernière chose dite sort de l'écran
-// et il faut faire défiler pour lire un run en cours.
-watch(
-  () => state.value.lastSequence,
-  async () => {
-    await nextTick()
-    const thread = threadEl.value
-    if (thread !== null) thread.scrollTop = thread.scrollHeight
-  },
-)
-
 onBeforeUnmount(() => {
   stopClock()
   void pilot.stop()
@@ -473,206 +465,70 @@ onBeforeUnmount(() => {
       </form>
 
       <!-- Mes runs : lister, ouvrir, partager, mettre à la corbeille, restaurer. -->
-      <div v-if="runsOpen && session.authenticated" id="my-runs" class="my-runs">
-        <!-- Deux onglets, avec leur vrai contrat : chaque onglet nomme le
-             panneau qu'il commande, un seul est tabulable, les flèches
-             circulent. C'était un `role="tablist"` sans panneau ni
-             `aria-controls`. -->
-        <UTabs v-model="runsTab" :items="runsTabs" class="my-runs-tabs">
-          <template #live>
-            <ul class="my-runs-list">
-              <li v-if="myRuns.length === 0" class="my-runs-empty">Aucun run conservé.</li>
-              <li v-for="run in myRuns" :key="run.id" class="my-runs-row">
-                <UButton variant="link" color="neutral" class="my-runs-open" data-run-open @click="openRun(run.id)">
-                  {{ run.brief || 'run' }}
-                </UButton>
-                <span class="my-runs-meta">{{ run.events }} évts{{ run.shared ? ' · partagé' : '' }}</span>
-                <span class="my-runs-actions">
-                  <UButton variant="link" color="neutral" data-run-share @click="onToggleShare(run)">
-                    {{ run.shared ? 'révoquer' : 'partager' }}
-                  </UButton>
-                  <UButton variant="link" color="neutral" :to="runExportUrl(run.id)" external data-run-export>
-                    exporter
-                  </UButton>
-                  <UButton variant="link" color="neutral" data-run-trash @click="onTrashRun(run.id)">
-                    corbeille
-                  </UButton>
-                </span>
-              </li>
-            </ul>
-          </template>
+      <MyRuns
+        v-if="runsOpen && session.authenticated"
+        v-model:tab="runsTab"
+        :runs="myRuns"
+        :trash="myTrash"
+        :tabs="runsTabs"
+        :export-url-for="runExportUrl"
+        :account-export="accountExport"
+        :erase-confirm="eraseConfirm"
+        @open="openRun"
+        @share="onToggleShare"
+        @trash-run="onTrashRun"
+        @restore="onRestoreRun"
+        @purge="onPurgeRun"
+        @erase="eraseAccountForGood"
+        @update:erase-confirm="eraseConfirm = $event"
+      />
 
-          <template #trash>
-            <ul class="my-runs-list">
-              <li v-if="myTrash.length === 0" class="my-runs-empty">Corbeille vide.</li>
-              <li v-for="run in myTrash" :key="run.id" class="my-runs-row">
-                <span class="my-runs-open">{{ run.brief || 'run' }}</span>
-                <span class="my-runs-actions">
-                  <UButton variant="link" color="neutral" data-run-restore @click="onRestoreRun(run.id)">
-                    restaurer
-                  </UButton>
-                  <UButton variant="link" color="neutral" data-run-purge @click="onPurgeRun(run.id)">
-                    purger
-                  </UButton>
-                </span>
-              </li>
-            </ul>
-          </template>
-        </UTabs>
-
-        <!-- Mes données (RGPD) : emporter ou effacer. L'effacement est
-             irréversible et demande une confirmation explicite. -->
-        <div class="my-data">
-          <UButton variant="link" color="neutral" :to="accountExport" external data-account-export>
-            exporter mes données
-          </UButton>
-          <template v-if="!eraseConfirm">
-            <UButton
-              variant="link"
-              color="error"
-              class="my-data-erase"
-              data-account-erase
-              @click="eraseConfirm = true"
-            >
-              supprimer mon compte
-            </UButton>
-          </template>
-          <template v-else>
-            <span class="my-data-warn">Effacer définitivement compte et runs ?</span>
-            <UButton
-              variant="link"
-              color="error"
-              class="my-data-erase"
-              data-account-erase-confirm
-              @click="eraseAccountForGood"
-            >
-              confirmer
-            </UButton>
-            <UButton variant="link" color="neutral" data-account-erase-cancel @click="eraseConfirm = false">
-              annuler
-            </UButton>
-          </template>
-        </div>
-      </div>
-
-      <!-- Une ligne, pas cinq boîtes. Chaque fait y est un mot, et le point
-           coloré dit le mode sans avoir à le lire. -->
-      <p class="status" aria-live="polite">
-        <span class="mode-dot" :data-connected="mode === 'llm'" aria-hidden="true"></span>
-        <span>{{ mode === 'llm' ? (source === 'relay' ? 'modèle du site' : 'modèle branché') : 'run rejoué' }}</span>
-        <template v-if="started">
-          <span class="status-sep" aria-hidden="true">·</span>
-          <span>{{ phase.toLowerCase() }}</span>
-          <span class="status-sep" aria-hidden="true">·</span>
-          <span>{{ state.liveAgents }} agents</span>
-          <span class="status-sep" aria-hidden="true">·</span>
-          <span>{{ elapsed }}</span>
-          <template v-if="state.tokens.input + state.tokens.output > 0">
-            <span class="status-sep" aria-hidden="true">·</span>
-            <span>{{ state.tokens.input + state.tokens.output }} tokens</span>
-          </template>
+      <StatusLine
+        :mode="mode"
+        :source="source"
+        :started="started"
+        :phase="phase"
+        :live-agents="state.liveAgents"
+        :elapsed="elapsed"
+        :tokens="state.tokens.input + state.tokens.output"
+        :capacity="capacity"
+        :open="modeHelp"
+        :replay-reason="replayReason"
+        :wired="wired"
+        :malformed="malformed"
+        :measurements="measurements"
+      >
+        <template #model>
+          <ModelSwitch
+            :mode="mode"
+            :source="source"
+            :relay-ready="relayReady"
+            @connect-relay="connectSiteRelay"
+            @connect-key="connectKey"
+            @disconnect="disconnectModel"
+          />
         </template>
-        <template v-else-if="capacity">
-          <span class="status-sep" aria-hidden="true">·</span>
-          <span>{{ capacity.visitor }} run(s) pour vous</span>
-        </template>
-      </p>
-
-      <div v-if="modeHelp" id="status-detail" class="status-detail">
-        <p v-if="mode === 'llm'">
-          Aucun agent n’est écrit d’avance. Un modèle{{ source === 'relay' ? ' hébergé par le site, sans clé de votre part' : '' }}
-          décide lesquels existent, ce qu’ils se demandent, et le code qu’ils écrivent — puis
-          l’application qu’ils posent se refait autour de ce que vous en faites, sans vous faire
-          perdre votre place.
-        </p>
-        <p v-else>
-          {{ replayReason }} Les décisions sont enregistrées et rejouées ; tout le reste est réel —
-          le code est évalué dans un fil isolé, remplacé à chaud, et exécuté sur ce que vous taperez.
-        </p>
-        <p v-if="wired.length > 0">
-          Sources branchables : {{ wired.map((s) => s.name).join(', ') }}.
-        </p>
-        <p v-if="malformed > 0">{{ malformed }} tour(s) rendus hors forme par le modèle.</p>
-        <p v-if="measurements" class="status-eval">{{ measurements }}</p>
-        <ModelSwitch
-          :mode="mode"
-          :source="source"
-          :relay-ready="relayReady"
-          @connect-relay="connectSiteRelay"
-          @connect-key="connectKey"
-          @disconnect="disconnectModel"
-        />
-      </div>
+      </StatusLine>
 
       <!-- La conversation. Du plus ancien au plus récent, comme on lit. -->
-      <div ref="threadEl" class="thread" aria-live="polite">
-        <p v-if="state.log.length === 0" class="thread-empty">
-          Écrivez un besoin. Rien n’existe encore : les agents, leurs outils et l’application
-          naîtront de ce que vous taperez — puis se referont autour de ce que vous en ferez.
-        </p>
-        <p v-for="message in state.log" :key="message.sequence" class="thread-message">
-          <span class="thread-author">{{ message.author }}</span>
-          {{ message.message }}
-        </p>
-        <p v-if="error" class="thread-incident" role="alert">{{ error }}</p>
-        <p v-else-if="state.incidents.length" class="thread-incident" role="status">
-          {{ state.incidents.length }} incident(s) — {{ state.incidents.at(-1)?.error.message }}
-        </p>
-      </div>
+      <RunConversation
+        :log="state.log"
+        :incidents="state.incidents"
+        :error="error"
+        :last-sequence="state.lastSequence"
+      />
 
       <!-- Le composeur, en bas, là où l'on écrit. -->
-      <div class="composer">
-        <h1 class="hidden-title">L'usine agentique — l'application qui se refait sous vous</h1>
-        <label class="hidden-title" for="brief">Le besoin</label>
-        <UTextarea
-          id="brief"
-          v-model="brief"
-          class="brief-field w-full"
-          :rows="2"
-          placeholder="Décrivez un besoin. L’usine n’existe pas encore."
-          data-brief
-          @keydown.meta.enter="restart"
-          @keydown.ctrl.enter="restart"
-        />
-        <div class="composer-row">
-          <!-- Le site sans clé ne peut rien inventer : une seule entrée rejoue
-               le run enregistré, pour qu'il ne soit pas muet. Rien de jargon
-               n'est exposé — le libellé du besoin reste caché. -->
-          <UButton
-            v-if="mode === 'demo' && !started"
-            type="button"
-            variant="outline"
-            color="neutral"
-            class="recorded-run"
-            data-recorded-run
-            @click="playRecordedRun"
-          >
-            Voir un run enregistré
-          </UButton>
-          <span class="composer-hint">
-            {{ mode === 'demo' && brief.trim().length > 0 && !briefReplayable ? 'Sans modèle branché, ce besoin ne produira rien.' : '⌘↵' }}
-          </span>
-          <!-- Importer une trace d'un agent étranger (LangGraph, OTLP) : elle est
-               rejouée et mesurée, mais non forkable. -->
-          <label class="picker import-trace">
-            Importer une trace
-            <input
-              type="file"
-              accept="application/json,.json"
-              class="hidden-title"
-              aria-label="Importer une trace d'agent (LangGraph ou OTLP, JSON)"
-              @change="onImportTrace"
-            />
-          </label>
-          <UButton
-            :disabled="starting || brief.trim().length === 0"
-            data-launch
-            @click="restart"
-          >
-            {{ started ? 'Relancer' : "Lancer l'usine" }}
-          </UButton>
-        </div>
-      </div>
+      <RunComposer
+        v-model="brief"
+        :mode="mode"
+        :started="started"
+        :starting="starting"
+        :replayable="briefReplayable"
+        @launch="restart"
+        @play-recorded="playRecordedRun"
+        @import-trace="onImportTrace"
+      />
     </section>
 
     <main class="live" aria-label="Le run en direct">
