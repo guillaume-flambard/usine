@@ -42,6 +42,19 @@ const refused = ref<readonly string[]>([])
 const interactions = ref(0)
 let host: FrameHost | undefined
 
+/**
+ * Le cadre s'est-il annoncé ? Tant qu'il ne l'a pas fait, rien ne peut y être
+ * monté — et un cadre qui ne s'annonce jamais est, à l'écran, indistinct d'une
+ * application qui marche : un rectangle vide. Un bloqueur de contenu, une
+ * politique de navigateur ou un script en échec suffisent à le produire.
+ * Mesuré le 2026-09-07 : `net::ERR_BLOCKED_BY_CLIENT` sur `/sandbox.html`.
+ */
+const frameAnswered = ref(false)
+const frameSilent = ref(false)
+/** Le temps qu'on laisse au cadre avant de dire qu'il n'est pas venu. */
+const FRAME_GRACE_MS = 4000
+let graceTimer: ReturnType<typeof setTimeout> | undefined
+
 // Un run peut poser un écran vide : les agents ont parlé, aucun markup n'est
 // sorti. On le dit honnêtement plutôt que de montrer un grand cadre blanc qui
 // laisse croire à une application qui marche. Le cadre reste monté (le host en
@@ -55,6 +68,11 @@ onMounted(() => {
     behaviours: () => props.behaviours,
     screen: () => props.screen,
     session: props.session,
+    onReady: () => {
+      frameAnswered.value = true
+      frameSilent.value = false
+      if (graceTimer !== undefined) clearTimeout(graceTimer)
+    },
     onMounted: (report) => {
       refused.value = report.refused
     },
@@ -66,6 +84,9 @@ onMounted(() => {
     onObservation: (interaction) => emit('interaction', interaction),
   })
   host.sync()
+  graceTimer = setTimeout(() => {
+    if (!frameAnswered.value) frameSilent.value = true
+  }, FRAME_GRACE_MS)
 })
 
 // Every run event is a chance for the frame to be out of date: a new screen,
@@ -76,7 +97,10 @@ watch(
   () => host?.sync(),
 )
 
-onBeforeUnmount(() => host?.dispose())
+onBeforeUnmount(() => {
+  if (graceTimer !== undefined) clearTimeout(graceTimer)
+  host?.dispose()
+})
 </script>
 
 <template>
@@ -91,19 +115,33 @@ onBeforeUnmount(() => host?.dispose())
     <iframe
       ref="frame"
       class="live-frame min-h-[260px] w-full flex-1 rounded-md border border-default bg-white"
-      :class="{ hidden: !hasScreen }"
+      :class="{ hidden: !hasScreen || frameSilent }"
       title="L'application produite par ce run"
       src="/sandbox.html"
       sandbox="allow-scripts"
     ></iframe>
 
     <p
-      v-if="!hasScreen"
+      v-if="!hasScreen && !frameSilent"
       class="live-empty rounded-md border border-dashed border-accented p-5 text-sm text-muted"
       role="status"
     >
       L'application n'a encore rien posé — les agents ont parlé, mais aucun écran
       n'est sorti du run.
+    </p>
+
+    <!-- Un échec est un état normal : il dit ce qui s'est passé et quoi faire,
+         plutôt que de laisser un rectangle vide passer pour une application. -->
+    <p
+      v-if="frameSilent"
+      class="frame-silent rounded-md border border-dashed border-accented p-5 text-sm text-muted"
+      data-frame-silent
+      role="status"
+    >
+      Le cadre de l'application ne s'est pas chargé. Le run continue et le fil dit
+      ce que les agents ont fait — mais l'application ne peut pas être utilisée ici.
+      Un bloqueur de contenu ou une politique du navigateur refuse parfois une iframe
+      sablée : la rouvrir dans une autre fenêtre suffit en général.
     </p>
 
     <p class="live-counter flex flex-wrap gap-2 font-mono text-xs text-muted tabular-nums">
