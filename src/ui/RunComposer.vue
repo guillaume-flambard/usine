@@ -21,20 +21,20 @@ defineEmits<{ launch: []; playRecorded: []; importTrace: [Event] }>()
 </script>
 
 <template>
-  <div class="composer">
+  <div class="composer flex flex-col gap-3 border-t border-default bg-muted p-5">
     <h1 class="hidden-title">L'usine agentique — l'application qui se refait sous vous</h1>
     <label class="hidden-title" for="brief">Le besoin</label>
     <UTextarea
       id="brief"
       v-model="brief"
-      class="brief-field w-full"
+      class="w-full"
       :rows="2"
       placeholder="Décrivez un besoin. L’usine n’existe pas encore."
       data-brief
       @keydown.meta.enter="$emit('launch')"
       @keydown.ctrl.enter="$emit('launch')"
     />
-    <div class="composer-row">
+    <div class="flex items-center gap-2">
       <!-- Le site sans clé ne peut rien inventer : une seule entrée rejoue le
            run enregistré, pour qu'il ne soit pas muet. Rien de jargon n'est
            exposé — le libellé du besoin reste caché. -->
@@ -44,12 +44,13 @@ defineEmits<{ launch: []; playRecorded: []; importTrace: [Event] }>()
         variant="outline"
         color="neutral"
         class="recorded-run"
+        size="sm"
         data-recorded-run
         @click="$emit('playRecorded')"
       >
         Voir un run enregistré
       </UButton>
-      <span class="composer-hint">
+      <span class="mr-auto font-mono text-xs text-dimmed" data-composer-hint>
         {{
           mode === 'demo' && brief.trim().length > 0 && !replayable
             ? 'Sans modèle branché, ce besoin ne produira rien.'
@@ -58,7 +59,11 @@ defineEmits<{ launch: []; playRecorded: []; importTrace: [Event] }>()
       </span>
       <!-- Importer une trace d'un agent étranger (LangGraph, OTLP) : elle est
            rejouée et mesurée, mais non forkable. -->
-      <label class="picker import-trace">
+      <!-- Un champ de fichier n'est pas stylable : le libellé porte
+           l'apparence, l'input reste dans le flux, caché à l'œil. -->
+      <label
+        class="import-trace cursor-pointer rounded-md px-3 py-1.5 text-sm text-muted hover:bg-elevated"
+      >
         Importer une trace
         <input
           type="file"
@@ -70,6 +75,7 @@ defineEmits<{ launch: []; playRecorded: []; importTrace: [Event] }>()
       </label>
       <UButton
         :disabled="starting || brief.trim().length === 0"
+        size="sm"
         data-launch
         @click="$emit('launch')"
       >

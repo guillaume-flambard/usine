@@ -1,5 +1,13 @@
-/* Full-screen application — 100vh, two panes, the page never scrolls.
-   Tokens come from tokens.css; this file only does the app layout. */
+/* Ce qui reste quand l'habillage part.
+ *
+ * Le produit ne déclare plus ni couleur, ni police, ni rayon : la bibliothèque
+ * les porte, et les composants s'habillent avec ses classes. Ce fichier ne
+ * garde que ce qu'aucune classe utilitaire ne dit — la mise en page plein
+ * écran, la scène et ses feuilles du bas, et le dessin SVG du graphe, dont les
+ * six états doivent rester lisibles sans couleur.
+ */
+
+/* --- l'application plein écran, qui ne défile jamais -------------------- */
 
 html,
 body,
@@ -12,51 +20,31 @@ body,
   display: grid;
   grid-template-columns: 392px 1fr;
   height: 100vh;
-  background: var(--bg);
+  background: var(--ui-bg);
+  color: var(--ui-text);
 }
 
-.brand-square {
-  width: 14px;
-  height: 14px;
-  background: var(--accent);
-}
-.brand-name {
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-.brand-lab {
-  margin-left: auto;
-  font-size: 11px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.mode {
+.controls {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 24px;
-  border-bottom: 1px solid var(--line);
-  font-size: 11px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.mode-dot {
-  width: 8px;
-  height: 8px;
-  border: 1px solid var(--muted);
-}
-/* The mode dot does not rely on colour alone: hollow with no model, solid
-   when one is connected. */
-.mode-dot[data-connected='true'] {
-  background: var(--accent);
-  border-color: var(--accent);
+  flex-direction: column;
+  border-right: 1px solid var(--ui-border);
+  min-height: 0;
 }
 
+.live {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Le fil est la seule chose qui défile dans la colonne. */
+.thread {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Un titre pour les lecteurs d'écran, invisible à l'œil. */
 .hidden-title {
   position: absolute;
   width: 1px;
@@ -66,152 +54,7 @@ body,
   white-space: nowrap;
 }
 
-.eyebrow {
-  font-size: 11px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-
-.brief-field {
-  border: 1px solid var(--line);
-  background: var(--surface);
-  padding: 12px 14px;
-  font-family: inherit;
-  font-size: 15px;
-  font-weight: 300;
-  line-height: 1.45;
-  color: var(--ink);
-  resize: none;
-  min-height: 82px;
-}
-.brief-field:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 0;
-}
-.button {
-  background: var(--ink);
-  color: var(--bg);
-  border: 1px solid var(--ink);
-  padding: 13px 18px;
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  cursor: pointer;
-  flex: 1;
-  text-align: left;
-}
-.button:hover {
-  background: var(--accent);
-  border-color: var(--accent);
-}
-.button:disabled {
-  opacity: 0.4;
-  cursor: default;
-  background: var(--ink);
-  border-color: var(--ink);
-}
-.button:focus-visible,
-.picker:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.picker {
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--ink);
-  font-family: inherit;
-  font-size: 13px;
-  padding: 8px 10px;
-}
-
-.narration {
-  font-size: 22px;
-  font-weight: 300;
-  line-height: 1.35;
-  padding: 18px 0;
-  border-top: 1px solid var(--line);
-  min-height: 84px;
-}
-
-.incident {
-  border-left: 2px solid var(--etat-erreur);
-  padding-left: 12px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--etat-erreur);
-}
-
-.identity {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.artifact h3 {
-  font-size: 15px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  padding-bottom: 4px;
-}
-.artifact-origin {
-  font-size: 12px;
-  color: var(--muted);
-  padding-bottom: 8px;
-}
-.artifact-body {
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 300;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  border-left: 1px solid var(--line);
-  padding-left: 12px;
-}
-
-.side-by-side {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-.code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  padding: 10px;
-  max-height: 260px;
-  overflow: auto;
-}
-
-/* Two columns of 11 px monospace are unreadable: below this panel width the
-   comparison stacks rather than being squeezed. */
-@media (max-width: 1400px) {
-  .side-by-side {
-    grid-template-columns: 1fr;
-  }
-}
-
-.panel-thread {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--muted);
-}
-
-.live {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
+/* --- la scène ----------------------------------------------------------- */
 
 .zone {
   position: relative;
@@ -228,36 +71,24 @@ body,
   --bottom-reserve: 34%;
 }
 
-.counters {
-  display: flex;
-  border-bottom: 1px solid var(--line);
-}
-.counter {
-  padding: 14px 24px;
-  border-right: 1px solid var(--line);
-  min-width: 116px;
-}
-.counter:last-child {
-  border-right: none;
-}
-
 .canvas {
   flex: 1;
   min-height: 0;
-  /* Reserved for the bottom panel when there is one: without it the graph
-     slips under and gets cut. */
+  /* Réservé pour la feuille du bas quand il y en a une : sans ça le graphe
+     passe dessous et se fait couper. */
   padding-bottom: var(--bottom-reserve, 0);
-  /* The graph fits in its frame: the `viewBox` handles that, and nothing has
-     to scroll any more. */
+  /* Le graphe tient dans son cadre : le `viewBox` s'en charge, et plus rien
+     n'a besoin de défiler. */
   overflow: hidden;
   position: relative;
 }
+
 .canvas svg {
   display: block;
   width: 100%;
   height: 100%;
-  /* The graph zooms out as it grows: the change must be seen sliding, not
-     jumping from one frame to the next. */
+  /* Le graphe se dézoome à mesure qu'il grandit : le changement doit se voir
+     glisser, pas sauter d'une image à l'autre. */
   transition: all 320ms ease;
 }
 
@@ -267,94 +98,171 @@ body,
   }
 }
 
+/* Les feuilles du bas : la porte, puis l'application. Elles recouvrent le bas
+   du canvas, qui leur réserve la place au lieu d'être coupé. */
+.gate,
+.product {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: auto;
+  background: var(--ui-bg);
+  border-top: 1px solid var(--ui-border);
+  z-index: 4;
+}
+
+.gate {
+  max-height: 60%;
+}
+
+.product {
+  max-height: 68%;
+}
+
+/* La carte de survol suit le pointeur : elle est placée en absolu par le
+   composant, et ne doit jamais intercepter un clic destiné au nœud. */
+.hover-card {
+  position: absolute;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* --- le graphe ----------------------------------------------------------
+ *
+ * Dessin SVG : aucune classe utilitaire ne décrit un `stroke-dasharray` ni le
+ * remplissage d'un texte SVG. Les six états gardent chacun un signal qui n'est
+ * pas la couleur — trait fin, pointillés, trait épaissi, marque, libellé barré
+ * — pour qu'une capture en noir et blanc reste lisible.
+ */
+
+.node {
+  cursor: pointer;
+}
+
 .node-frame {
-  fill: var(--surface);
-  stroke: var(--line);
+  fill: var(--ui-bg);
+  stroke: var(--ui-border);
   stroke-width: 1;
 }
+
 .node-label {
-  /* 12 px and tighter tracking: a two-word label must fit a 140 px box
-     without touching the state mark. */
+  /* 12 px et un interlettrage serré : un libellé de deux mots doit tenir dans
+     une boîte de 140 px sans toucher la marque d'état. */
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  fill: var(--muted);
+  fill: var(--ui-text-muted);
 }
+
 .node-tech {
   font-size: 11px;
-  font-weight: 300;
-  fill: var(--muted);
+  fill: var(--ui-text-dimmed);
 }
+
 .node-mark {
   fill: none;
-  stroke: var(--muted);
+  stroke: var(--ui-text-muted);
   stroke-width: 1.4;
 }
 
 .node[data-state='waiting-for-dependency'] .node-frame {
   stroke-dasharray: 3 3;
 }
+
 .node[data-state='working'] .node-frame {
-  stroke: var(--etat-cours);
+  stroke: var(--ui-primary);
   stroke-width: 2;
 }
 .node[data-state='working'] .node-label {
-  fill: var(--etat-cours);
+  fill: var(--ui-primary);
 }
 .node[data-state='working'] .node-mark {
-  stroke: var(--etat-cours);
+  stroke: var(--ui-primary);
 }
+
 .node[data-state='finished'] .node-frame {
-  stroke: var(--etat-fait);
+  stroke: var(--ui-text-highlighted);
   stroke-width: 1.4;
 }
 .node[data-state='finished'] .node-label {
-  fill: var(--etat-fait);
+  fill: var(--ui-text-highlighted);
 }
 .node[data-state='finished'] .node-mark {
-  stroke: var(--etat-fait);
+  stroke: var(--ui-text-highlighted);
 }
+
 .node[data-state='failed'] .node-frame {
-  stroke: var(--etat-erreur);
+  stroke: var(--ui-error);
   stroke-width: 2;
 }
 .node[data-state='failed'] .node-label {
-  fill: var(--etat-erreur);
+  fill: var(--ui-error);
 }
 .node[data-state='failed'] .node-mark {
-  stroke: var(--etat-erreur);
+  stroke: var(--ui-error);
 }
+
 .node[data-state='released'] {
   opacity: 0.45;
 }
 .node[data-state='released'] .node-label {
   text-decoration: line-through;
 }
+
 .node[data-built='true'] .node-double {
   fill: none;
-  stroke: var(--line);
+  stroke: var(--ui-border);
   stroke-width: 1;
 }
 
-.node {
-  cursor: pointer;
-}
 .node:hover .node-frame,
 .node[data-selected='true'] .node-frame {
-  stroke: var(--ink);
+  stroke: var(--ui-text-highlighted);
 }
 .node:focus-visible {
   outline: none;
 }
 .node:focus-visible .node-frame {
-  stroke: var(--accent);
+  stroke: var(--ui-primary);
   stroke-width: 2;
 }
 
+/* Une arête qui n'a jamais rien porté est en pointillés ; une arête qui a
+   porté une valeur devient pleine. La distinction ne repose donc pas sur la
+   couleur seule, comme pour les états de nœud. */
+.link {
+  fill: none;
+  stroke: var(--ui-border);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+}
+.link[data-transited='true'] {
+  stroke: var(--ui-text-dimmed);
+  stroke-dasharray: none;
+}
+.link[data-recent='true'] {
+  stroke: var(--ui-primary);
+  stroke-width: 1.6;
+  stroke-dasharray: none;
+}
+/* Une naissance, pas une valeur : un agent en a fait exister un autre. Le
+   trait diffère pour ne pas confondre filiation et flux de données. */
+.link[data-parenthood='true'] {
+  stroke: var(--ui-primary);
+  stroke-width: 1;
+  stroke-dasharray: 1 5;
+  stroke-linecap: round;
+  opacity: 0.5;
+}
+
+/* Une apparition qui glisse : elle exprime un événement réel du run, un agent
+   qui vient de naître. */
 .appearing {
   animation: apparait 320ms ease-out both;
 }
+
 @keyframes apparait {
   from {
     opacity: 0;
@@ -366,611 +274,19 @@ body,
   }
 }
 
-/* An edge that never carried anything is dashed; an edge that carried a
-   value becomes solid. So the distinction does not rest on colour alone, as
-   with node states. */
-.link {
-  fill: none;
-  stroke: var(--line);
-  stroke-width: 1;
-  stroke-dasharray: 2 4;
-}
-.link[data-transited='true'] {
-  stroke: var(--muted);
-  stroke-dasharray: none;
-}
-.link[data-recent='true'] {
-  stroke: var(--accent);
-  stroke-width: 1.6;
-  stroke-dasharray: none;
-}
-/* A birth, not a value: one agent brought the other into existence. The
-   stroke differs so parenthood is not confused with data flow. */
-.link[data-parenthood='true'] {
-  stroke: var(--accent-soft);
-  stroke-width: 1;
-  stroke-dasharray: 1 5;
-  stroke-linecap: round;
-}
+/* --- le code écrit pendant le run --------------------------------------- */
 
-.gate {
-  position: absolute;
-  max-height: 60%;
-  overflow: auto;
-  flex-wrap: wrap;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--surface);
-  border-top: 1px solid var(--line);
-  padding: 20px 24px;
-  display: flex;
-  gap: 24px;
-  align-items: flex-start;
-  z-index: 4;
-}
-.gate-body {
-  flex: 1;
-  min-width: 0;
-}
-.gate-summary {
-  font-size: 14px;
-  line-height: 1.5;
-  padding-top: 8px;
-  max-width: 72ch;
-}
-.gate-objection {
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--muted);
-  margin-top: 8px;
-  border-left: 2px solid var(--line);
-  padding-left: 12px;
-  max-width: 72ch;
-}
-.gate-actions {
-  display: flex;
-  gap: 10px;
-  flex: 0 0 auto;
-}
-/* Strictly equal weight: neither is the suggested path. */
-.gate-actions .button {
-  flex: 0 0 auto;
-  min-width: 132px;
-  text-align: center;
-}
-.gate-verdict {
-  font-size: 12px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--muted);
-  flex: 0 0 auto;
-  padding-top: 12px;
-}
-
-.product {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  max-height: 68%;
-  overflow: auto;
-  background: var(--surface);
-  border-top: 1px solid var(--line);
-  padding: 20px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  z-index: 4;
-}
-
-.panel {
-  position: absolute;
-  /* Above the gate: inspecting a node must not happen through the decision
-     banner. */
-  z-index: 5;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(640px, 52%);
-  background: var(--surface);
-  border-left: 1px solid var(--line);
-  padding: 24px;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.panel h2 {
-  font-size: 24px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  text-transform: uppercase;
-}
-.panel dl {
+/* Spécification et code côte à côte : la preuve que la pièce a été fabriquée.
+   Chacun défile dans son propre cadre plutôt que d'élargir la page. */
+.side-by-side {
   display: grid;
-  grid-template-columns: 92px 1fr;
-  gap: 6px 14px;
-  font-size: 13px;
-  line-height: 1.5;
-}
-.panel dt {
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-size: 11px;
-  padding-top: 2px;
-}
-
-.hover-card {
-  position: absolute;
-  pointer-events: none;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  padding: 8px 10px;
-  font-size: 12px;
-  line-height: 1.45;
-  max-width: 260px;
-  z-index: 5;
-}
-.hover-role {
-  color: var(--ink);
-}
-.hover-detail {
-  color: var(--muted);
-}
-
-@media (max-width: 900px) {
-  .gate {
-    flex-direction: column;
-    gap: 12px;
-  }
-  .gate-actions {
-    width: 100%;
-  }
-  .gate-actions .button {
-    flex: 1;
-  }
-  .app {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 46%) minmax(0, 54%);
-  }
-  .controls {
-    border-right: none;
-    border-bottom: 1px solid var(--line);
-  }
-  .counter {
-    min-width: 0;
-    flex: 1;
-    padding: 12px 14px;
-  }
-}
-
-/* The reduced-motion preference is handled once, in tokens.css. Here we only
-   neutralise the appearance offset, so nodes arrive without sliding while
-   staying readable. */
-@media (prefers-reduced-motion: reduce) {
-  .appearing {
-    animation: none;
-  }
-}
-
-.worksite-tag {
-  display: inline-block;
-  margin-right: 0.4rem;
-  padding: 0.05rem 0.35rem;
-  border: 1px solid currentColor;
-  border-radius: 3px;
-  font-size: 0.66rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-/* Une trace importée : rejouée et mesurée, mais non forkable. Le bandeau le dit
-   franchement plutôt que de laisser le visiteur chercher un bouton absent. */
-.foreign-banner {
-  flex: 0 0 auto;
-  margin: 0 0 8px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-/* Importer une trace : un label qui déclenche le champ fichier caché. */
-.import-trace {
-  cursor: pointer;
-}
-
-/* Le résumé du graphe, une fois l'application en service. L'application est le
-   protagoniste, le graphe la preuve : elle se déplie, elle ne s'impose pas. */
-.graph-summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  /* Il ne pousse pas : le canvas prend ce qui reste. */
-  flex: 0 0 auto;
-  padding: 6px 0;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  text-align: left;
-  cursor: pointer;
-}
-
-.graph-summary-more {
-  margin-left: auto;
-  text-decoration: underline;
-}
-
-/* Les exemples écrivent dans le champ ; ils ne lancent rien. */
-button.picker {
-  padding: 4px 10px;
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--ink);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-button.picker:hover {
-  border-color: var(--ink);
-}
-
-/* Le partage : il n'apparaît qu'une fois qu'il y a quelque chose à partager. */
-.share {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-/* ── La colonne de conversation ───────────────────────────────────────────
-   Une seule chose à lire, du haut vers le bas : ce que les agents disent.
-   Le composeur est en bas, là où l'on écrit. Tout le reste est une ligne. */
-
-.controls {
-  display: flex;
-  flex-direction: column;
-  /* Le filet vertical qui sépare la colonne de la scène. */
-  border-right: 1px solid var(--line);
-  min-height: 0;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 0 0 auto;
-  padding: 14px 24px;
-  border-bottom: 1px solid var(--line);
-}
-
-/* La connexion, dans la ligne de marque. Discrète : un lien, un email affiché. */
-.account {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.account-email {
-  max-width: 22ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-/* Le panneau de connexion : un email, un bouton. Aucun mot de passe. */
-.signin {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin: 10px 0 0;
-  flex: 0 0 auto;
-}
-
-.signin-field {
-  flex: 1 1 12rem;
-  min-width: 0;
-}
-
-.signin-sent {
-  margin: 0;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-/* Mes runs : une liste sobre, pas un tableau de bord. */
-.my-runs {
-  margin: 10px 0 0;
-  flex: 0 0 auto;
-  border: 1px solid var(--line);
-  padding: 8px;
-}
-
-.my-runs-tabs {
-  display: flex;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
-  margin-bottom: 6px;
 }
 
-.my-runs-tabs [aria-selected='true'] {
-  color: var(--ink);
-  text-decoration: none;
-}
-
-.my-runs-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  max-height: 30vh;
-  overflow-y: auto;
-}
-
-.my-runs-empty {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.my-runs-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
-  padding: 4px 0;
-  border-bottom: 1px solid var(--line);
-  font-size: 12px;
-}
-
-.my-runs-open {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--ink);
-  font: inherit;
-  font-size: 12px;
-  text-align: left;
-  cursor: pointer;
-  text-decoration: underline;
-}
-
-.my-runs-meta {
-  color: var(--muted);
-}
-
-.my-runs-actions {
-  display: flex;
-  gap: 8px;
-  margin-left: auto;
-}
-
-/* Mes données : emporter ou effacer. L'effacement se distingue (terracotta). */
-.my-data {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 12px;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--line);
-  font-size: 12px;
-}
-
-.my-data-warn {
-  color: var(--muted);
-}
-
-/* Une ligne pour tous les faits du run. Elle remplace cinq boîtes. */
-.status {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  margin: 10px 0 0;
-  flex: 0 0 auto;
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-}
-
-.status-sep {
-  opacity: 0.5;
-}
-
-.status-detail {
-  flex: 0 0 auto;
-  margin-top: 10px;
-  padding: 12px 0;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--muted);
-}
-
-.status-detail p {
-  margin: 0 0 8px;
-}
-
-/* Le signal n°1 : lu comme une mesure, pas comme de la prose. */
-.status-eval {
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-}
-
-/* Le fil prend la place qui reste, et défile seul. */
-.thread {
-  border-top: 1px solid var(--line);
-  flex: 1 1 auto;
-  min-height: 0;
+.code,
+.artifact-body {
   overflow: auto;
-  padding: 16px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.thread-empty {
-  margin: 0;
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.thread-message {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.55;
-  color: var(--muted);
-}
-
-/* L'auteur est un repère, pas un titre : il ne doit pas peser plus que ce
-   qu'il a dit. */
-.thread-author {
-  display: block;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 2px;
-}
-
-.thread-incident {
-  margin: 0;
-  font-size: 13px;
-  color: var(--accent);
-}
-
-/* Le composeur : le champ, et ce qu'on peut en faire. */
-.composer {
-  flex: 0 0 auto;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
-}
-
-.composer .brief-field {
-  min-height: 0;
-  resize: none;
-}
-
-.composer-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.composer-row .button {
-  margin-left: auto;
-  flex: 0 0 auto;
-}
-
-.composer-hint {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.examples {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-}
-
-/* Le run enregistré : une entrée discrète mais présente, pour que le site sans
-   clé ne soit pas muet. */
-.recorded-run {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.recorded-run:hover {
-  background: var(--accent);
-  color: var(--bg);
-}
-
-/* ------------------------------------------------------------------ */
-/* Intro de scène : avant tout run, la scène dit ce que fait l'atelier */
-/* en trois temps. Cadrage statique, pas un faux run.                  */
-/* ------------------------------------------------------------------ */
-.intro {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  justify-content: center;
-  padding: 48px min(72px, 6vw);
-  max-width: 760px;
-}
-.intro-eyebrow {
-  font-size: 11px;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-.intro-title {
-  font-size: clamp(28px, 3.4vw, 44px);
-  font-weight: 500;
-  line-height: 1.12;
-  letter-spacing: -0.01em;
-  color: var(--ink);
-  max-width: 20ch;
-}
-.intro-beats {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  margin: 8px 0 0;
-  padding: 0;
-}
-.intro-beat {
-  display: flex;
-  gap: 16px;
-  align-items: baseline;
-}
-.intro-beat-num {
-  flex: 0 0 auto;
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--accent);
-  color: var(--accent);
-  font-size: 13px;
-  font-weight: 500;
-  border-radius: 50%;
-}
-.intro-beat-text {
-  font-size: 16px;
-  line-height: 1.5;
-  color: var(--muted);
-  max-width: 56ch;
-}
-.intro-beat-text strong {
-  color: var(--ink);
-  font-weight: 500;
-}
-.intro-honesty {
-  margin-top: 8px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--muted);
-  max-width: 60ch;
+  white-space: pre-wrap;
+  word-break: break-word;
 }

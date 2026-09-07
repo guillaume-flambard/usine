@@ -23,7 +23,6 @@ import type { RunArchive } from '../../app/replay'
 import type { RunEvent } from '../../runtime/events'
 import type { ComponentId } from '../../runtime/contract'
 import '../../assets/main.css'
-import '../../assets/tokens.css'
 import '../../assets/app.css'
 
 
@@ -109,7 +108,7 @@ describe('le panneau à deux futurs', () => {
     code.value = "(input) => 'diverged: ' + input"
     code.dispatchEvent(new Event('input', { bubbles: true }))
     await wait(30)
-    document.querySelector<HTMLButtonElement>('.fork-apply')?.click()
+    document.querySelector<HTMLButtonElement>('[data-fork-apply]')?.click()
     // Le remplacement compile dans un fil isolé, puis le kernel de branche
     // rejoue le hot-swap : on attend le va-et-vient.
     await wait(1200)
@@ -135,10 +134,8 @@ describe('le panneau à deux futurs', () => {
     await enterFork()
     expect(document.querySelector('.fork')).not.toBeNull()
 
-    const reject = [...document.querySelectorAll<HTMLButtonElement>('.fork-gate .button')].find(
-      (b) => (b.textContent ?? '').includes('Rejeter'),
-    )
-    expect(reject, 'le bouton « Rejeter la branche » manque').toBeDefined()
+    const reject = document.querySelector<HTMLButtonElement>('[data-fork-reject]')
+    expect(reject, 'le bouton « Rejeter la branche » manque').not.toBeNull()
     reject?.click()
     await wait(400)
 
@@ -152,10 +149,8 @@ describe('le panneau à deux futurs', () => {
   it('revient au run en gardant la branche, sans casser la scène normale', async () => {
     await enterFork()
 
-    const exit = [...document.querySelectorAll<HTMLButtonElement>('.fork-gate .button')].find((b) =>
-      (b.textContent ?? '').includes('revenir au run'),
-    )
-    expect(exit, 'le bouton « revenir au run » manque').toBeDefined()
+    const exit = document.querySelector<HTMLButtonElement>('[data-fork-keep]')
+    expect(exit, 'le bouton « revenir au run » manque').not.toBeNull()
     exit?.click()
     await wait(200)
 

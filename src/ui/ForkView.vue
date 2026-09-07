@@ -204,73 +204,77 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="fork" aria-label="Deux futurs du run, côte à côte">
-    <header class="fork-head">
-      <p class="eyebrow">Fork — deux futurs du même run, sous votre décision</p>
-      <p class="fork-honesty">
+  <section class="fork flex h-full min-h-0 flex-col gap-4 p-5" aria-label="Deux futurs du run, côte à côte">
+    <header class="flex flex-wrap items-start gap-3">
+      <p class="text-[11px] font-semibold uppercase tracking-wider text-dimmed">Fork — deux futurs du même run, sous votre décision</p>
+      <p class="max-w-[68ch] text-sm text-muted">
         Le retour arrière est intra-runtime : on prévient avant un effet externe, on ne le
         répare pas après.
       </p>
       <!-- Une porte par branche, deux gestes de poids égal (DESIGN, AD-39). -->
-      <div class="fork-gate">
-        <button class="button" @click="emit('exit')">Garder la branche · revenir au run</button>
-        <button class="button" @click="emit('reject')">Rejeter la branche</button>
+      <div class="ml-auto flex shrink-0 gap-2">
+        <UButton size="sm" variant="outline" color="neutral" data-fork-keep @click="emit('exit')">
+          Garder la branche · revenir au run
+        </UButton>
+        <UButton size="sm" variant="outline" color="neutral" data-fork-reject @click="emit('reject')">
+          Rejeter la branche
+        </UButton>
       </div>
     </header>
 
-    <div class="fork-panels">
+    <div class="fork-panels grid min-h-0 flex-1 gap-4 md:grid-cols-2">
       <!-- Le tronc : un recording, en lecture seule (AD-37/48). -->
-      <section class="fork-panel" data-side="trunk" aria-label="Tronc — enregistrement">
-        <p class="fork-label">
-          <span class="fork-label-name">Tronc</span>
-          <span class="fork-label-kind">enregistrement · lecture seule</span>
+      <section class="fork-panel flex min-h-0 flex-col gap-2 rounded-md border border-default p-3" data-side="trunk" aria-label="Tronc — enregistrement">
+        <p class="flex flex-wrap items-baseline gap-2">
+          <span class="font-semibold text-highlighted">Tronc</span>
+          <span class="text-xs text-dimmed">enregistrement · lecture seule</span>
         </p>
         <iframe
           ref="trunkFrame"
-          class="fork-frame"
+          class="fork-frame min-h-[220px] w-full flex-1 rounded border border-default bg-white"
           title="L'application du tronc, à N"
           src="/sandbox.html"
           sandbox="allow-scripts"
         ></iframe>
-        <p class="fork-meta">{{ trunkInteractions }} interaction(s)</p>
+        <p class="font-mono text-xs text-muted tabular-nums">{{ trunkInteractions }} interaction(s)</p>
       </section>
 
       <!-- La branche : une exécution neuve, où l'on édite un comportement. -->
-      <section class="fork-panel" data-side="branch" aria-label="Branche — exécution neuve">
-        <p class="fork-label">
-          <span class="fork-label-name">Branche</span>
-          <span class="fork-label-kind">exécution neuve</span>
+      <section class="fork-panel flex min-h-0 flex-col gap-2 rounded-md border border-default p-3" data-side="branch" aria-label="Branche — exécution neuve">
+        <p class="flex flex-wrap items-baseline gap-2">
+          <span class="font-semibold text-highlighted">Branche</span>
+          <span class="text-xs text-dimmed">exécution neuve</span>
         </p>
         <iframe
           ref="branchFrame"
-          class="fork-frame"
+          class="fork-frame min-h-[220px] w-full flex-1 rounded border border-default bg-white"
           title="L'application de la branche, vivante"
           src="/sandbox.html"
           sandbox="allow-scripts"
         ></iframe>
 
-        <form class="fork-edit" @submit.prevent="applyEdit">
-          <label class="fork-edit-label" for="fork-behaviour">Éditer un comportement</label>
-          <select id="fork-behaviour" v-model="editedName" class="fork-behaviour">
+        <form class="fork-edit flex flex-col gap-2" @submit.prevent="applyEdit">
+          <label class="text-[11px] font-semibold uppercase tracking-wider text-dimmed" for="fork-behaviour">Éditer un comportement</label>
+          <select id="fork-behaviour" v-model="editedName" class="w-full rounded border border-accented bg-default px-2 py-1 text-sm">
             <option v-for="behaviour in branchBehaviours" :key="behaviour.name" :value="behaviour.name">
               {{ behaviour.name }} — v{{ behaviour.version }}
             </option>
           </select>
           <textarea
             v-model="editedCode"
-            class="fork-code"
+            class="fork-code w-full rounded border border-accented bg-default p-2 font-mono text-xs"
             rows="3"
             spellcheck="false"
             aria-label="Code du comportement de la branche"
             placeholder="(input) => …"
           ></textarea>
-          <div class="fork-edit-row">
-            <button type="submit" class="picker fork-apply" :disabled="editedCode.trim().length === 0">
+          <div class="flex flex-wrap items-center gap-2">
+            <UButton type="submit" size="sm" data-fork-apply :disabled="editedCode.trim().length === 0">
               Faire diverger la branche
-            </button>
-            <span class="fork-meta">{{ branchInteractions }} interaction(s)</span>
+            </UButton>
+            <span class="font-mono text-xs text-muted tabular-nums">{{ branchInteractions }} interaction(s)</span>
           </div>
-          <p v-if="notice" class="fork-notice" role="status">{{ notice }}</p>
+          <p v-if="notice" class="text-sm text-error" role="status">{{ notice }}</p>
         </form>
       </section>
     </div>
@@ -279,14 +283,14 @@ onBeforeUnmount(() => {
          à mesurer — aucun zéro décoratif (AD-40). -->
     <div
       v-if="hasData"
-      class="fork-compare"
+      class="fork-compare rounded-md border border-default p-3"
       aria-label="Comparaison mesurée tronc / branche"
       aria-live="polite"
     >
-      <table class="fork-table">
+      <table class="fork-table w-full text-sm">
         <thead>
           <tr>
-            <th scope="col" class="fork-table-key">Mesure</th>
+            <th scope="col" class="fork-table-key py-1 pr-3 text-left font-normal text-muted">Mesure</th>
             <th scope="col">Tronc</th>
             <th scope="col">Branche</th>
             <th scope="col">Écart</th>
@@ -294,10 +298,10 @@ onBeforeUnmount(() => {
         </thead>
         <tbody>
           <tr v-for="row in rows" :key="row.key">
-            <th scope="row" class="fork-table-key">{{ row.key }}</th>
+            <th scope="row" class="fork-table-key py-1 pr-3 text-left font-normal text-muted">{{ row.key }}</th>
             <td>{{ row.trunk ?? '—' }}</td>
             <td>{{ row.branch ?? '—' }}</td>
-            <td class="fork-table-delta" :data-diverged="row.delta !== null && row.delta !== 0">
+            <td class="py-1 text-right font-mono tabular-nums" :data-diverged="row.delta !== null && row.delta !== 0">
               {{ deltaLabel(row.delta) }}
             </td>
           </tr>
@@ -308,179 +312,13 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* La vue fork vit dans la zone scène, jamais dans une cinquième zone (DESIGN,
-   AD/quatre zones). Elle remplit la colonne de droite et ne déborde pas la
-   page : seul son propre corps défile si l'écran est trop court. */
+/* La vue fork occupe toute la scène : elle remplace le graphe, elle ne
+   s'ajoute pas à côté. Une cinquième zone est interdite. */
 .fork {
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px 24px;
+  position: absolute;
+  inset: 0;
   overflow: auto;
-  background: var(--surface, #fff);
-}
-
-.fork-head {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.fork-honesty {
-  margin: 0;
-  font-size: 12px;
-  color: var(--muted, #6b6055);
-}
-
-.fork-gate {
-  display: flex;
-  gap: 10px;
-}
-/* Deux gestes de poids strictement égal : le produit ne pousse pas vers l'un. */
-.fork-gate .button {
-  flex: 1;
-}
-
-.fork-panels {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-/* Sous une largeur étroite, deux colonnes écrasent les panneaux : on empile,
-   tronc au-dessus de la branche, plutôt que de les rendre illisibles. */
-@media (max-width: 900px) {
-  .fork-panels {
-    grid-template-columns: 1fr;
-  }
-}
-
-.fork-panel {
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  border: 1px solid var(--line, #e7e2da);
-  padding: 12px;
-}
-
-.fork-label {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin: 0;
-}
-.fork-label-name {
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--ink, #16130f);
-}
-.fork-label-kind {
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  color: var(--muted, #6b6055);
-}
-
-.fork-frame {
-  width: 100%;
-  flex: 1 1 auto;
-  min-height: 180px;
-  border: 1px solid var(--line, #e7e2da);
-  background: #fff;
-}
-
-.fork-meta {
-  margin: 0;
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted, #6b6055);
-}
-
-.fork-edit {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.fork-edit-label {
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--muted, #6b6055);
-}
-.fork-behaviour {
-  border: 1px solid var(--line, #e7e2da);
-  background: var(--surface, #fff);
-  color: var(--ink, #16130f);
-  padding: 6px 8px;
-  font-family: inherit;
-  font-size: 13px;
-}
-.fork-code {
-  border: 1px solid var(--line, #e7e2da);
-  background: var(--surface, #fff);
-  color: var(--ink, #16130f);
-  padding: 8px 10px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-  line-height: 1.5;
-  resize: vertical;
-}
-.fork-code:focus-visible,
-.fork-behaviour:focus-visible {
-  outline: 2px solid var(--accent, #ad4c16);
-  outline-offset: 0;
-}
-.fork-edit-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.fork-apply:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-.fork-notice {
-  margin: 0;
-  font-size: 12px;
-  color: var(--accent, #ad4c16);
-}
-
-.fork-compare {
-  flex: 0 0 auto;
-}
-.fork-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-}
-.fork-table th,
-.fork-table td {
-  border: 1px solid var(--line, #e7e2da);
-  padding: 6px 10px;
-  text-align: right;
-  color: var(--ink, #16130f);
-}
-.fork-table thead th {
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted, #6b6055);
-  font-weight: 400;
-}
-.fork-table-key {
-  text-align: left;
-  color: var(--muted, #6b6055);
-}
-.fork-table-delta[data-diverged='true'] {
-  color: var(--accent, #ad4c16);
-  font-weight: 500;
+  background: var(--ui-bg);
+  z-index: 5;
 }
 </style>

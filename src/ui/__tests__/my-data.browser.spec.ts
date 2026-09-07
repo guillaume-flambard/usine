@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { render } from 'vitest-browser-vue'
 import FactoryApp from '../FactoryApp.vue'
 import '../../assets/main.css'
-import '../../assets/tokens.css'
 import '../../assets/app.css'
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
@@ -54,7 +53,7 @@ describe('my data', () => {
     // Delete asks for confirmation before doing anything.
     ;(document.querySelector('[data-account-erase]') as HTMLButtonElement).click()
     await wait(30)
-    expect(document.querySelector('.my-data-warn')).not.toBeNull()
+    expect(document.querySelector('[data-erase-warn]')).not.toBeNull()
 
     // Confirm: the account is erased and the view returns to signed-out.
     ;(document.querySelector('[data-account-erase-confirm]') as HTMLButtonElement).click()

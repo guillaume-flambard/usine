@@ -2,7 +2,6 @@ import { createApp } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import ui from '@nuxt/ui/vue-plugin'
 import './assets/main.css'
-import './assets/tokens.css'
 import './assets/app.css'
 import App from './App.vue'
 

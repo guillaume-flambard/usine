@@ -149,17 +149,17 @@ const description = computed(() => {
 
     <div
       v-if="hovered"
-      class="hover-card"
+      class="hover-card max-w-[260px] rounded-md border border-default bg-default p-2 text-xs shadow-sm"
       :style="{
         left: `${hovered.box.x}px`,
         top: `${hovered.box.y + hovered.box.height + 8}px`,
       }"
     >
-      <p class="hover-role">{{ hovered.node.display.role }}</p>
-      <p v-if="hovered.node.needs.length" class="hover-detail">
+      <p class="text-highlighted">{{ hovered.node.display.role }}</p>
+      <p v-if="hovered.node.needs.length" class="text-muted">
         Dépend de : {{ hovered.node.needs.join(', ') }}
       </p>
-      <p v-if="hovered.node.display.technology" class="hover-detail">
+      <p v-if="hovered.node.display.technology" class="text-muted">
         {{ hovered.node.display.technology }}
       </p>
     </div>

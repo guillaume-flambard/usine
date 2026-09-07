@@ -74,8 +74,8 @@ onBeforeUnmount(() => host?.dispose())
 </script>
 
 <template>
-  <section class="live-app">
-    <p class="eyebrow">Application — vivante, elle se refait pendant que vous vous en servez</p>
+  <section class="live-app flex flex-col gap-2 p-5">
+    <p class="text-[11px] font-semibold uppercase tracking-wider text-dimmed">Application — vivante, elle se refait pendant que vous vous en servez</p>
 
     <!--
       `allow-scripts` and nothing else. Without `allow-same-origin` the frame
@@ -84,19 +84,23 @@ onBeforeUnmount(() => host?.dispose())
     -->
     <iframe
       ref="frame"
-      class="live-frame"
-      :class="{ 'is-empty': !hasScreen }"
+      class="live-frame min-h-[260px] w-full flex-1 rounded-md border border-default bg-white"
+      :class="{ hidden: !hasScreen }"
       title="L'application produite par ce run"
       src="/sandbox.html"
       sandbox="allow-scripts"
     ></iframe>
 
-    <p v-if="!hasScreen" class="live-empty" role="status">
+    <p
+      v-if="!hasScreen"
+      class="live-empty rounded-md border border-dashed border-accented p-5 text-sm text-muted"
+      role="status"
+    >
       L'application n'a encore rien posé — les agents ont parlé, mais aucun écran
       n'est sorti du run.
     </p>
 
-    <p class="live-counter">
+    <p class="live-counter flex flex-wrap gap-2 font-mono text-xs text-muted tabular-nums">
       <span>{{ props.session.counts.replacements }} remplacement(s) à chaud</span>
       <span>·</span>
       <span>{{ props.session.counts.restarts }} redémarrage</span>
@@ -104,11 +108,11 @@ onBeforeUnmount(() => host?.dispose())
       <span>{{ interactions }} interaction(s) conservée(s)</span>
     </p>
 
-    <p v-if="refused.length > 0" class="live-refused">
+    <p v-if="refused.length > 0" class="text-sm text-muted">
       Écran assaini : {{ refused.join(', ') }}.
     </p>
 
-    <p class="live-help">
+    <p class="text-sm text-muted">
       Rien de ce que vous voyez ici n’existait avant votre brief. Servez-vous-en : les agents la
       remodèlent autour de ce que vous en faites, et ce que vous avez fait est conservé à chaque
       changement.
@@ -116,20 +120,35 @@ onBeforeUnmount(() => host?.dispose())
 
     <!-- Ce qu'on emporte vit avec ce qu'on emporte, pas dans une barre latérale
          permanente : ces gestes n'ont de sens qu'une fois l'application là. -->
-    <div class="live-actions">
-      <button class="picker" @click="emit('takeAway')">Emporter l’application</button>
-      <button v-if="archive && !replay" class="picker" :disabled="sharing" @click="emit('share')">
+    <div class="live-actions flex flex-wrap items-center gap-2">
+      <UButton size="sm" variant="outline" color="neutral" data-take-away @click="emit('takeAway')">
+        Emporter l’application
+      </UButton>
+      <UButton
+        v-if="archive && !replay"
+        size="sm"
+        variant="outline"
+        color="neutral"
+        :disabled="sharing"
+        data-share
+        @click="emit('share')"
+      >
         {{ sharing ? 'Conservation…' : 'Lien de rejeu' }}
-      </button>
-      <button v-if="forkable" class="picker fork-start" @click="emit('fork')">Forker ce run</button>
-      <a class="product-contact" :href="`mailto:${contact}`">Écrire à Memo Labs</a>
+      </UButton>
+      <!-- Le fork est le geste phare : il se distingue des autres. -->
+      <UButton v-if="forkable" size="sm" class="fork-start" data-fork @click="emit('fork')">
+        Forker ce run
+      </UButton>
+      <UButton variant="link" color="neutral" :to="`mailto:${contact}`" external>
+        Écrire à Memo Labs
+      </UButton>
     </div>
-    <p v-if="forkable" class="fork-why">
+    <p v-if="forkable" class="fork-why max-w-[62ch] text-sm text-muted">
       Forker : rejoue cette trajectoire, change l'agent à chaud sur la branche, et
       regarde deux futurs diverger — pour tester un correctif sur la vraie
       trajectoire qui a planté, avant la prod.
     </p>
-    <p v-if="shareLink" class="live-help"><code>{{ shareLink }}</code> — il rejoue ce run à l’identique, application comprise.</p>
+    <p v-if="shareLink" class="text-sm text-muted"><code>{{ shareLink }}</code> — il rejoue ce run à l’identique, application comprise.</p>
   </section>
 </template>
 
@@ -146,75 +165,7 @@ onBeforeUnmount(() => host?.dispose())
   max-height: 60%;
   overflow: auto;
   z-index: 3;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 16px 24px;
-  background: var(--surface, #fff);
-  border-top: 1px solid var(--line, #e0dbd4);
-}
-
-.live-frame {
-  width: 100%;
-  min-height: 260px;
-  flex: 1 1 auto;
-  border: 1px solid var(--line, #e0dbd4);
-  background: #fff;
-}
-/* Rien à rendre : on ne montre pas un grand cadre blanc trompeur. Le cadre
-   reste dans le DOM (le host en dépend) mais ne prend plus de place. */
-.live-frame.is-empty {
-  display: none;
-}
-.live-empty {
-  margin: 0;
-  padding: 20px 16px;
-  border: 1px dashed var(--line, #e0dbd4);
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--muted, #6b6560);
-}
-
-/* Le fork est le geste phare : il se distingue des autres pickers. */
-.fork-start {
-  border-color: var(--accent, #ad4c16);
-  color: var(--accent, #ad4c16);
-  font-weight: 500;
-}
-.fork-start:hover {
-  background: var(--accent, #ad4c16);
-  color: var(--bg, #faf9f7);
-}
-.fork-why {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--muted, #6b6560);
-  max-width: 62ch;
-}
-
-.live-counter {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 0;
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted, #6b6560);
-}
-
-.live-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-
-.live-refused,
-.live-help {
-  margin: 0;
-  font-size: 13px;
-  color: var(--muted, #6b6560);
+  background: var(--ui-bg);
+  border-top: 1px solid var(--ui-border);
 }
 </style>

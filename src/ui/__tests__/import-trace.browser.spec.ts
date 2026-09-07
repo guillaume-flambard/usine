@@ -6,7 +6,6 @@ import { render } from 'vitest-browser-vue'
 import { startRun, wait } from './harness'
 import FactoryApp from '../FactoryApp.vue'
 import '../../assets/main.css'
-import '../../assets/tokens.css'
 import '../../assets/app.css'
 
 
@@ -44,7 +43,7 @@ describe('importing a foreign trace', () => {
 
   it('measures it and states it is not forkable', async () => {
     await importTraceFile(LANGGRAPH_TRACE)
-    const banner = document.querySelector('.foreign-banner')
+    const banner = document.querySelector('[data-foreign-banner]')
     expect(banner).not.toBeNull()
     expect(banner?.textContent).toMatch(/non forkable/)
     // The measured event count is a real number read off the imported stream.

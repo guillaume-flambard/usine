@@ -30,17 +30,24 @@ watch(
 </script>
 
 <template>
-  <div ref="threadEl" class="thread" aria-live="polite" data-thread>
-    <p v-if="log.length === 0" class="thread-empty">
+  <div
+    ref="threadEl"
+    class="thread flex flex-col gap-4 px-5 pt-1 pb-4 text-toned"
+    aria-live="polite"
+    data-thread
+  >
+    <p v-if="log.length === 0" class="text-muted">
       Écrivez un besoin. Rien n’existe encore : les agents, leurs outils et l’application naîtront
       de ce que vous taperez — puis se referont autour de ce que vous en ferez.
     </p>
-    <p v-for="message in log" :key="message.sequence" class="thread-message">
-      <span class="thread-author">{{ message.author }}</span>
+    <p v-for="message in log" :key="message.sequence">
+      <span class="block text-[11px] font-semibold uppercase tracking-wider text-dimmed mb-1">
+        {{ message.author }}
+      </span>
       {{ message.message }}
     </p>
-    <p v-if="error" class="thread-incident" role="alert">{{ error }}</p>
-    <p v-else-if="incidents.length" class="thread-incident" role="status">
+    <p v-if="error" class="text-sm text-error" data-incident role="alert">{{ error }}</p>
+    <p v-else-if="incidents.length" class="text-sm text-error" data-incident role="status">
       {{ incidents.length }} incident(s) — {{ incidents.at(-1)?.error.message }}
     </p>
   </div>

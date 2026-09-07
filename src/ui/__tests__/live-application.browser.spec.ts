@@ -6,7 +6,6 @@ import { render } from 'vitest-browser-vue'
 import LiveApplication from '../LiveApplication.vue'
 import { createSession } from '../../app/session'
 import '../../assets/main.css'
-import '../../assets/tokens.css'
 import '../../assets/app.css'
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))

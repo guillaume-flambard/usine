@@ -6,7 +6,6 @@ import { render } from 'vitest-browser-vue'
 import { startRun, wait } from './harness'
 import FactoryApp from '../FactoryApp.vue'
 import '../../assets/main.css'
-import '../../assets/tokens.css'
 import '../../assets/app.css'
 
 
@@ -61,13 +60,13 @@ describe('gating persistence on sign-in', () => {
     await startRun()
 
     // The demo ran signed-out: the share action is present.
-    const share = byText('.live-actions .picker', 'Lien de rejeu')
+    const share = document.querySelector('[data-share]')
     expect(share).toBeDefined()
     ;(share as HTMLButtonElement).click()
     await wait(60)
 
     // Rather than a 401, the page opens the sign-in panel and says why.
     expect(document.querySelector('#signin-panel')).not.toBeNull()
-    expect(document.querySelector('.thread-incident')?.textContent).toMatch(/[Cc]onnectez-vous/)
+    expect(document.querySelector('[data-incident]')?.textContent).toMatch(/[Cc]onnectez-vous/)
   })
 })

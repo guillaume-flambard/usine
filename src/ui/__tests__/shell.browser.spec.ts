@@ -6,7 +6,6 @@ import { startRun, wait } from './harness'
 import FactoryApp from '../FactoryApp.vue'
 import { installTelemetry, type Event } from '../../telemetry'
 import '../../assets/main.css'
-import '../../assets/tokens.css'
 import '../../assets/app.css'
 
 
@@ -166,7 +165,7 @@ describe('reduced motion', () => {
     // And the nodes are still there, with their state: the motion goes, not
     // the information. The graph folds itself once the application serves, so
     // it is unfolded here the way a visitor would — by asking for it.
-    document.querySelector<HTMLButtonElement>('.graph-summary')?.click()
+    document.querySelector<HTMLButtonElement>('[data-graph-summary]')?.click()
     await wait(120)
 
     const nodes = [...document.querySelectorAll('.node')]
@@ -270,7 +269,7 @@ describe('changing the need from the page', () => {
     brief!.dispatchEvent(new Event('input', { bubbles: true }))
     await wait(150)
 
-    const hint = document.querySelector('.composer-hint')?.textContent ?? ''
+    const hint = document.querySelector('[data-composer-hint]')?.textContent ?? ''
     expect(hint).toContain('ne produira rien')
 
     document.querySelector<HTMLButtonElement>('[data-launch]')?.click()
@@ -288,7 +287,7 @@ describe('the graph gives way to the application', () => {
     // A graph fascinates for twenty seconds; an application is used. Once one
     // serves, the graph is a summary line — and the line carries the numbers
     // that justify having watched it.
-    const summary = document.querySelector<HTMLButtonElement>('.graph-summary')
+    const summary = document.querySelector<HTMLButtonElement>('[data-graph-summary]')
     expect(summary, 'no graph summary line').not.toBeNull()
     expect(summary?.textContent ?? '').toContain('remplacement')
     expect(summary?.getAttribute('aria-expanded')).toBe('false')
@@ -344,12 +343,12 @@ describe('la zone du run tient sa géométrie', () => {
 
     // Déplié d'abord : replié, le graphe est en display:none et sa largeur
     // vaut zéro — ce qui ne dit rien de sa géométrie.
-    document.querySelector<HTMLButtonElement>('.graph-summary')?.click()
+    document.querySelector<HTMLButtonElement>('[data-graph-summary]')?.click()
     await wait(150)
 
     const zone = document.querySelector<HTMLElement>('.zone')
     const canvas = document.querySelector<HTMLElement>('.canvas')
-    const summary = document.querySelector<HTMLElement>('.graph-summary')
+    const summary = document.querySelector<HTMLElement>('[data-graph-summary]')
     expect(zone && canvas && summary).toBeTruthy()
     if (zone === null || canvas === null || summary === null) return
 

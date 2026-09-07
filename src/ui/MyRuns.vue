@@ -31,25 +31,25 @@ defineEmits<{
 </script>
 
 <template>
-  <div id="my-runs" class="my-runs">
-    <UTabs v-model="tab" :items="tabs" class="my-runs-tabs">
+  <div id="my-runs" class="flex flex-col gap-3 border-b border-default px-5 pb-4">
+    <UTabs v-model="tab" :items="tabs" class="w-full">
       <template #live>
-        <ul class="my-runs-list">
-          <li v-if="runs.length === 0" class="my-runs-empty">Aucun run conservé.</li>
-          <li v-for="run in runs" :key="run.id" class="my-runs-row">
+        <ul class="flex flex-col gap-1 pt-2">
+          <li v-if="runs.length === 0" class="my-runs-empty py-2 text-sm text-dimmed">Aucun run conservé.</li>
+          <li v-for="run in runs" :key="run.id" class="flex flex-wrap items-center gap-2 text-sm">
             <UButton
               variant="link"
               color="neutral"
-              class="my-runs-open"
+              class="my-runs-open truncate"
               data-run-open
               @click="$emit('open', run.id)"
             >
               {{ run.brief || 'run' }}
             </UButton>
-            <span class="my-runs-meta">
+            <span class="text-xs text-dimmed tabular-nums">
               {{ run.events }} évts{{ run.shared ? ' · partagé' : '' }}
             </span>
-            <span class="my-runs-actions">
+            <span class="ml-auto flex items-center gap-1">
               <UButton variant="link" color="neutral" data-run-share @click="$emit('share', run)">
                 {{ run.shared ? 'révoquer' : 'partager' }}
               </UButton>
@@ -76,11 +76,11 @@ defineEmits<{
       </template>
 
       <template #trash>
-        <ul class="my-runs-list">
-          <li v-if="trash.length === 0" class="my-runs-empty">Corbeille vide.</li>
-          <li v-for="run in trash" :key="run.id" class="my-runs-row">
-            <span class="my-runs-open">{{ run.brief || 'run' }}</span>
-            <span class="my-runs-actions">
+        <ul class="flex flex-col gap-1 pt-2">
+          <li v-if="trash.length === 0" class="my-runs-empty py-2 text-sm text-dimmed">Corbeille vide.</li>
+          <li v-for="run in trash" :key="run.id" class="flex flex-wrap items-center gap-2 text-sm">
+            <span class="my-runs-open truncate">{{ run.brief || 'run' }}</span>
+            <span class="ml-auto flex items-center gap-1">
               <UButton
                 variant="link"
                 color="neutral"
@@ -100,7 +100,7 @@ defineEmits<{
 
     <!-- Mes données (RGPD) : emporter ou effacer. L'effacement est
          irréversible et demande une confirmation explicite. -->
-    <div class="my-data">
+    <div class="my-data flex flex-wrap items-center gap-2 border-t border-default pt-3">
       <UButton variant="link" color="neutral" :to="accountExport" external data-account-export>
         exporter mes données
       </UButton>
@@ -116,7 +116,7 @@ defineEmits<{
         </UButton>
       </template>
       <template v-else>
-        <span class="my-data-warn">Effacer définitivement compte et runs ?</span>
+        <span class="text-sm text-muted" data-erase-warn>Effacer définitivement compte et runs ?</span>
         <UButton
           variant="link"
           color="error"

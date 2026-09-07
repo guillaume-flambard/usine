@@ -42,32 +42,35 @@ watch(
 
 <template>
   <section
-    class="gate"
+    class="gate flex flex-wrap items-start gap-6 p-5"
     data-gate
     :aria-label="gate.decision === undefined ? 'Décision requise' : 'Décision prise'"
   >
-    <div class="gate-body">
-      <p class="eyebrow">
+    <div class="min-w-0 flex-1">
+      <p class="text-[11px] font-semibold uppercase tracking-wider text-dimmed">
         {{ gate.decision === undefined ? 'Décision requise' : 'Décision prise' }}
       </p>
-      <p id="gate-summary" class="gate-summary">{{ gate.subject.summary }}</p>
-      <p id="gate-objection" class="gate-objection">
+      <p id="gate-summary" class="mt-2 max-w-[72ch] text-toned">{{ gate.subject.summary }}</p>
+      <p
+        id="gate-objection"
+        class="mt-2 max-w-[72ch] border-l-2 border-default pl-3 text-sm text-muted"
+      >
         <b>Sceptique —</b> {{ gate.subject.objection }}
       </p>
       <!-- What each gesture costs, before the click and not after. Rejecting
            now destroys something the visitor has under their hands. -->
-      <p v-if="serving" id="gate-cost" class="gate-cost">
+      <p v-if="serving" id="gate-cost" class="mt-2 text-sm text-muted">
         L’application vous sert déjà. <b>Emporter</b> la valide et vous la laisse.
         <b>Écarter</b> la retire : les composants sont relâchés et vous perdez ce qui tourne.
       </p>
     </div>
-    <div v-if="gate.decision === undefined" class="gate-actions">
+    <div v-if="gate.decision === undefined" class="flex shrink-0 gap-2.5">
       <UButton
         ref="firstButton"
-        block
         variant="outline"
         color="neutral"
         size="lg"
+        class="min-w-[132px] justify-center"
         data-gate-action="reject"
         aria-describedby="gate-summary gate-objection gate-cost"
         @click="$emit('reject')"
@@ -75,10 +78,10 @@ watch(
         Écarter
       </UButton>
       <UButton
-        block
         variant="outline"
         color="neutral"
         size="lg"
+        class="min-w-[132px] justify-center"
         data-gate-action="approve"
         aria-describedby="gate-summary gate-objection gate-cost"
         @click="$emit('approve')"
@@ -86,16 +89,8 @@ watch(
         {{ serving ? 'Emporter' : 'Approuver' }}
       </UButton>
     </div>
-    <p v-else class="gate-verdict">
+    <p v-else class="shrink-0 pt-3 text-xs uppercase tracking-widest text-muted">
       {{ gate.decision === 'approved' ? 'Emportée' : 'Écartée' }}
     </p>
   </section>
 </template>
-
-<style scoped>
-.gate-cost {
-  margin: 6px 0 0;
-  font-size: 13px;
-  color: var(--muted, #6b6560);
-}
-</style>

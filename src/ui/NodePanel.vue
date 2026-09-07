@@ -31,26 +31,26 @@ function onOpenChange(open: boolean) {
   >
     <template #body>
       <dl class="grid grid-cols-[92px_1fr] gap-x-4 gap-y-1.5 text-sm">
-        <dt>Composant</dt>
-        <dd class="identity">{{ node.name }}</dd>
-        <dt>Rôle</dt>
+        <dt class="text-[10px] uppercase tracking-wider text-dimmed pt-0.5">Composant</dt>
+        <dd class="font-mono text-xs">{{ node.name }}</dd>
+        <dt class="text-[10px] uppercase tracking-wider text-dimmed pt-0.5">Rôle</dt>
         <dd>{{ node.display.role }}</dd>
-        <dt>État</dt>
+        <dt class="text-[10px] uppercase tracking-wider text-dimmed pt-0.5">État</dt>
         <dd>{{ LABELS[node.state] }}</dd>
         <template v-if="node.display.technology">
-          <dt>Technologie</dt>
+          <dt class="text-[10px] uppercase tracking-wider text-dimmed pt-0.5">Technologie</dt>
           <dd>{{ node.display.technology }}</dd>
         </template>
         <template v-if="node.needs.length">
-          <dt>Consomme</dt>
+          <dt class="text-[10px] uppercase tracking-wider text-dimmed pt-0.5">Consomme</dt>
           <dd>{{ node.needs.join(', ') }}</dd>
         </template>
         <template v-if="node.provides.length">
-          <dt>Publie</dt>
+          <dt class="text-[10px] uppercase tracking-wider text-dimmed pt-0.5">Publie</dt>
           <dd>{{ node.provides.join(', ') }}</dd>
         </template>
         <template v-if="node.cause">
-          <dt>Cause</dt>
+          <dt class="text-[10px] uppercase tracking-wider text-dimmed pt-0.5">Cause</dt>
           <dd>
             {{
               node.cause.kind === 'dependency-gone'
@@ -60,25 +60,25 @@ function onOpenChange(open: boolean) {
           </dd>
         </template>
         <template v-if="node.error">
-          <dt>Erreur</dt>
+          <dt class="text-[10px] uppercase tracking-wider text-dimmed pt-0.5">Erreur</dt>
           <dd>{{ node.error.code }} — {{ node.error.message }}</dd>
         </template>
       </dl>
 
       <template v-if="node.artifact">
-        <p class="eyebrow mt-6">Ce qu'il a écrit</p>
-        <article class="artifact">
+        <p class="mt-6 text-[11px] font-semibold uppercase tracking-wider text-dimmed">Ce qu'il a écrit</p>
+        <article class="mt-2 rounded-md border border-default p-3">
           <h3>{{ node.artifact.title }}</h3>
-          <p v-if="node.artifact.derivedFrom" class="artifact-origin">
+          <p v-if="node.artifact.derivedFrom" class="text-sm text-muted">
             Découle de {{ node.artifact.derivedFrom }}.
           </p>
-          <pre class="artifact-body">{{ node.artifact.body }}</pre>
+          <pre class="artifact-body mt-2 text-xs">{{ node.artifact.body }}</pre>
         </article>
       </template>
 
       <template v-if="node.build">
-        <p class="eyebrow mt-6">Fabriqué pendant le run</p>
-        <p class="artifact-origin">
+        <p class="mt-6 text-[11px] font-semibold uppercase tracking-wider text-dimmed">Fabriqué pendant le run</p>
+        <p class="text-sm text-muted">
           Voie :
           {{
             node.build.route === 'composition' ? 'composition de primitives' : 'évaluation de code'
@@ -86,21 +86,21 @@ function onOpenChange(open: boolean) {
         </p>
         <!-- The specification the part follows from and the code that really
              runs, side by side: this is the proof that it was built. -->
-        <div class="side-by-side">
+        <div class="side-by-side mt-2">
           <div>
-            <p class="eyebrow">Spécification</p>
-            <pre class="code" tabindex="0">{{ node.build.specification }}</pre>
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-dimmed">Spécification</p>
+            <pre class="code mt-1 rounded-md bg-elevated p-2 font-mono text-xs" tabindex="0">{{ node.build.specification }}</pre>
           </div>
           <div>
-            <p class="eyebrow">Code chargé</p>
-            <pre class="code" tabindex="0">{{ node.build.source }}</pre>
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-dimmed">Code chargé</p>
+            <pre class="code mt-1 rounded-md bg-elevated p-2 font-mono text-xs" tabindex="0">{{ node.build.source }}</pre>
           </div>
         </div>
       </template>
 
       <template v-if="messages.length">
-        <p class="eyebrow mt-6">Ce qu'il a dit</p>
-        <div class="panel-thread">
+        <p class="mt-6 text-[11px] font-semibold uppercase tracking-wider text-dimmed">Ce qu'il a dit</p>
+        <div class="mt-2 flex flex-col gap-2 text-sm text-muted">
           <p v-for="message in messages" :key="message.sequence">
             {{ message.message }}
           </p>

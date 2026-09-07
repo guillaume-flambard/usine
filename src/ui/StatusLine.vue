@@ -35,30 +35,44 @@ defineProps<{
 </script>
 
 <template>
-  <p class="status" aria-live="polite">
-    <span class="mode-dot" :data-connected="mode === 'llm'" aria-hidden="true"></span>
+  <p
+    class="status mx-4 mb-3 flex flex-wrap items-center gap-1.5 rounded-md bg-elevated px-3 py-2 text-xs text-muted tabular-nums"
+    aria-live="polite"
+  >
+    <!-- Le point ne repose pas sur la couleur seule : creux sans modèle,
+         plein quand un modèle est branché. -->
+    <span
+      class="size-2 rounded-full border border-current"
+      :class="mode === 'llm' ? 'bg-primary border-primary' : ''"
+      :data-connected="mode === 'llm'"
+      aria-hidden="true"
+    ></span>
     <span>
       {{ mode === 'llm' ? (source === 'relay' ? 'modèle du site' : 'modèle branché') : 'run rejoué' }}
     </span>
     <template v-if="started">
-      <span class="status-sep" aria-hidden="true">·</span>
+      <span class="text-dimmed" aria-hidden="true">·</span>
       <span>{{ phase.toLowerCase() }}</span>
-      <span class="status-sep" aria-hidden="true">·</span>
+      <span class="text-dimmed" aria-hidden="true">·</span>
       <span>{{ liveAgents }} agents</span>
-      <span class="status-sep" aria-hidden="true">·</span>
+      <span class="text-dimmed" aria-hidden="true">·</span>
       <span>{{ elapsed }}</span>
       <template v-if="tokens > 0">
-        <span class="status-sep" aria-hidden="true">·</span>
+        <span class="text-dimmed" aria-hidden="true">·</span>
         <span>{{ tokens }} tokens</span>
       </template>
     </template>
     <template v-else-if="capacity">
-      <span class="status-sep" aria-hidden="true">·</span>
+      <span class="text-dimmed" aria-hidden="true">·</span>
       <span>{{ capacity.visitor }} run(s) pour vous</span>
     </template>
   </p>
 
-  <div v-if="open" id="status-detail" class="status-detail">
+  <div
+    v-if="open"
+    id="status-detail"
+    class="mx-4 mb-3 flex flex-col gap-2 rounded-md border border-default p-3 text-sm text-toned"
+  >
     <p v-if="mode === 'llm'">
       Aucun agent n’est écrit d’avance. Un modèle{{
         source === 'relay' ? ' hébergé par le site, sans clé de votre part' : ''
@@ -73,7 +87,7 @@ defineProps<{
     </p>
     <p v-if="wired.length > 0">Sources branchables : {{ wired.map((s) => s.name).join(', ') }}.</p>
     <p v-if="malformed > 0">{{ malformed }} tour(s) rendus hors forme par le modèle.</p>
-    <p v-if="measurements" class="status-eval">{{ measurements }}</p>
+    <p v-if="measurements" class="text-xs text-muted tabular-nums">{{ measurements }}</p>
     <slot name="model" />
   </div>
 </template>

@@ -7,7 +7,6 @@ import { render } from 'vitest-browser-vue'
 import NodePanel from '../NodePanel.vue'
 import type { NodeView } from '../../state/model'
 import '../../assets/main.css'
-import '../../assets/tokens.css'
 import '../../assets/app.css'
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))

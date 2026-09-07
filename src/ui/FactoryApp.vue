@@ -392,10 +392,10 @@ onBeforeUnmount(() => {
       le reste est une ligne d'état qui se déplie si on la lui demande.
     -->
     <section class="controls">
-      <header class="brand">
-        <span class="brand-square" aria-hidden="true"></span>
-        <span class="brand-name">Memo&nbsp;Labs</span>
-        <span class="brand-lab">usine agentique</span>
+      <header class="flex flex-wrap items-center gap-2.5 px-5 py-4">
+        <span class="size-5 shrink-0 rounded bg-primary" aria-hidden="true"></span>
+        <span class="font-semibold text-highlighted">Memo&nbsp;Labs</span>
+        <span class="text-sm text-dimmed">usine agentique</span>
         <UButton
           variant="link"
           color="neutral"
@@ -409,7 +409,7 @@ onBeforeUnmount(() => {
 
         <!-- La connexion vit dans la ligne de marque, pas dans une zone de plus.
              Anonyme : un lien « se connecter » ; connecté : l'email et « quitter ». -->
-        <span v-if="session.authenticated" class="account">
+        <span v-if="session.authenticated" class="account ml-auto flex items-center gap-1">
           <UButton
             variant="link"
             color="neutral"
@@ -420,14 +420,14 @@ onBeforeUnmount(() => {
           >
             mes runs
           </UButton>
-          <span class="account-email">{{ session.email }}</span>
+          <span class="account-email truncate text-xs text-dimmed">{{ session.email }}</span>
           <UButton variant="link" color="neutral" data-logout @click="signOut">quitter</UButton>
         </span>
         <UButton
           v-else
           variant="link"
           color="neutral"
-          class="account-signin"
+          class="account-signin ml-auto"
           :aria-expanded="signInOpen"
           aria-controls="signin-panel"
           data-signin-toggle
@@ -441,10 +441,10 @@ onBeforeUnmount(() => {
       <form
         v-if="signInOpen && !session.authenticated"
         id="signin-panel"
-        class="signin"
+        class="signin flex flex-col gap-2 border-b border-default px-5 pb-4"
         @submit.prevent="requestSignInLink"
       >
-        <p v-if="signInSent" class="signin-sent" role="status">
+        <p v-if="signInSent" class="text-sm text-muted" role="status">
           Lien envoyé. Ouvrez-le depuis votre email pour vous connecter.
         </p>
         <template v-else>
@@ -453,7 +453,7 @@ onBeforeUnmount(() => {
             id="signin-email"
             v-model="signInEmail"
             type="email"
-            class="signin-field w-full"
+            class="w-full"
             placeholder="vous@equipe.co"
             autocomplete="email"
             data-signin-email
@@ -550,24 +550,28 @@ onBeforeUnmount(() => {
            fait l'atelier, en trois temps. C'est du cadrage statique — pas un
            faux graphe, pas un squelette de progression — et il disparaît dès que
            le run démarre. -->
-      <section v-else-if="!started" class="intro" aria-label="Ce que fait l'atelier">
-        <p class="intro-eyebrow">L'atelier</p>
-        <h2 class="intro-title">Rejoue la trajectoire d'un agent, forke-la, teste le correctif avant la prod.</h2>
-        <ol class="intro-beats">
-          <li class="intro-beat">
-            <span class="intro-beat-num">1</span>
-            <span class="intro-beat-text"><strong>Décris un besoin.</strong> Rien n'existe encore : des agents naissent, se parlent et écrivent l'application en direct.</span>
+      <section
+        v-else-if="!started"
+        class="intro flex max-w-[62ch] flex-col gap-4 p-10"
+        aria-label="Ce que fait l'atelier"
+      >
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-dimmed">L'atelier</p>
+        <h2 class="text-2xl font-semibold tracking-tight text-highlighted text-balance">Rejoue la trajectoire d'un agent, forke-la, teste le correctif avant la prod.</h2>
+        <ol class="flex flex-col gap-3">
+          <li class="grid grid-cols-[1.75rem_1fr] items-start gap-3">
+            <span class="flex size-7 items-center justify-center rounded-full bg-elevated font-mono text-xs text-muted">1</span>
+            <span class="text-toned"><strong>Décris un besoin.</strong> Rien n'existe encore : des agents naissent, se parlent et écrivent l'application en direct.</span>
           </li>
-          <li class="intro-beat">
-            <span class="intro-beat-num">2</span>
-            <span class="intro-beat-text"><strong>Regarde-la se faire.</strong> Le graphe montre qui existe et ce qui se remplace à chaud ; une porte humaine valide ou rejette.</span>
+          <li class="grid grid-cols-[1.75rem_1fr] items-start gap-3">
+            <span class="flex size-7 items-center justify-center rounded-full bg-elevated font-mono text-xs text-muted">2</span>
+            <span class="text-toned"><strong>Regarde-la se faire.</strong> Le graphe montre qui existe et ce qui se remplace à chaud ; une porte humaine valide ou rejette.</span>
           </li>
-          <li class="intro-beat">
-            <span class="intro-beat-num">3</span>
-            <span class="intro-beat-text"><strong>Forke la timeline.</strong> Change l'agent sur la branche et regarde deux futurs diverger côte à côte — pour tester un correctif sur la vraie trajectoire qui a planté.</span>
+          <li class="grid grid-cols-[1.75rem_1fr] items-start gap-3">
+            <span class="flex size-7 items-center justify-center rounded-full bg-elevated font-mono text-xs text-muted">3</span>
+            <span class="text-toned"><strong>Forke la timeline.</strong> Change l'agent sur la branche et regarde deux futurs diverger côte à côte — pour tester un correctif sur la vraie trajectoire qui a planté.</span>
           </li>
         </ol>
-        <p class="intro-honesty">Le retour arrière est intra-runtime : il prévient avant un effet externe, il ne le répare pas après.</p>
+        <p class="text-sm text-muted">Le retour arrière est intra-runtime : il prévient avant un effet externe, il ne le répare pas après.</p>
       </section>
 
       <!-- The panel overlays the graph, never the counters: they stay readable
@@ -577,8 +581,13 @@ onBeforeUnmount(() => {
         <!-- Trace importée : on la rejoue et on la mesure, mais elle ne porte
              aucun comportement recompilable — donc pas de fork, et on le dit
              plutôt que de le laisser deviner (AD-41/AD-49). -->
-        <p v-if="foreignMeasure" class="foreign-banner" role="status">
-          <span class="worksite-tag">Trace importée</span>
+        <p
+          v-if="foreignMeasure"
+          class="flex flex-wrap items-center gap-2 border-b border-default px-5 py-3 text-xs text-muted"
+          data-foreign-banner
+          role="status"
+        >
+          <span class="rounded-full bg-elevated px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted">Trace importée</span>
           {{ foreignMeasure.events }} événements · {{ foreignMeasure.agents }} agents ·
           {{ foreignMeasure.served ? 'a servi une application' : "n'a pas servi d'application" }}
           — rejouable et mesurable, non forkable (agent étranger, non ré-exécutable).
@@ -590,15 +599,16 @@ onBeforeUnmount(() => {
              says what it proved, and unfolds on demand. -->
         <button
           v-if="product"
-          class="graph-summary"
+          class="flex w-full flex-wrap items-center gap-2 border-b border-default px-5 py-3 text-left text-xs text-muted hover:bg-muted"
+          data-graph-summary
           :aria-expanded="graphOpen"
           aria-controls="live-graph"
           @click="graphOpen = !graphOpen"
         >
-          <span class="worksite-tag">Chantier</span>
+          <span class="rounded-full bg-elevated px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted">Chantier</span>
           {{ agentsCreated }} agents · {{ state.replacements }} remplacement(s) à chaud ·
           {{ state.restarts }} redémarrage
-          <span class="graph-summary-more">{{ graphOpen ? 'replier' : 'voir le graphe' }}</span>
+          <span class="ml-auto text-primary">{{ graphOpen ? 'replier' : 'voir le graphe' }}</span>
         </button>
 
         <LiveGraph

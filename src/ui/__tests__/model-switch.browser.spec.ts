@@ -9,7 +9,6 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { render } from 'vitest-browser-vue'
 import ModelSwitch from '../ModelSwitch.vue'
 import '../../assets/main.css'
-import '../../assets/tokens.css'
 import '../../assets/app.css'
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
