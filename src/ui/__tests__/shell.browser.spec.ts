@@ -2,32 +2,18 @@
 // never scrolls, the keyboard, colour never carrying information alone.
 import { describe, expect, it } from 'vitest'
 import { render } from 'vitest-browser-vue'
+import { startRun, wait } from './harness'
 import FactoryApp from '../FactoryApp.vue'
 import { installTelemetry, type Event } from '../../telemetry'
+import '../../assets/main.css'
 import '../../assets/tokens.css'
 import '../../assets/app.css'
 
-const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
 async function mount() {
   const screen = render(FactoryApp)
   await wait(60)
   return screen
-}
-
-// The run is born at the replayed model's pace: the wait follows that pace, it
-// does not guess it.
-const startRun = async () => {
-  // The field starts empty. In demo mode the recorded-run entry writes the one
-  // brief the replay knows and launches it — the way a keyless visitor starts.
-  const brief = document.querySelector<HTMLTextAreaElement>('#brief')
-  if (brief !== null && brief.value.length === 0) {
-    document.querySelector<HTMLButtonElement>('.recorded-run')?.click()
-    await wait(9000)
-    return
-  }
-  document.querySelector<HTMLButtonElement>('.composer .button')?.click()
-  await wait(9000)
 }
 
 /**
@@ -116,7 +102,7 @@ describe('the shell in a browser', () => {
 
     // Rejecting surfaces the released state, which a nominal run never
     // produces: without this click the test would cover two or three states.
-    const buttons = [...document.querySelectorAll<HTMLButtonElement>('.gate-actions .button')]
+    const buttons = [...document.querySelectorAll<HTMLButtonElement>('[data-gate-action]')]
     expect(buttons).toHaveLength(2)
     buttons[0]?.click()
     await wait(600)
@@ -209,7 +195,33 @@ describe('the application, end to end in a browser', () => {
     expect(frame?.contentDocument).toBeNull()
 
     // And the gate is still there, above what it decides the fate of.
-    expect(document.querySelectorAll('.gate-actions .button')).toHaveLength(2)
+    expect(document.querySelectorAll('[data-gate-action]')).toHaveLength(2)
+  })
+
+  it('keeps the two gestures of the gate at equal visual weight', async () => {
+    await mount()
+    await startRun()
+
+    const [reject, approve] = [
+      document.querySelector<HTMLElement>('[data-gate-action="reject"]'),
+      document.querySelector<HTMLElement>('[data-gate-action="approve"]'),
+    ]
+    expect(reject, 'les deux gestes doivent exister').not.toBeNull()
+    expect(approve).not.toBeNull()
+
+    // The product does not nudge toward approval: neither gesture may weigh
+    // more than the other, whatever the theme underneath decides.
+    const weight = (element: HTMLElement) => {
+      const style = getComputedStyle(element)
+      return {
+        background: style.backgroundColor,
+        color: style.color,
+        border: style.borderWidth,
+        font: `${style.fontSize}/${style.fontWeight}`,
+        height: Math.round(element.getBoundingClientRect().height),
+      }
+    }
+    expect(weight(approve!)).toEqual(weight(reject!))
   })
 
   it('says what the hot replacement spared, without overstating it', async () => {
@@ -321,7 +333,7 @@ describe('the replay, announced', () => {
     // path, it would drift from the live one and stop being a proof.
     expect(document.querySelectorAll('.node').length).toBeGreaterThan(3)
     expect(document.querySelector('.live-frame')).not.toBeNull()
-    expect(document.querySelectorAll('.gate-actions .button')).toHaveLength(2)
+    expect(document.querySelectorAll('[data-gate-action]')).toHaveLength(2)
   })
 })
 

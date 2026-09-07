@@ -6,12 +6,17 @@ onglet, et qu'un test ne dépende plus d'une classe de présentation.
 
 ## ADDED Requirements
 
-### Requirement: Overlays are real dialogs
-Every overlay that takes the visitor's attention (human gate, node inspector,
-served application sheet, model connection) SHALL be a dialog: it SHALL expose
-`role="dialog"`, SHALL trap focus while open, SHALL return focus to the control
-that opened it when closed, SHALL close on `Escape`, and SHALL make the content
-behind it inert.
+### Requirement: Dismissible overlays are real dialogs
+An overlay the visitor can dismiss (node inspector, model connection panel) SHALL
+be a dialog: it SHALL expose `role="dialog"`, SHALL trap focus while open, SHALL
+return focus to the control that opened it when closed, SHALL close on `Escape`,
+and SHALL make the content behind it inert. The shell SHALL NOT listen for keys
+on the window to close them.
+
+The human gate and the served application stay sheets in the scene, not dialogs:
+the gate demands a decision rather than offering a dismissal, and the application
+is what the visitor came to use. Both SHALL still take the focus when they
+appear, and the gate SHALL keep its two gestures at strictly equal visual weight.
 
 #### Scenario: Escape closes the open overlay
 - **WHEN** an overlay is open

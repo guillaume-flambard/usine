@@ -7,7 +7,10 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [vue(), ui(), vueDevTools()],
+  // Devtools is a dev-time tool and it is not inert under test: unmounting a
+  // component makes its hook read an app instance that is gone, which surfaces
+  // as an unhandled rejection and fails a run whose assertions all passed.
+  plugins: [vue(), ui(), ...(process.env.VITEST === undefined ? [vueDevTools()] : [])],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

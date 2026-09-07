@@ -11,6 +11,7 @@
 // fouillant dans les iframes.
 import { describe, expect, it, afterEach } from 'vitest'
 import { render } from 'vitest-browser-vue'
+import { startRun, wait } from './harness'
 import FactoryApp from '../FactoryApp.vue'
 import { createPilot } from '../../orchestration/pilot'
 import { liveBehaviours } from '../../orchestration/factory'
@@ -21,29 +22,15 @@ import type { Behaviour } from '../../app/behaviour'
 import type { RunArchive } from '../../app/replay'
 import type { RunEvent } from '../../runtime/events'
 import type { ComponentId } from '../../runtime/contract'
+import '../../assets/main.css'
 import '../../assets/tokens.css'
 import '../../assets/app.css'
 
-const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
 async function mount() {
   const screen = render(FactoryApp)
   await wait(60)
   return screen
-}
-
-// Le run naît au rythme du modèle rejoué : on attend ce rythme, on ne le devine
-// pas. Repris tel quel de la suite du shell.
-const startRun = async () => {
-  const brief = document.querySelector<HTMLTextAreaElement>('#brief')
-  if (brief !== null && brief.value.length === 0) {
-    // Demo mode: the recorded-run entry writes the known brief and launches.
-    document.querySelector<HTMLButtonElement>('.recorded-run')?.click()
-    await wait(9000)
-    return
-  }
-  document.querySelector<HTMLButtonElement>('.composer .button')?.click()
-  await wait(9000)
 }
 
 /** Entre en fork depuis un run qui sert, et attend les deux panneaux. */

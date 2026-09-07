@@ -39,6 +39,11 @@ export default mergeConfig(
           test: {
             name: 'browser',
             include: ['src/**/*.browser.spec.ts'],
+            // One file at a time. These suites drive real iframes, real
+            // workers and a replayed run whose pace is measured, not mocked:
+            // run in parallel they starve each other and fail on budgets
+            // instead of on behaviour. Serial is slower and it is honest.
+            fileParallelism: false,
             browser: {
               enabled: true,
               provider: playwright(),

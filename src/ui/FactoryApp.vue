@@ -531,12 +531,7 @@ async function playRecordedRun() {
   await restart()
 }
 
-function onEscape(event: KeyboardEvent) {
-  if (event.key === 'Escape') selected.value = undefined
-}
-
 onMounted(() => {
-  window.addEventListener('keydown', onEscape)
   // Qui l'on est, une fois. Silencieux : un service absent laisse anonyme.
   void sessionStatus().then((status) => (session.value = status))
   // Le rapport d'éval, une fois : il porte sur l'ensemble des runs conservés,
@@ -595,7 +590,6 @@ watch(
 )
 
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', onEscape)
   stopClock()
   void pilot.stop()
 })

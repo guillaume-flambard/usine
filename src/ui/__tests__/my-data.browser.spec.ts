@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { render } from 'vitest-browser-vue'
 import FactoryApp from '../FactoryApp.vue'
+import '../../assets/main.css'
 import '../../assets/tokens.css'
 import '../../assets/app.css'
 

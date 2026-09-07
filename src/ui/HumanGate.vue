@@ -1,7 +1,11 @@
 <script setup lang="ts">
 // Two buttons of equal visual weight. The product does not nudge toward
 // approval: a steered decision is worth nothing and turns the gate into
-// decoration — exactly what we refuse.
+// decoration — exactly what we refuse. Equal weight is enforced by giving both
+// the same variant, colour and size, and by a test that compares them.
+//
+// The gate stays a sheet in the scene rather than a dialog: it demands a
+// decision, it does not offer a dismissal.
 import { nextTick, ref, watch } from 'vue'
 import type { GateView } from '../state/model'
 
@@ -16,7 +20,7 @@ const props = defineProps<{
 }>()
 defineEmits<{ approve: []; reject: [] }>()
 
-const firstButton = ref<HTMLButtonElement | undefined>()
+const firstButton = ref<{ $el?: HTMLElement } | HTMLElement | undefined>()
 
 // Focus comes to the gate: otherwise you would have to tab through a dozen
 // graph nodes to reach the decision, and pressing Enter out of habit would
@@ -25,7 +29,12 @@ watch(
   () => props.gate.id,
   async () => {
     await nextTick()
-    firstButton.value?.focus()
+    const held = firstButton.value
+    const element = held instanceof HTMLElement ? held : held?.$el
+    // The library renders a component here, so the button is inside it; a plain
+    // element would be the button itself.
+    const button = element?.querySelector?.('button') ?? element
+    button?.focus?.()
   },
   { immediate: true },
 )
@@ -34,6 +43,7 @@ watch(
 <template>
   <section
     class="gate"
+    data-gate
     :aria-label="gate.decision === undefined ? 'Décision requise' : 'Décision prise'"
   >
     <div class="gate-body">
@@ -52,21 +62,29 @@ watch(
       </p>
     </div>
     <div v-if="gate.decision === undefined" class="gate-actions">
-      <button
+      <UButton
         ref="firstButton"
-        class="button button-ghost"
+        block
+        variant="outline"
+        color="neutral"
+        size="lg"
+        data-gate-action="reject"
         aria-describedby="gate-summary gate-objection gate-cost"
         @click="$emit('reject')"
       >
         Écarter
-      </button>
-      <button
-        class="button button-ghost"
+      </UButton>
+      <UButton
+        block
+        variant="outline"
+        color="neutral"
+        size="lg"
+        data-gate-action="approve"
         aria-describedby="gate-summary gate-objection gate-cost"
         @click="$emit('approve')"
       >
         {{ serving ? 'Emporter' : 'Approuver' }}
-      </button>
+      </UButton>
     </div>
     <p v-else class="gate-verdict">
       {{ gate.decision === 'approved' ? 'Emportée' : 'Écartée' }}

@@ -3,11 +3,12 @@
 // promesses se vérifient dans un vrai navigateur.
 import { afterEach, describe, expect, it } from 'vitest'
 import { render } from 'vitest-browser-vue'
+import { startRun, wait } from './harness'
 import FactoryApp from '../FactoryApp.vue'
+import '../../assets/main.css'
 import '../../assets/tokens.css'
 import '../../assets/app.css'
 
-const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
 const realFetch = globalThis.fetch
 
@@ -57,8 +58,7 @@ describe('gating persistence on sign-in', () => {
     await wait(80)
     // Start the demo the way a keyless visitor does: the recorded-run entry
     // writes the known brief and launches.
-    document.querySelector<HTMLButtonElement>('.recorded-run')?.click()
-    await wait(9000)
+    await startRun()
 
     // The demo ran signed-out: the share action is present.
     const share = byText('.live-actions .picker', 'Lien de rejeu')
