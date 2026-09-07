@@ -19,6 +19,10 @@ const props = defineProps<{
 
 const threadEl = ref<HTMLElement | null>(null)
 
+/** Un agent qui parle deux fois de suite ne se renomme pas. */
+const speakerChanges = (index: number) =>
+  index === 0 || props.log[index - 1]?.author !== props.log[index]?.author
+
 watch(
   () => props.lastSequence,
   async () => {
@@ -32,16 +36,23 @@ watch(
 <template>
   <div
     ref="threadEl"
-    class="thread flex flex-col gap-4 px-5 pt-1 pb-4 text-toned"
+    class="thread flex flex-col gap-5 px-5 pb-5 pt-2 text-sm leading-relaxed text-toned"
     aria-live="polite"
     data-thread
   >
-    <p v-if="log.length === 0" class="text-muted">
+    <p v-if="log.length === 0" class="max-w-[46ch] text-muted">
       Écrivez un besoin. Rien n’existe encore : les agents, leurs outils et l’application naîtront
       de ce que vous taperez — puis se referont autour de ce que vous en ferez.
     </p>
-    <p v-for="message in log" :key="message.sequence">
-      <span class="block text-[11px] font-semibold uppercase tracking-wider text-dimmed mb-1">
+    <p
+      v-for="(message, index) in log"
+      :key="message.sequence"
+      :class="speakerChanges(index) ? '' : '-mt-3'"
+    >
+      <span
+        v-if="speakerChanges(index)"
+        class="mb-1 block text-[11px] uppercase tracking-wide text-dimmed"
+      >
         {{ message.author }}
       </span>
       {{ message.message }}

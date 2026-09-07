@@ -363,19 +363,48 @@ describe('la zone du run tient sa géométrie', () => {
     )
   })
 
-  it('pose l’application au bas de la zone, jamais à côté du graphe', async () => {
+  it('pose l’application au bas de la zone quand le graphe est visible, jamais à côté', async () => {
     await mount()
     await startRun()
+
+    // Le graphe se replie de lui-même dès qu'une application sert : on le
+    // rouvre, parce que c'est là que la contrainte de géométrie compte.
+    const summary = document.querySelector<HTMLButtonElement>('[data-graph-summary]')
+    if (summary?.getAttribute('aria-expanded') === 'false') {
+      summary.click()
+      await wait(200)
+    }
 
     const canvas = document.querySelector<HTMLElement>('.canvas')
     const app = document.querySelector<HTMLElement>('.live-app')
     expect(app).not.toBeNull()
     if (canvas === null || app === null) return
 
+    // En simple élément de flux, elle se plaçait à côté du graphe et lui
+    // prenait la moitié de la largeur, ce qui écrasait le tracé contre le bord.
     expect(getComputedStyle(app).position).toBe('absolute')
     // Elle recouvre le bas : le graphe garde toute sa largeur au-dessus.
     expect(app.getBoundingClientRect().width).toBeGreaterThan(
       canvas.getBoundingClientRect().width * 0.9,
+    )
+  })
+
+  it('donne la scène à l’application quand le graphe est replié', async () => {
+    await mount()
+    await startRun()
+
+    // Repliée, la scène n'a plus rien qui prenne sa hauteur : sans ça elle
+    // laissait un grand vide au-dessus d'une application tassée en bas.
+    const summary = document.querySelector<HTMLButtonElement>('[data-graph-summary]')
+    expect(summary?.getAttribute('aria-expanded'), 'le graphe doit être replié').toBe('false')
+
+    const zone = document.querySelector<HTMLElement>('.zone')
+    const app = document.querySelector<HTMLElement>('.live-app')
+    if (zone === null || app === null) return
+
+    expect(getComputedStyle(app).position).toBe('static')
+    expect(app.getBoundingClientRect().height).toBeGreaterThan(
+      zone.getBoundingClientRect().height * 0.5,
     )
   })
 })

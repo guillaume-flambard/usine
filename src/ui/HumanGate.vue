@@ -42,24 +42,24 @@ watch(
 
 <template>
   <section
-    class="gate flex flex-wrap items-start gap-6 p-5"
+    class="gate flex flex-wrap items-start gap-x-8 gap-y-4 p-6"
     data-gate
     :aria-label="gate.decision === undefined ? 'Décision requise' : 'Décision prise'"
   >
     <div class="min-w-0 flex-1">
-      <p class="text-[11px] font-semibold uppercase tracking-wider text-dimmed">
+      <p class="text-[11px] uppercase tracking-wide text-primary">
         {{ gate.decision === undefined ? 'Décision requise' : 'Décision prise' }}
       </p>
-      <p id="gate-summary" class="mt-2 max-w-[72ch] text-toned">{{ gate.subject.summary }}</p>
+      <p id="gate-summary" class="mt-1.5 max-w-[68ch] text-base text-highlighted">{{ gate.subject.summary }}</p>
       <p
         id="gate-objection"
-        class="mt-2 max-w-[72ch] border-l-2 border-default pl-3 text-sm text-muted"
+        class="mt-3 max-w-[68ch] border-l-2 border-accented pl-3 text-sm text-muted"
       >
         <b>Sceptique —</b> {{ gate.subject.objection }}
       </p>
       <!-- What each gesture costs, before the click and not after. Rejecting
            now destroys something the visitor has under their hands. -->
-      <p v-if="serving" id="gate-cost" class="mt-2 text-sm text-muted">
+      <p v-if="serving" id="gate-cost" class="mt-3 max-w-[68ch] text-sm text-toned">
         L’application vous sert déjà. <b>Emporter</b> la valide et vous la laisse.
         <b>Écarter</b> la retire : les composants sont relâchés et vous perdez ce qui tourne.
       </p>

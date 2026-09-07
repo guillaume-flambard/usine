@@ -28,6 +28,7 @@ body,
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--ui-border);
+  background: var(--ui-bg-muted);
   min-height: 0;
 }
 

@@ -27,6 +27,12 @@ const props = defineProps<{
   shareLink?: string
   /** Y a-t-il de quoi forker ce run — le voir diverger en deux futurs ? */
   forkable?: boolean
+  /**
+   * Le graphe est replié : plus rien ne prend la scène, alors l'application la
+   * prend. Elle est le protagoniste ; le graphe est la preuve. Quand le graphe
+   * est déplié, elle redevient la feuille du bas qui le recouvre.
+   */
+  docked?: boolean
 }>()
 
 const emit = defineEmits<{ interaction: [Interaction]; share: []; takeAway: []; fork: [] }>()
@@ -74,8 +80,8 @@ onBeforeUnmount(() => host?.dispose())
 </script>
 
 <template>
-  <section class="live-app flex flex-col gap-2 p-5">
-    <p class="text-[11px] font-semibold uppercase tracking-wider text-dimmed">Application — vivante, elle se refait pendant que vous vous en servez</p>
+  <section class="live-app flex min-h-0 flex-col gap-3 p-5" :class="docked ? 'is-docked' : ''">
+    <p class="text-[11px] uppercase tracking-wide text-dimmed">Application</p>
 
     <!--
       `allow-scripts` and nothing else. Without `allow-same-origin` the frame
@@ -167,5 +173,13 @@ onBeforeUnmount(() => host?.dispose())
   z-index: 3;
   background: var(--ui-bg);
   border-top: 1px solid var(--ui-border);
+}
+
+/* Graphe replié : elle prend la scène au lieu de la laisser vide. */
+.live-app.is-docked {
+  position: static;
+  max-height: none;
+  flex: 1 1 auto;
+  border-top: 0;
 }
 </style>
