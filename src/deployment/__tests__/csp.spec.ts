@@ -135,4 +135,16 @@ describe("the isolated frame's own policy", () => {
     // scheme is the right one.
     expect(nginx).toMatch(/default \$scheme;/)
   })
+
+  it('lets the opaque origin read the bridge it is told to load', () => {
+    // Naming the host is not enough. The bridge is an ES module, and a module
+    // is always fetched in CORS mode — the bundler's `crossorigin` attribute
+    // changes nothing. From an opaque origin the request carries `Origin:
+    // null`, so without this header the browser refuses the response before
+    // executing it: the bridge never announces itself and no screen mounts.
+    // Measured in production on 2026-09-07.
+    const assets =
+      nginx.match(/location \/assets\/ \{([\s\S]*?)\n  \}/)?.[1] ?? ''
+    expect(assets).toMatch(/add_header Access-Control-Allow-Origin "\*" always;/)
+  })
 })
