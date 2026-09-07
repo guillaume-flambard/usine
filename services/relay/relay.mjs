@@ -282,6 +282,10 @@ export function createHandler({
           error: `réponse coupée à ${limits.maxOutput} tokens sans texte utile`,
         })
       }
+      // Un texte coupé au budget de sortie n'est pas une réponse : il finit au
+      // milieu d'une phrase, et l'appelant ne peut pas le voir depuis le texte
+      // seul. Le fait voyage avec la réponse, il ne se devine pas.
+      const truncated = choice?.finish_reason === 'length'
       return json(response, 200, {
         text,
         model: result?.model ?? model,
@@ -290,6 +294,7 @@ export function createHandler({
           output: Number(usage.completion_tokens ?? 0),
         },
         ...(calls.length > 0 ? { calls } : {}),
+        ...(truncated ? { truncated: true } : {}),
       })
     } catch (cause) {
       return json(response, 502, {

@@ -11,6 +11,7 @@
 // branche un modèle.
 import type { ReasoningOrigin } from '../runtime/reasoner'
 import type { ModelSource } from './ModelSwitch.vue'
+import { count } from '../app/plural'
 
 defineProps<{
   mode: ReasoningOrigin
@@ -54,17 +55,17 @@ defineProps<{
       <span class="text-dimmed" aria-hidden="true">·</span>
       <span>{{ phase.toLowerCase() }}</span>
       <span class="text-dimmed" aria-hidden="true">·</span>
-      <span>{{ liveAgents }} agents</span>
+      <span>{{ count(liveAgents, 'agent', 'agents') }}</span>
       <span class="text-dimmed" aria-hidden="true">·</span>
       <span>{{ elapsed }}</span>
       <template v-if="tokens > 0">
         <span class="text-dimmed" aria-hidden="true">·</span>
-        <span>{{ tokens }} tokens</span>
+        <span>{{ count(tokens, 'token', 'tokens') }}</span>
       </template>
     </template>
     <template v-else-if="capacity">
       <span class="text-dimmed" aria-hidden="true">·</span>
-      <span>{{ capacity.visitor }} run(s) pour vous</span>
+      <span>{{ count(capacity.visitor, 'run pour vous', 'runs pour vous') }}</span>
     </template>
   </p>
 
@@ -86,7 +87,9 @@ defineProps<{
       code est évalué dans un fil isolé, remplacé à chaud, et exécuté sur ce que vous taperez.
     </p>
     <p v-if="wired.length > 0">Sources branchables : {{ wired.map((s) => s.name).join(', ') }}.</p>
-    <p v-if="malformed > 0">{{ malformed }} tour(s) rendus hors forme par le modèle.</p>
+    <p v-if="malformed > 0">
+      {{ count(malformed, 'tour rendu', 'tours rendus') }} hors forme par le modèle.
+    </p>
     <p v-if="measurements" class="text-xs text-muted tabular-nums">{{ measurements }}</p>
     <slot name="model" />
   </div>

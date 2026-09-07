@@ -287,6 +287,37 @@ describe('the relay and the tool vocabulary', () => {
       expect((await response.json()).calls).toHaveLength(1)
     })
   })
+
+  it('says when the provider cut the output at its budget', async () => {
+    const call = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            choices: [{ finish_reason: 'length', message: { content: 'une phrase qui ne' } }],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+    )
+
+    await onServer({ key: KEY, call }, async (base) => {
+      const body = await (
+        await askFor(base, { role: 'agent', instruction: 'Agis.', context: 'x' })
+      ).json()
+      // Le texte seul ne dit pas qu'il est coupé : sans ce champ, l'appelant
+      // publierait une phrase inachevée sans pouvoir le savoir.
+      expect(body.truncated).toBe(true)
+    })
+  })
+
+  it('says nothing about truncation when the model finished', async () => {
+    const call = vi.fn(async () => modelResponse('fait'))
+    await onServer({ key: KEY, call }, async (base) => {
+      const body = await (
+        await askFor(base, { role: 'agent', instruction: 'Agis.', context: 'x' })
+      ).json()
+      expect(body.truncated).toBeUndefined()
+    })
+  })
 })
 
 describe('the rate limiter', () => {

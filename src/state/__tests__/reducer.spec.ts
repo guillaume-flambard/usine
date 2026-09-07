@@ -38,6 +38,22 @@ describe('reducer', () => {
     expect(state.view.liveAgents).toBe(1)
   })
 
+  it('does not count what an agent wrote as an agent', () => {
+    // Un composant portant un `build` est un comportement écrit par un modèle.
+    // Le compter gonfle le seul chiffre qu'on demande au visiteur de croire :
+    // l'écran disait « 3 agents » là où un seul avait été créé.
+    const state = replay([
+      created('poseur-ecran'),
+      ev({
+        type: 'component-built',
+        id: id('poseur-ecran'),
+        parent: id('master-agent'),
+        build: { specification: 'pose l’écran', source: 'x', route: 'composition' },
+      }),
+    ])
+    expect(state.view.liveAgents).toBe(0)
+  })
+
   it('creates a waiting node when it needs something', () => {
     const state = replay([created('checker', ['registry'])])
     expect(node(state, 'checker')?.state).toBe('waiting-for-dependency')

@@ -6,6 +6,7 @@
 // gate on what actually exists. Not on what was planned: nothing was planned.
 
 import { CORPUS } from '../corpus'
+import { agree, count } from '../app/plural'
 import type { Component } from '../runtime/contract'
 import { deterministicReasoner, type Reasoner } from '../runtime/reasoner'
 import { BUDGET, createWorksite, runLoop, think, type Budget, type Worksite } from './free-agent'
@@ -134,7 +135,7 @@ async function seed(
     title: 'Ce que le run a produit',
     body: [
       `Besoin : ${worksite.brief}`,
-      `${summary.agents} agents ont existé.`,
+      `${count(summary.agents, 'agent a existé', 'agents ont existé')}.`,
       summary.tools.length > 0
         ? `Outils écrits pendant le run : ${summary.tools.join(', ')}.`
         : "Aucun outil exécutable n'a été écrit.",
@@ -151,12 +152,12 @@ async function seed(
     {
       summary: [
         summary.agents > 0
-          ? `${summary.agents} agents ont été créés pendant ce run ; aucun n'existait avant votre brief.`
+          ? `${count(summary.agents, 'agent a été créé', 'agents ont été créés')} pendant ce run ; aucun n'existait avant votre brief.`
           : worksite.reasoner.origin === 'deterministic'
             ? "Aucun agent n'a été créé : sans modèle branché, l'usine ne peut rien inventer."
             : "Aucun agent n'a été créé : le modèle n'en a proposé aucun. Le journal dit ce qu'il a répondu.",
         summary.tools.length > 0
-          ? `${summary.tools.length} outil(s) ont été écrits et chargés à chaud : ${summary.tools.join(', ')}.`
+          ? `${count(summary.tools.length, 'outil a été écrit', 'outils ont été écrits')} et chargé${agree(summary.tools.length, '', 's')} à chaud : ${summary.tools.join(', ')}.`
           : "Aucun outil exécutable n'est sorti du run.",
         'Approuver livre ce qui existe ; écarter défait le chantier.',
       ].join(' '),
@@ -182,7 +183,7 @@ async function lastObjection(
   const fallback =
     summary.tools.length === 0
       ? "Rien d'exécutable n'est sorti de ce run : il n'y a pas de produit à livrer."
-      : `Le run a produit ${summary.tools.length} outil(s) sur ${summary.agents} agents ; rien ne prouve qu'ils couvrent le besoin exprimé.`
+      : `Le run a produit ${count(summary.tools.length, 'outil', 'outils')} sur ${count(summary.agents, 'agent', 'agents')} ; rien ne prouve qu'ils couvrent le besoin exprimé.`
 
   const turn = await think(
     context,
@@ -195,6 +196,10 @@ async function lastObjection(
       `Noms publiés : ${summary.publications.join(', ') || 'aucun'}`,
     ].join('\n'),
   )
+  // Une objection coupée au budget finit au milieu d'une phrase. La montrer
+  // telle quelle publierait une phrase inachevée sous le titre « sceptique » :
+  // mieux vaut la phrase écrite à la main, qui est vraie et se termine.
+  if (turn?.truncated === true) return fallback
   const said = turn?.actions.find((action) => action.type === 'say')
   return said?.type === 'say' && said.message.length > 0 ? said.message : fallback
 }

@@ -33,6 +33,22 @@ describe('the reasoner that goes through the relay', () => {
     expect(result.failure).toBeUndefined()
   })
 
+  it('carries the cut the relay reported, instead of hiding it in the text', async () => {
+    const call = vi.fn(async () => response({ text: 'une phrase qui ne', truncated: true }))
+    const result = await relayReasoner({ fetchOverride: call }).reason(REQUEST)
+
+    // Le texte seul ne dit pas qu'il s'arrête au milieu : sans ce champ,
+    // l'appelant publierait une phrase inachevée.
+    expect(result.truncated).toBe(true)
+  })
+
+  it('says nothing about a cut when the model finished', async () => {
+    const call = vi.fn(async () => response({ text: 'une phrase entière.' }))
+    const result = await relayReasoner({ fetchOverride: call }).reason(REQUEST)
+
+    expect(result.truncated).toBeUndefined()
+  })
+
   it('sends neither a key nor the fallback to the server', async () => {
     const call = vi.fn(async (_url: RequestInfo | URL, _options?: RequestInit) =>
       response({ text: 'ok' }),

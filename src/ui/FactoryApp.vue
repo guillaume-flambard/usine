@@ -21,6 +21,7 @@ import { fetchRun, linkFor, requestedRun, storeRun } from '../app/archive-client
 import { fetchEvaluation, formatEvaluation, type Evaluation } from '../app/eval-client'
 import type { Interaction } from '../app/session'
 import { takeawayHtml, takeawayOf } from '../app/takeaway'
+import { count } from '../app/plural'
 import { gateReached, productServed, runStarted, checkSubmitted } from '../telemetry'
 import { useFork } from './composables/useFork'
 import { useTraceImport } from './composables/useTraceImport'
@@ -233,8 +234,13 @@ const malformed = computed(() => {
   return pilot.malformedTurns()
 })
 
-const agentsCreated = computed(
-  () => state.value.nodes.filter((node) => node.name !== 'master-agent').length,
+
+const replacementsSaid = computed(() =>
+  count(state.value.replacements, 'remplacement à chaud', 'remplacements à chaud'),
+)
+
+const restartsSaid = computed(() =>
+  count(state.value.restarts, 'redémarrage', 'redémarrages'),
 )
 
 const selectedNode = computed<NodeView | undefined>(
@@ -612,8 +618,7 @@ onBeforeUnmount(() => {
         >
           <span class="text-xs uppercase tracking-wide text-muted">Chantier</span>
           <span class="text-dimmed" aria-hidden="true">·</span>
-          {{ agentsCreated }} agents · {{ state.replacements }} remplacement(s) à chaud ·
-          {{ state.restarts }} redémarrage
+          {{ replacementsSaid }} · {{ restartsSaid }}
           <span class="ml-auto text-primary">{{ graphOpen ? 'replier' : 'voir le graphe' }}</span>
         </button>
 

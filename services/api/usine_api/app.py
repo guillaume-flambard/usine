@@ -390,6 +390,7 @@ def create_app(
                 "calls": [
                     {"name": call.name, "arguments": call.arguments} for call in answer.calls
                 ],
+                **({"truncated": True} if answer.truncated else {}),
             }
         )
 

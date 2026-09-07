@@ -290,14 +290,18 @@ export async function think(
     return undefined
   }
 
+  // Le tour porte la coupure : ce que le fournisseur a rendu s'arrête au
+  // milieu d'une phrase, et seul l'appelant sait si ça se publie.
+  const cut = reasoning.truncated === true ? { truncated: true as const } : {}
+
   // La voie fiable d'abord : des appels d'outils n'ont pas besoin d'être
   // découpés dans du texte.
   if (reasoning.calls !== undefined && reasoning.calls.length > 0) {
-    return readCalls(reasoning.text, reasoning.calls)
+    return { ...readCalls(reasoning.text, reasoning.calls), ...cut }
   }
 
   try {
-    return readTurn(reasoning.text)
+    return { ...readTurn(reasoning.text), ...cut }
   } catch (cause) {
     // Compté, pas seulement dit. Un taux de non-conformité est une mesure de
     // la qualité du fournisseur et du prompt ; le laisser invisible revient à

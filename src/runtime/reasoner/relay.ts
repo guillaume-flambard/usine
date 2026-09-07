@@ -16,6 +16,7 @@ export interface RelayOptions {
 interface RelayResponse {
   text?: string
   calls?: { name?: unknown; arguments?: unknown }[]
+  truncated?: unknown
   model?: string
   tokens?: { input: number; output: number }
   error?: string
@@ -68,6 +69,7 @@ export function relayReasoner(options: RelayOptions = {}): Reasoner {
           origin: 'llm',
           ...(calls.length > 0 ? { calls } : {}),
           ...(body.tokens !== undefined ? { tokens: body.tokens } : {}),
+          ...(body.truncated === true ? { truncated: true as const } : {}),
         }
       } catch (cause) {
         return {
