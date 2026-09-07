@@ -83,8 +83,27 @@ manuelle des jetons.
 - **`vue-tsc --build`** avec références de projet, TypeScript ~6.0 et les types
   génériques de la bibliothèque : le `type-check` va ralentir et probablement
   remonter des erreurs au premier passage. Le lancer tôt.
-- **Poids de bundle.** L'application ne pesait que Vue et dagre. À mesurer après
-  `pnpm build` et à assumer explicitement.
+- **Poids de bundle — mesuré le 2026-09-07, et assumé.** Comparaison entre
+  `803139c` (avant la bibliothèque) et `main` après refonte, gzip :
+
+  | | avant | après | écart |
+  |---|---|---|---|
+  | `main.js` | 83,7 ko | 202,1 ko | +118,4 |
+  | `main.css` | 4,3 ko | 25,7 ko | +21,4 |
+  | **premier écran** | **88,0 ko** | **227,8 ko** | **+139,8 (×2,6)** |
+
+  Ce qui n'a pas bougé, et qui compte : `sdk.js` (155 ko) reste un morceau
+  chargé à la demande, seulement quand un visiteur branche sa propre clé ; et
+  le pont du cadre sablé reste à 2,6 ko, donc le chemin le plus contraint du
+  produit — celui qui vit sous `default-src 'none'` — n'a pas grossi d'un
+  octet.
+
+  Le prix est réel : le premier écran pèse deux fois et demie plus lourd. Il
+  achète les dialogues accessibles, les onglets conformes et un système de
+  variantes, contre 1205 lignes de CSS maison dont quatorze sélecteurs
+  déclarés deux fois. C'est un échange assumé, pas un oubli. Si le poids
+  devenait un sujet, le gisement est le CSS de la bibliothèque : 198,9 ko
+  bruts pour 25,7 gzip, soit l'essentiel du delta brut.
 - **La direction visuelle est la partie qui peut rater**, pas l'installation.
 
 ## Ce que cette change révise

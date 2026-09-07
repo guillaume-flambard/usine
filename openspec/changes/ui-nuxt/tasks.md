@@ -26,7 +26,7 @@
 
 - [ ] 4.1 Migrer les sélecteurs des huit suites de `src/ui/__tests__/` vers des attributs `data-*` stables, en anglais. Verify: aucune suite ne sélectionne sur une classe de présentation.
 - [ ] 4.2 Conserver intactes les assertions qui portent une affirmation produit : non-défilement du document, état vide honnête de `LiveApplication`, poids égal des deux gestes de la porte, absence de chips d'exemple. Verify: ces tests existent toujours et passent.
-- [ ] 4.3 Mesurer le poids du bundle avant et après. Verify: chiffres notés dans `design.md`, et assumés explicitement.
+- [x] 4.3 Mesurer le poids du bundle avant et après. Verify: chiffres notés dans `design.md`, et assumés explicitement.
 
 ## 5. Documents
 
