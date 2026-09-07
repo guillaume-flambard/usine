@@ -40,6 +40,12 @@ __screenshots__/
 # Vite
 *.timestamp-*-*.mjs
 
+# Generees par le plugin Vite de Nuxt UI a chaque dev/build. Elles portent le
+# chemin pnpm avec son hash de contenu, donc elles changent a chaque lockfile et
+# ne veulent rien dire d'une machine a l'autre.
+auto-imports.d.ts
+components.d.ts
+
 # Secrets: never committed. The relay key lives here for local runs only.
 .env
 .env.*

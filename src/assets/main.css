@@ -1,0 +1,8 @@
+/* Nuxt UI's own layers. Deliberately unthemed for now: the product's look is
+   being reopened, and the library's defaults are the reset we adjust from.
+   The sandboxed frame is a separate document under its own policy: it must not
+   be scanned into this stylesheet. */
+@import 'tailwindcss';
+@import '@nuxt/ui';
+
+@source not '../../sandbox.html';
