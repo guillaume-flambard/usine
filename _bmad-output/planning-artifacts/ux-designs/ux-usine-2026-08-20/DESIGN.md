@@ -2,76 +2,49 @@
 name: Memo Labs — L'usine agentique
 status: final
 created: '2026-08-20'
-updated: '2026-08-21'
+updated: '2026-09-07'
 sources:
   - _bmad-output/planning-artifacts/prds/prd-usine-2026-08-20/prd.md
   - _bmad-output/planning-artifacts/architecture/architecture-usine-2026-08-20/ARCHITECTURE-SPINE.md
-  - src/assets/tokens.css
+  - node_modules/@nuxt/ui/dist/runtime/index.css
   - src/assets/app.css
+system: '@nuxt/ui v4, en mode Vue, dans ses défauts'
+tokens: 'portés par la bibliothèque — voir node_modules/@nuxt/ui/dist/runtime/index.css'
 colors:
-  background: '#faf9f7'
-  surface: '#ffffff'
-  on-background: '#16130f'
-  on-surface-variant: '#6b6055'
-  outline: '#e7e2da'
-  outline-strong: '#16130f'
-  grid: 'rgba(22, 19, 15, 0.042)'
-  primary: '#ad4c16'
-  on-primary: '#ffffff'
-  primary-soft: '#e58a4a'
-  state-idle: '#6b6055'
-  state-waiting: '#6b6055'
-  state-running: '#ad4c16'
-  state-done: '#16130f'
-  state-error: '#8c2f10'
-  state-released: '#b9b1a7'
+  # Le produit ne déclare aucune couleur. Ces noms sont ceux des jetons
+  # sémantiques de la bibliothèque, et c'est par eux que le reste du document
+  # désigne une couleur.
+  background: 'var(--ui-bg)'
+  surface: 'var(--ui-bg-elevated)'
+  on-background: 'var(--ui-text)'
+  on-surface-variant: 'var(--ui-text-muted)'
+  outline: 'var(--ui-border)'
+  outline-strong: 'var(--ui-border-accented)'
+  primary: 'var(--ui-primary)'
+  state-idle: 'var(--ui-text-muted)'
+  state-waiting: 'var(--ui-text-muted)'
+  state-running: 'var(--ui-primary)'
+  state-done: 'var(--ui-text-highlighted)'
+  state-error: 'var(--ui-error)'
+  state-released: 'var(--ui-text-dimmed)'
 typography:
-  display:
-    fontFamily: Oswald
-    fontSize: 20px
-    fontWeight: '400'
-    lineHeight: '1.2'
-    letterSpacing: -0.01em
-  body:
-    fontFamily: Oswald
-    fontSize: 14px
-    fontWeight: '300'
-    lineHeight: '1.55'
-  label:
-    fontFamily: Oswald
-    fontSize: 11px
-    fontWeight: '400'
-    lineHeight: '1.2'
-    letterSpacing: 0.14em
-    textTransform: uppercase
-  status:
-    fontFamily: Oswald
-    fontSize: 12px
-    fontWeight: '300'
-    letterSpacing: 0.04em
+  # Aucune police n'est chargée : la pile système, qui est le défaut réel de
+  # la bibliothèque. Public Sans est la police de son site de documentation,
+  # pas du paquet.
+  sans: 'var(--font-sans) — pile système'
+  mono: 'var(--font-mono) — pile système'
 rounded:
-  all: '0px'
-spacing:
-  unit: '4px'
-  gutter: '24px'
-  stack: '14px'
-components:
-  button:
-    padding: '8px 16px'
-    border: '1px solid'
-    radius: '0'
-  field:
-    padding: '8px 10px'
-    border: '1px solid'
-    radius: '0'
-  node:
-    width: '140px'
-    stroke: '1px'
-    radius: '0'
+  all: 'var(--ui-radius), 0.25rem par défaut'
 ---
 
 # L'usine agentique — identité visuelle
 
+> **Révisé le 2026-09-07 :** l'interface est repartie des défauts de Nuxt UI v4,
+> sans thème. Le produit ne déclare plus ni couleur, ni police, ni rayon. Trois
+> interdits de ce document sont levés, chacun avec sa raison — voir le tableau
+> plus bas. Ce qui tient encore relève de l'honnêteté de ce qui est montré, pas
+> de l'apparence.
+>
 > **Révisé le 2026-08-21.** Le produit a changé de nature depuis la première
 > version de ce document : il ne livre plus un outil à la fin d'un run, il
 > **sert une application pendant le run et la réécrit sous les doigts du
@@ -99,38 +72,57 @@ réel, et une interface qui simule de l'activité le contredit à l'écran.
 **Ton** — éditorial, aéré, précis. Phrases courtes. Aucun superlatif. Une
 erreur ne s'excuse pas et ne reste pas vague.
 
-### Un avertissement avant de redessiner
+### L'avertissement, et ce qu'on en a fait
 
-La palette actuelle — crème `#faf9f7`, encre presque noire, accent terracotta
-`#ad4c16`, display condensé, coins carrés — est **littéralement l'un des trois
-looks vers lesquels le design assisté par IA converge aujourd'hui**. Elle n'est
-pas mauvaise ; elle n'est simplement pas un choix, c'est un défaut. Si une
-seule chose mérite d'être dépensée dans cette refonte, c'est celle-là.
+> Ce document disait, le 2026-08-21 : la palette — crème `#faf9f7`, encre
+> presque noire, accent terracotta `#ad4c16`, display condensé, coins carrés —
+> « n'est pas mauvaise ; elle n'est simplement pas un choix, c'est un défaut ».
+> Et : « **Oswald porte tout** — titres, corps, chiffres, libellés. Une famille
+> condensée pour du texte courant à 14 px est un compromis, pas une décision. »
 
-Deuxième faiblesse du même ordre : **Oswald porte tout** — titres, corps,
-chiffres, libellés. Une famille condensée pour du texte courant à 14 px est un
-compromis, pas une décision. Un vrai appariement — une display avec du
-caractère, une famille de lecture confortable, une monospace pour le code et
-les chiffres — changerait la page plus que n'importe quelle couleur.
+**Le 2026-09-07, l'avertissement a été suivi, et jusqu'au bout : tout a été
+retiré.** Le produit ne déclare plus ni couleur, ni police, ni rayon. Il part
+des défauts de la bibliothèque, et la personnalisation se décidera plus tard,
+pour elle-même, sur une base propre.
 
-Ce qui **ne se renégocie pas** : le thème unique et clair, les coins carrés,
-l'absence d'ombre et de dégradé, un seul niveau d'accent.
+C'est délibérément l'inverse d'un compromis. Repeindre par-dessus l'héritage
+aurait produit un troisième défaut : celui qu'on garde parce qu'il était déjà
+là. Repartir de zéro coûte une étape en plus et rend la décision visible.
+
+Ce qui **ne se renégocie pas** ne concerne plus l'apparence, mais l'honnêteté
+de ce qui est montré — voir *Ce qu'une refonte ne peut pas changer*, plus bas.
+Trois anciens interdits sont donc levés, chacun avec sa raison :
+
+| Interdit | État | Pourquoi |
+|---|---|---|
+| Thème clair unique | **levé** | Le mode couleur par défaut de la bibliothèque est actif : l'écran suit la préférence du visiteur. Le cadre sablé, lui, reste clair — il ne partage rien avec la page hôte, et sa feuille est servie avec lui. |
+| Coins carrés | **levé** | `--ui-radius` vaut son défaut, 0,25 rem. Le remettre à zéro sera une ligne, le jour où la personnalisation se décidera. |
+| Absence d'ombre | **levé** | Les composants portent l'élévation légère de la bibliothèque. La feuille du bas continue de se distinguer par sa surface et son filet supérieur, pas par une ombre portée. |
+| Un seul niveau d'accent | **maintenu** | C'est une règle produit, pas une règle de goût : une seule couleur dit « ceci travaille ». Elle survit au changement de bibliothèque. |
 
 ---
 
 ## Colors
 
-| Rôle | Valeur | Emploi |
-|---|---|---|
-| `background` | `#faf9f7` | Le fond de la page, peint explicitement. |
-| `surface` | `#ffffff` | Le cadre de l'application, les panneaux du bas, les champs. |
-| `on-background` | `#16130f` | Le texte, et le trait fort d'un nœud terminé. |
-| `on-surface-variant` | `#6b6055` | Auteurs, libellés, ligne d'état, notes. Tout ce qui situe sans être lu en premier. |
-| `outline` | `#e7e2da` | Le trait par défaut : bordures, séparateurs, nœuds au repos. |
-| `outline-strong` | `#16130f` | Le trait d'un élément qui demande une décision. |
-| `primary` | `#ad4c16` | **Un seul emploi à la fois** : ce qui travaille en ce moment. Un nœud en cours, une arête qui transporte, une erreur. |
-| `primary-soft` | `#e58a4a` | Le halo d'une arête active, rien d'autre. |
-| `grid` | `rgba(22,19,15,0.042)` | La grille de fond du canvas. Doit rester à la limite du perceptible. |
+Le produit ne déclare aucune valeur. Il désigne les couleurs par les jetons
+sémantiques de la bibliothèque, et les composants les prennent par ses classes
+utilitaires — `text-muted`, `text-dimmed`, `text-highlighted`, `bg-elevated`,
+`border-default`.
+
+| Jeton | Emploi |
+|---|---|
+| `--ui-bg` | Le fond de la page et des surfaces. |
+| `--ui-bg-elevated` | Ce qui se pose au-dessus : ligne d'état, blocs de code, pastilles. |
+| `--ui-text` | Le texte courant. |
+| `--ui-text-highlighted` | Ce qui doit se lire en premier, et le trait fort d'un nœud terminé. |
+| `--ui-text-muted`, `--ui-text-dimmed` | Auteurs, libellés, notes. Tout ce qui situe sans être lu en premier. |
+| `--ui-border` | Le trait par défaut : bordures, séparateurs, nœuds au repos. |
+| `--ui-border-accented` | Le trait d'un élément qui demande une décision. |
+| `--ui-primary` | **Un seul emploi à la fois** : ce qui travaille en ce moment. Un nœud en cours, une arête qui transporte. |
+| `--ui-error` | Un nœud en erreur, un incident dans le fil. |
+
+La grille de fond du canvas a disparu avec la palette maison. Si elle revient,
+elle doit rester à la limite du perceptible.
 
 ### Les six états d'un nœud
 
@@ -151,15 +143,21 @@ rend une capture d'écran lisible en noir et blanc.
 
 ## Typography
 
-Une seule famille aujourd'hui : **Oswald**, en 300 pour le corps et 400 pour
-ce qui étiquette. C'est le point faible nommé plus haut.
+**Aucune police n'est chargée.** La pile système, qui est le défaut réel de la
+bibliothèque — `Public Sans` est la police de son site de documentation, pas du
+paquet. Conséquence utile : la politique de sécurité n'a plus besoin
+d'autoriser de fournisseur de polices, et rien n'est à auto-héberger.
 
-| Rôle | Taille | Graisse | Emploi |
-|---|---|---|---|
-| `display` | 20 px | 400 | Le nom du produit, un titre de panneau. Rare. |
-| `body` | 14 px | 300 | Les messages du fil, les explications. |
-| `label` | 11 px | 400, +0.14em, capitales | Auteur d'un message, clé d'un compteur, éveil de section. |
-| `status` | 12 px | 300, +0.04em | La ligne d'état, les notes discrètes. |
+Les tailles viennent de l'échelle de la bibliothèque, par ses classes
+utilitaires. Trois rôles subsistent, décrits par leur emploi et non par une
+valeur :
+
+| Rôle | Emploi |
+|---|---|
+| titre | Le nom du produit, un titre de panneau. Rare. |
+| corps | Les messages du fil, les explications. |
+| libellé | Auteur d'un message, clé d'un compteur, éveil de section. Capitales, interlettré. |
+| chiffres | Compteurs, durées, versions, écarts. En chasse fixe et en chiffres tabulaires, pour qu'une colonne s'aligne d'une ligne à l'autre. |
 
 **Règle** : un libellé situe, il ne titre pas. L'auteur d'un message ne doit
 jamais peser plus que ce qu'il a dit.
@@ -351,7 +349,10 @@ Ils seront majoritaires tant que la capacité est ce qu'elle est. Chacun a son
   enregistré d'avance repose sur le fait que le visiteur a tapé.
 - Une étiquette de technologie sur un nœud qui ne l'exécute pas.
 - Un second niveau d'accent. Une seule couleur dit « ceci travaille ».
-- Une ombre, un dégradé, un coin arrondi, un thème sombre.
+- **Une couleur, une police ou un rayon déclarés par le produit.** Tout passe
+  par les jetons de la bibliothèque. *(Remplace, le 2026-09-07, l'ancienne
+  ligne « une ombre, un dégradé, un coin arrondi, un thème sombre » : voir le
+  tableau des interdits levés, plus haut.)*
 
 ---
 
@@ -372,3 +373,8 @@ ignore ne sera pas implémentable.
   taille n'est pas connue d'avance. Il tient dans son cadre par un `viewBox`.
 - **La page ne défile jamais.** Toute maquette plus haute que l'écran est une
   maquette à revoir.
+- **Les jetons existent en trois copies, et l'isolation l'impose.** La page
+  hôte, le cadre sablé, le fichier emporté hors ligne : aucun des deux derniers
+  ne peut consommer une feuille externe. Ils portent leur copie, et un test
+  node échoue quand elles divergent — ce qui est arrivé, sans que rien ne le
+  signale.

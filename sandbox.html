@@ -15,11 +15,12 @@
     <style>
       :root {
         color-scheme: light;
-        --ink: #16130f;
-        --cream: #faf9f7;
-        --muted: #6b6560;
-        --accent: #ad4c16;
-        --line: #e0dbd4;
+        --ink: #334155;
+        --strong: #0f172a;
+        --bg: #ffffff;
+        --muted: #64748b;
+        --accent: #00a63e;
+        --line: #e2e8f0;
       }
       * {
         box-sizing: border-box;
@@ -27,7 +28,7 @@
       body {
         margin: 0;
         padding: 20px;
-        background: var(--cream);
+        background: var(--bg);
         color: var(--ink);
         font:
           15px/1.5 ui-sans-serif,
@@ -66,7 +67,7 @@
         max-width: 560px;
         padding: 8px 10px;
         border: 1px solid var(--line);
-        border-radius: 0;
+        border-radius: 4px;
         background: #fff;
         color: inherit;
         font: inherit;
@@ -78,9 +79,9 @@
       button {
         padding: 8px 16px;
         border: 1px solid var(--ink);
-        border-radius: 0;
+        border-radius: 4px;
         background: var(--ink);
-        color: var(--cream);
+        color: var(--bg);
         font: inherit;
         cursor: pointer;
       }

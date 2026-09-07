@@ -14,7 +14,11 @@ async function messages(path: string, source: string) {
 const RULES = ['no-restricted-imports', 'no-restricted-syntax']
 const blocked = (ids: string[]) => ids.some((id) => RULES.includes(id))
 
-describe('composition engine isolation', () => {
+// Le premier appel paie le chargement de la config ESLint, et ce chargement
+// dépend de ce que la machine fait par ailleurs : sous charge il dépasse les
+// cinq secondes par défaut et le test échoue sur son budget, pas sur la règle
+// qu'il surveille.
+describe('composition engine isolation', { timeout: 30_000 }, () => {
   it('refuses a static cordis import outside the kernel', async () => {
     expect(
       blocked(await messages('src/forbidden.ts', "import { Context } from 'cordis'\nvoid Context\n")),

@@ -3,11 +3,11 @@
 // in a real browser: the file input, the replayed graph, the absent fork gate.
 import { describe, expect, it } from 'vitest'
 import { render } from 'vitest-browser-vue'
+import { startRun, wait } from './harness'
 import FactoryApp from '../FactoryApp.vue'
-import '../../assets/tokens.css'
+import '../../assets/main.css'
 import '../../assets/app.css'
 
-const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
 // A minimal LangGraph export: two nodes, one finishes, one fails. No screen and
 // no behaviour source — exactly what makes it non-forkable.
@@ -43,7 +43,7 @@ describe('importing a foreign trace', () => {
 
   it('measures it and states it is not forkable', async () => {
     await importTraceFile(LANGGRAPH_TRACE)
-    const banner = document.querySelector('.foreign-banner')
+    const banner = document.querySelector('[data-foreign-banner]')
     expect(banner).not.toBeNull()
     expect(banner?.textContent).toMatch(/non forkable/)
     // The measured event count is a real number read off the imported stream.
@@ -64,8 +64,7 @@ describe('importing a foreign trace', () => {
     await wait(60)
     // Start a run the way a keyless visitor does: the recorded-run entry writes
     // the known brief and launches.
-    document.querySelector<HTMLButtonElement>('.recorded-run')?.click()
-    await wait(9000)
+    await startRun()
     expect(document.querySelector('.fork-start')).not.toBeNull()
   })
 })

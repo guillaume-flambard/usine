@@ -17,8 +17,15 @@ async function recordedRun() {
   pilot.connect(scriptedModel())
   await pilot.start(BRIEF)
 
-  const deadline = Date.now() + 14_000
+  // Le run naît au rythme du modèle rejoué, et ce rythme dépend de ce que la
+  // page a eu à charger. Passer outre en silence produit une archive tronquée
+  // et une assertion qui accuse le mauvais coupable, plus loin.
+  const deadline = Date.now() + 30_000
   while (Date.now() < deadline && pilot.store.state.value.gate === undefined) await wait(30)
+  if (pilot.store.state.value.gate === undefined) {
+    await pilot.stop()
+    throw new Error("le run n'a pas atteint sa porte dans le délai")
+  }
 
   const archive = pilot.archive()
   if (archive === undefined) throw new Error("le run n'a rien enregistré")
@@ -36,7 +43,7 @@ describe('un run mis en archive', () => {
     expect(archive.events.length).toBeGreaterThan(10)
     const sequences = archive.events.map((event) => event.sequence)
     expect(sequences).toEqual([...sequences].sort((a, b) => a - b))
-  }, 25_000)
+  }, 45_000)
 
   it('traverse une sérialisation JSON sans rien perdre', async () => {
     const archive = await recordedRun()
@@ -47,7 +54,7 @@ describe('un run mis en archive', () => {
 
     expect(back?.events).toHaveLength(archive.events.length)
     expect(back?.brief).toBe(BRIEF)
-  }, 25_000)
+  }, 45_000)
 
   it('refuse une archive d’une autre version, plutôt que de la deviner', () => {
     expect(readArchive({ version: 99, brief: '', events: [{ type: 'x', sequence: 1 }] })).toBeUndefined()
@@ -72,7 +79,7 @@ describe('un run rejoué', () => {
     // Et sans noyau : rien n'a été composé, tout a été relu.
     expect(viewer.kernel()).toBeUndefined()
     await viewer.stop()
-  }, 25_000)
+  }, 45_000)
 
   it('rend l’écran que l’agent avait posé', async () => {
     const archive = await recordedRun()
@@ -85,7 +92,7 @@ describe('un run rejoué', () => {
     expect(viewer.screen().revision).toBeGreaterThan(0)
     expect(viewer.screen().markup).toContain('data-invoke')
     await viewer.stop()
-  }, 25_000)
+  }, 45_000)
 
   it('sert encore son application, recompilée dans le fil isolé', async () => {
     const archive = await recordedRun()
@@ -105,7 +112,7 @@ describe('un run rejoué', () => {
     // rejoué le remplacement, pas seulement la première version.
     expect(output[0]?.motif).toBe('guérit')
     await viewer.stop()
-  }, 25_000)
+  }, 45_000)
 
   it('ne garde aucun comportement d’un run relâché en route', async () => {
     const archive = await recordedRun()
@@ -120,7 +127,7 @@ describe('un run rejoué', () => {
     // fils isolés vivants pour une application qui n'est plus à l'écran.
     expect(viewer.isReplay()).toBe(false)
     expect(viewer.behaviours()).toHaveLength(0)
-  }, 25_000)
+  }, 45_000)
 })
 
 // Un run où le remplacement n'est pas autonome mais **causé par le visiteur** :
@@ -231,5 +238,5 @@ describe('un run réactif rejoué', () => {
     expect(behaviour?.version).toBe(2)
     expect((await behaviour?.call('x'))?.output).toBe('v2')
     await viewer.stop()
-  }, 30_000)
+  }, 60_000)
 })

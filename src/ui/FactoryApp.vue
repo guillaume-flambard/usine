@@ -2,7 +2,7 @@
 // The shell: two panes, 100vh, the page never scrolls.
 // Everything that makes the run live is in the pilot, outside this component:
 // that is what makes the wiring testable without a browser.
-import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { createPilot } from '../orchestration/pilot'
 import { CONTACT } from '../examples'
 import { demoReasoner, DEMO_BRIEF } from '../examples/demo'
@@ -12,31 +12,21 @@ import NodePanel from './NodePanel.vue'
 import HumanGate from './HumanGate.vue'
 import LiveApplication from './LiveApplication.vue'
 import ForkView from './ForkView.vue'
-import type { Fork } from '../orchestration/pilot'
-import type { RunArchive } from '../app/replay'
-import ModelSwitch, { type ModelSource } from './ModelSwitch.vue'
-import { relayReasoner, relayState, type RelayState } from '../runtime/reasoner/relay'
+import ModelSwitch from './ModelSwitch.vue'
+import MyRuns from './MyRuns.vue'
+import StatusLine from './StatusLine.vue'
+import RunConversation from './RunConversation.vue'
+import RunComposer from './RunComposer.vue'
 import { fetchRun, linkFor, requestedRun, storeRun } from '../app/archive-client'
-import { importTrace, isImportError } from '../app/import'
-import { measureRun } from '../app/measure'
-import { logout, requestLink, sessionStatus, type SessionStatus } from '../app/auth-client'
-import {
-  exportUrl,
-  listRuns,
-  purgeRun,
-  restoreRun,
-  revokeRunById,
-  shareRunById,
-  trashRun,
-  type RunSummary,
-} from '../app/runs-client'
-import { accountExportUrl, eraseAccount } from '../app/account-client'
 import { fetchEvaluation, formatEvaluation, type Evaluation } from '../app/eval-client'
-import { availableSources, serviceFetcher } from '../app/sources'
 import type { Interaction } from '../app/session'
 import { takeawayHtml, takeawayOf } from '../app/takeaway'
-import type { ReasoningOrigin } from '../runtime/reasoner'
 import { gateReached, productServed, runStarted, checkSubmitted } from '../telemetry'
+import { useFork } from './composables/useFork'
+import { useTraceImport } from './composables/useTraceImport'
+import { useModelSource } from './composables/useModelSource'
+import { useAccount } from './composables/useAccount'
+import { useMyRuns } from './composables/useMyRuns'
 
 const pilot = createPilot()
 // With no model, the factory can invent nothing. Rather than a blank screen it
@@ -91,7 +81,6 @@ const measurements = computed(() => formatEvaluation(evaluation.value))
  * only thing to look at — and folds itself the first time the application
  * serves, because from then on the application deserves the room.
  */
-const threadEl = ref<HTMLElement | null>(null)
 const graphOpen = ref(true)
 let graphFoldedOnce = false
 
@@ -148,144 +137,49 @@ async function shareRun() {
     sharing.value = false
   }
 }
-const mode = ref<ReasoningOrigin>(pilot.reasoningMode())
-const source = ref<ModelSource>('none')
-const relayReady = ref(false)
-/** Les sources que le service sert. Vide tant qu'il n'a pas répondu. */
-const wired = ref<readonly { name: string; description: string }[]>([])
-/**
- * What the relay says is left, in runs. Undefined until the probe answers —
- * not zero: "your capacity is spent" and "we have not asked yet" are
- * different facts, and telling the second as the first is a lie.
- */
-const capacity = ref<RelayState['runs'] | undefined>()
+// Trois blocs sortis du shell, chacun avec sa propre raison d'exister : d'où
+// vient le raisonnement, qui est le visiteur, et ce qu'il a gardé. Ils ne se
+// parlent que par la session — un compte qui se ferme vide la liste tout seul.
+const {
+  mode,
+  source,
+  relayReady,
+  wired,
+  capacity,
+  replayReason,
+  connectSiteRelay,
+  connectKey,
+  disconnectModel,
+  probeRelay,
+} = useModelSource(pilot, (message) => (error.value = message))
 
-// L'authentification. Un visiteur anonyme fait tourner la démo et ouvre les
-// liens partagés ; se connecter par lien magique débloque conserver/partager.
-const session = ref<SessionStatus>({ authenticated: false })
-const signInOpen = ref(false)
-const signInEmail = ref('')
-const signInSent = ref(false)
+const {
+  session,
+  signInOpen,
+  signInEmail,
+  signInSent,
+  accountExport,
+  eraseConfirm,
+  requestSignInLink,
+  signOut,
+  eraseAccountForGood,
+  loadSession,
+} = useAccount((message) => (error.value = message))
 
-async function onRequestLink() {
-  const email = signInEmail.value.trim()
-  if (email.length === 0) return
-  const ok = await requestLink(email)
-  signInSent.value = ok
-  error.value = ok ? undefined : "Le lien n'a pas pu être envoyé."
-}
-
-async function onLogout() {
-  await logout()
-  session.value = { authenticated: false }
-  signInSent.value = false
-  runsOpen.value = false
-}
-
-// La vue « mes runs » : sans elle, un visiteur connecté ne verrait aucun de ses
-// runs (la tenancy les rend privés).
-const runsOpen = ref(false)
-const runsTab = ref<'live' | 'trash'>('live')
-const myRuns = ref<RunSummary[]>([])
-const myTrash = ref<RunSummary[]>([])
-const runExportUrl = exportUrl
-
-async function refreshRuns() {
-  ;[myRuns.value, myTrash.value] = await Promise.all([listRuns(false), listRuns(true)])
-}
-
-async function toggleRuns() {
-  runsOpen.value = !runsOpen.value
-  if (runsOpen.value) await refreshRuns()
-}
-
-function openRun(id: string) {
-  // Rejouer ce run, par le chemin de rejeu existant (?run=<id>).
-  window.location.search = `?run=${encodeURIComponent(id)}`
-}
-
-async function onTrashRun(id: string) {
-  if (await trashRun(id)) await refreshRuns()
-}
-async function onRestoreRun(id: string) {
-  if (await restoreRun(id)) await refreshRuns()
-}
-async function onPurgeRun(id: string) {
-  if (await purgeRun(id)) await refreshRuns()
-}
-async function onToggleShare(run: RunSummary) {
-  const done = run.shared ? await revokeRunById(run.id) : await shareRunById(run.id)
-  if (done) await refreshRuns()
-}
-
-// Mes données (RGPD) : exporter tout, ou effacer son compte (irréversible).
-const accountExport = accountExportUrl()
-const eraseConfirm = ref(false)
-
-async function onEraseAccount() {
-  if (await eraseAccount()) {
-    session.value = { authenticated: false }
-    runsOpen.value = false
-    eraseConfirm.value = false
-  }
-}
-
-/**
- * What the visitor is told before clicking. Capacity is not a technical
- * detail here: a run that dies halfway because the day is spent is worse than
- * a replay that says what it is.
- */
-/**
- * Why the page is replaying rather than running live. A replay announced with
- * no reason reads as a limitation of the product; the reason is usually that
- * the day's capacity is spent, which is a different thing entirely.
- */
-const replayReason = computed(() => {
-  if (source.value === 'key' || source.value === 'relay') return 'Le modèle n’a pas répondu.'
-  if (capacity.value === undefined) return 'Aucun modèle n’est branché.'
-  if (capacity.value.visitor <= 0) return 'Votre capacité du jour est atteinte.'
-  if (capacity.value.site <= 0) return 'La capacité du jour du site est atteinte.'
-  return 'Aucun modèle n’est branché.'
-})
-
-
-/**
- * The site's model. The key is not here: it lives on the relay, and the
- * browser only ever sees a same-origin route. With no relay configured we stay
- * on the demo without announcing anything false.
- */
-function connectSiteRelay() {
-  pilot.connect(relayReasoner())
-  source.value = 'relay'
-  mode.value = pilot.reasoningMode()
-  error.value = undefined
-}
-
-async function connectKey(key: string) {
-  try {
-    // Dynamic import: with nothing connected, the SDK is never loaded and the
-    // default bundle carries not a line of it.
-    const { claudeReasoner } = await import('../runtime/reasoner/claude')
-    pilot.connect(claudeReasoner({ key }))
-    source.value = 'key'
-    error.value = undefined
-  } catch (cause) {
-    // A chunk that fails to load must say so, not let the screen announce a
-    // mode that is not its own.
-    error.value = `Le modèle n'a pas pu être branché : ${
-      cause instanceof Error ? cause.message : String(cause)
-    }`
-  }
-  mode.value = pilot.reasoningMode()
-}
-
-function disconnectModel() {
-  // Disconnecting does not make the page inert: it falls back to the replayed
-  // demo, which announces itself as such.
-  pilot.connect(demoReasoner())
-  source.value = 'none'
-  mode.value = pilot.reasoningMode()
-}
+const {
+  runsOpen,
+  runsTab,
+  myRuns,
+  myTrash,
+  runsTabs,
+  runExportUrl,
+  toggleRuns,
+  openRun,
+  trash: onTrashRun,
+  restore: onRestoreRun,
+  purge: onPurgeRun,
+  toggleShare: onToggleShare,
+} = useMyRuns(session)
 
 const startedAt = ref(0)
 const now = ref(0)
@@ -418,108 +312,27 @@ async function reject() {
   await pilot.reject()
 }
 
-// Le fork courant : tronc + branche, deux futurs côte à côte. Absent hors fork
-// — la scène normale ne bouge alors pas d'un pixel.
-const fork = ref<Fork | undefined>()
-// L'archive forkée et le point N, figés au moment du fork : le bandeau mesure le
-// préfixe du tronc contre le flux de la branche.
-const forkArchive = ref<RunArchive | undefined>()
-const forkAt = ref(0)
-// Le verdict du dernier remplacement de branche : rien si la version a pris, un
-// mot si le code n'a pas compilé (la précédente sert toujours).
-const branchNotice = ref<string | undefined>()
+// Le fork et l'import de trace : deux blocs entiers, chacun avec ses propres
+// modes d'échec, qui n'ont besoin que du pilote et d'un endroit où dire ce qui
+// n'a pas marché.
+const { fork, forkArchive, forkAt, branchNotice, startFork, replaceOnBranch, rejectBranch, exitFork } =
+  useFork(pilot, (message) => (error.value = message))
 
-// La mesure d'une trace importée, lue sur son seul flux (AD-40) : les mêmes
-// chiffres que le bandeau de fork, ici pour dire ce que la trace étrangère a
-// fait. Absent hors import. Dépend de `lastSequence` pour se recalculer au fil
-// du rejeu.
-const foreignMeasure = computed(() => {
-  void state.value.lastSequence
-  const archive = pilot.archive()
-  return archive?.origin === 'foreign' ? measureRun(archive) : undefined
-})
+const { foreignMeasure, forkable, importFromFileEvent } = useTraceImport(
+  pilot,
+  () => state.value.lastSequence,
+  (message) => (error.value = message),
+)
 
-// Forkable seulement pour un run interne. Une trace importée (`origin: 'foreign'`)
-// ne porte aucun `build.source` : rien n'est recompilable, donc rien à forker ni
-// à hot-swap (AD-49). On masque la porte en amont pour ne rien promettre (AD-41).
-const forkable = computed(() => {
-  const archive = pilot.archive()
-  return archive !== undefined && archive.origin !== 'foreign'
-})
-
-// Importer une trace étrangère : la lire, la traduire, la rejouer. On ne joint
-// personne — le fichier est lu côté client — et on refuse proprement ce qu'on ne
-// reconnaît pas plutôt que d'afficher un run à moitié inventé.
 async function onImportTrace(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = '' // Réarmer : réimporter le même fichier doit relancer l'événement.
-  if (file === undefined) return
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(await file.text())
-  } catch {
-    error.value = "Ce fichier n'est pas un JSON lisible."
-    return
-  }
-  const result = importTrace(parsed)
-  if (isImportError(result)) {
-    error.value = `Trace non importée : ${result.reason}.`
-    return
-  }
-  error.value = undefined
-  brief.value = result.brief
+  const imported = await importFromFileEvent(event)
+  if (imported === undefined) return
+  brief.value = imported.brief
   started.value = true
-  await pilot.replay(result)
 }
 
 async function onFork() {
-  const archive = pilot.archive()
-  if (archive === undefined || fork.value !== undefined) return
-  try {
-    forkArchive.value = archive
-    forkAt.value = state.value.lastSequence
-    branchNotice.value = undefined
-    // `markRaw` : le Fork porte des objets vivants (kernels, stores qui gèrent
-    // leur propre réactivité par des refs internes). Le rendre réactif ferait
-    // « déballer » ces refs imbriquées — `branch.store.state` cesserait d'être
-    // un ref et `.value` deviendrait undefined. On le garde brut.
-    fork.value = markRaw(await pilot.fork(archive, forkAt.value))
-  } catch (cause) {
-    // Le fork n'a pas pu rendre les deux applications : on le dit plutôt que de
-    // montrer un panneau vide (Block If de la story).
-    error.value = `Le fork a échoué : ${cause instanceof Error ? cause.message : String(cause)}`
-    fork.value = undefined
-    forkArchive.value = undefined
-  }
-}
-
-// L'autorité qui applique le remplacement (AD-31) : la branche seule bouge, le
-// tronc jamais. Le verdict revient à ForkView par `branchNotice`.
-async function onBranchReplace(edit: { name: string; code: string }) {
-  const current = fork.value
-  if (current === undefined) return
-  const took = await current.branch.replace(edit.name, edit.code)
-  branchNotice.value = took
-    ? undefined
-    : 'Ce code n’a pas compilé — la version précédente de la branche sert toujours.'
-}
-
-// Rejeter la branche : un teardown entier (kernel + store + session), distinct
-// du rollback d'un remplacement (AD-47). Le run et le tronc restent intacts.
-async function onBranchReject() {
-  const current = fork.value
-  fork.value = undefined
-  forkArchive.value = undefined
-  branchNotice.value = undefined
-  await current?.branch.kernel.releaseAll()
-}
-
-// Revenir au run : on referme la vue fork, la scène normale revient.
-function onForkExit() {
-  fork.value = undefined
-  forkArchive.value = undefined
-  branchNotice.value = undefined
+  await startFork(state.value.lastSequence)
 }
 
 // Le site sans clé n'a rien à taper qui produise un run : le modèle est ce qui
@@ -531,14 +344,8 @@ async function playRecordedRun() {
   await restart()
 }
 
-function onEscape(event: KeyboardEvent) {
-  if (event.key === 'Escape') selected.value = undefined
-}
-
 onMounted(() => {
-  window.addEventListener('keydown', onEscape)
-  // Qui l'on est, une fois. Silencieux : un service absent laisse anonyme.
-  void sessionStatus().then((status) => (session.value = status))
+  void loadSession()
   // Le rapport d'éval, une fois : il porte sur l'ensemble des runs conservés,
   // pas sur un run précis. On ne le lit donc PAS quand la page rejoue un run
   // partagé — le visiteur est venu voir *ce* run, pas une moyenne d'atelier —
@@ -547,8 +354,6 @@ onMounted(() => {
   if (requestedRun() === undefined) {
     void fetchEvaluation().then((report) => (evaluation.value = report))
   }
-  // Probe the relay once: if it carries a key, the visitor sees real reasoning
-  // without having to supply anything.
   // Un lien de rejeu prime sur tout : le visiteur est venu voir *ce* run.
   const asked = requestedRun()
   if (asked !== undefined) {
@@ -564,38 +369,12 @@ onMounted(() => {
     return
   }
 
-  void relayState().then((state) => {
-    // Only a relay that answered can say anything about capacity. An absent
-    // relay leaves it unknown rather than reporting zero, which would blame
-    // the visitor for a run they never made.
-    if (state.ready) capacity.value = state.runs
-    const usable = state.ready && state.runs.visitor > 0 && state.runs.site > 0
-    relayReady.value = usable
-    if (usable && source.value === 'none') connectSiteRelay()
-    // Les sources ne sont demandées que si le service répond. Sondées de
-    // toute façon, elles feraient partir une requête là où la page promet de
-    // ne joindre personne.
-    if (!state.ready) return
-    void availableSources().then((sources) => {
-      wired.value = sources
-      pilot.connectSources(sources, serviceFetcher())
-    })
-  })
+  // Probe the relay once: if it carries a key, the visitor sees real reasoning
+  // without having to supply anything.
+  void probeRelay()
 })
 
-// Le fil suit ce qui arrive : sans ça, la dernière chose dite sort de l'écran
-// et il faut faire défiler pour lire un run en cours.
-watch(
-  () => state.value.lastSequence,
-  async () => {
-    await nextTick()
-    const thread = threadEl.value
-    if (thread !== null) thread.scrollTop = thread.scrollHeight
-  },
-)
-
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', onEscape)
   stopClock()
   void pilot.stop()
 })
@@ -613,239 +392,147 @@ onBeforeUnmount(() => {
       le reste est une ligne d'état qui se déplie si on la lui demande.
     -->
     <section class="controls">
-      <header class="brand">
-        <span class="brand-square" aria-hidden="true"></span>
-        <span class="brand-name">Memo&nbsp;Labs</span>
-        <span class="brand-lab">usine agentique</span>
-        <button
-          class="status-toggle"
+      <header class="flex items-center gap-2.5 px-5 py-3.5">
+        <span class="size-4 shrink-0 rounded-sm bg-primary" aria-hidden="true"></span>
+        <span class="shrink-0 text-sm font-semibold text-highlighted">Memo&nbsp;Labs</span>
+        <span class="hidden whitespace-nowrap text-sm text-dimmed lg:inline">usine agentique</span>
+        <UButton
+          variant="link"
+          color="neutral"
+          size="xs"
+          class="ml-auto shrink-0"
           :aria-expanded="modeHelp"
           aria-controls="status-detail"
+          data-status-toggle
           @click="modeHelp = !modeHelp"
         >
           {{ modeHelp ? 'masquer' : 'détail' }}
-        </button>
+        </UButton>
 
         <!-- La connexion vit dans la ligne de marque, pas dans une zone de plus.
              Anonyme : un lien « se connecter » ; connecté : l'email et « quitter ». -->
-        <span v-if="session.authenticated" class="account">
-          <button class="status-toggle" :aria-expanded="runsOpen" aria-controls="my-runs" @click="toggleRuns">
+        <span v-if="session.authenticated" class="account flex shrink-0 items-center gap-1">
+          <UButton
+            variant="link"
+            color="neutral"
+            size="xs"
+            :aria-expanded="runsOpen"
+            aria-controls="my-runs"
+            data-runs-toggle
+            @click="toggleRuns"
+          >
             mes runs
-          </button>
-          <span class="account-email">{{ session.email }}</span>
-          <button class="status-toggle" @click="onLogout">quitter</button>
+          </UButton>
+          <span class="account-email truncate text-xs text-dimmed">{{ session.email }}</span>
+          <UButton variant="link" color="neutral" size="xs" data-logout @click="signOut">quitter</UButton>
         </span>
-        <button
+        <UButton
           v-else
-          class="status-toggle account-signin"
+          variant="link"
+          color="neutral"
+          class="account-signin shrink-0"
+          size="xs"
           :aria-expanded="signInOpen"
           aria-controls="signin-panel"
+          data-signin-toggle
           @click="signInOpen = !signInOpen"
         >
           se connecter
-        </button>
+        </UButton>
       </header>
 
       <!-- Le panneau de connexion : un email, un lien magique. Aucun mot de passe. -->
       <form
         v-if="signInOpen && !session.authenticated"
         id="signin-panel"
-        class="signin"
-        @submit.prevent="onRequestLink"
+        class="signin flex flex-col gap-2 border-b border-default px-5 pb-4"
+        @submit.prevent="requestSignInLink"
       >
-        <p v-if="signInSent" class="signin-sent" role="status">
+        <p v-if="signInSent" class="text-sm text-muted" role="status">
           Lien envoyé. Ouvrez-le depuis votre email pour vous connecter.
         </p>
         <template v-else>
           <label class="hidden-title" for="signin-email">Votre email</label>
-          <input
+          <UInput
             id="signin-email"
             v-model="signInEmail"
             type="email"
-            class="brief-field signin-field"
+            class="w-full"
             placeholder="vous@equipe.co"
             autocomplete="email"
+            data-signin-email
           />
-          <button class="button" type="submit" :disabled="signInEmail.trim().length === 0">
+          <UButton type="submit" :disabled="signInEmail.trim().length === 0" data-signin-submit>
             Recevoir un lien
-          </button>
+          </UButton>
         </template>
       </form>
 
       <!-- Mes runs : lister, ouvrir, partager, mettre à la corbeille, restaurer. -->
-      <div v-if="runsOpen && session.authenticated" id="my-runs" class="my-runs">
-        <div class="my-runs-tabs" role="tablist">
-          <button
-            class="status-toggle"
-            role="tab"
-            :aria-selected="runsTab === 'live'"
-            @click="runsTab = 'live'"
-          >
-            actifs ({{ myRuns.length }})
-          </button>
-          <button
-            class="status-toggle"
-            role="tab"
-            :aria-selected="runsTab === 'trash'"
-            @click="runsTab = 'trash'"
-          >
-            corbeille ({{ myTrash.length }})
-          </button>
-        </div>
+      <MyRuns
+        v-if="runsOpen && session.authenticated"
+        v-model:tab="runsTab"
+        :runs="myRuns"
+        :trash="myTrash"
+        :tabs="runsTabs"
+        :export-url-for="runExportUrl"
+        :account-export="accountExport"
+        :erase-confirm="eraseConfirm"
+        @open="openRun"
+        @share="onToggleShare"
+        @trash-run="onTrashRun"
+        @restore="onRestoreRun"
+        @purge="onPurgeRun"
+        @erase="eraseAccountForGood"
+        @update:erase-confirm="eraseConfirm = $event"
+      />
 
-        <ul v-if="runsTab === 'live'" class="my-runs-list">
-          <li v-if="myRuns.length === 0" class="my-runs-empty">Aucun run conservé.</li>
-          <li v-for="run in myRuns" :key="run.id" class="my-runs-row">
-            <button class="my-runs-open" @click="openRun(run.id)">{{ run.brief || 'run' }}</button>
-            <span class="my-runs-meta">{{ run.events }} évts{{ run.shared ? ' · partagé' : '' }}</span>
-            <span class="my-runs-actions">
-              <button class="status-toggle" @click="onToggleShare(run)">
-                {{ run.shared ? 'révoquer' : 'partager' }}
-              </button>
-              <a class="status-toggle" :href="runExportUrl(run.id)">exporter</a>
-              <button class="status-toggle" @click="onTrashRun(run.id)">corbeille</button>
-            </span>
-          </li>
-        </ul>
-
-        <ul v-else class="my-runs-list">
-          <li v-if="myTrash.length === 0" class="my-runs-empty">Corbeille vide.</li>
-          <li v-for="run in myTrash" :key="run.id" class="my-runs-row">
-            <span class="my-runs-open">{{ run.brief || 'run' }}</span>
-            <span class="my-runs-actions">
-              <button class="status-toggle" @click="onRestoreRun(run.id)">restaurer</button>
-              <button class="status-toggle" @click="onPurgeRun(run.id)">purger</button>
-            </span>
-          </li>
-        </ul>
-
-        <!-- Mes données (RGPD) : emporter ou effacer. L'effacement est
-             irréversible et demande une confirmation explicite. -->
-        <div class="my-data">
-          <a class="status-toggle" :href="accountExport">exporter mes données</a>
-          <template v-if="!eraseConfirm">
-            <button class="status-toggle my-data-erase" @click="eraseConfirm = true">
-              supprimer mon compte
-            </button>
-          </template>
-          <template v-else>
-            <span class="my-data-warn">Effacer définitivement compte et runs ?</span>
-            <button class="status-toggle my-data-erase" @click="onEraseAccount">confirmer</button>
-            <button class="status-toggle" @click="eraseConfirm = false">annuler</button>
-          </template>
-        </div>
-      </div>
-
-      <!-- Une ligne, pas cinq boîtes. Chaque fait y est un mot, et le point
-           coloré dit le mode sans avoir à le lire. -->
-      <p class="status" aria-live="polite">
-        <span class="mode-dot" :data-connected="mode === 'llm'" aria-hidden="true"></span>
-        <span>{{ mode === 'llm' ? (source === 'relay' ? 'modèle du site' : 'modèle branché') : 'run rejoué' }}</span>
-        <template v-if="started">
-          <span class="status-sep" aria-hidden="true">·</span>
-          <span>{{ phase.toLowerCase() }}</span>
-          <span class="status-sep" aria-hidden="true">·</span>
-          <span>{{ state.liveAgents }} agents</span>
-          <span class="status-sep" aria-hidden="true">·</span>
-          <span>{{ elapsed }}</span>
-          <template v-if="state.tokens.input + state.tokens.output > 0">
-            <span class="status-sep" aria-hidden="true">·</span>
-            <span>{{ state.tokens.input + state.tokens.output }} tokens</span>
-          </template>
+      <StatusLine
+        :mode="mode"
+        :source="source"
+        :started="started"
+        :phase="phase"
+        :live-agents="state.liveAgents"
+        :elapsed="elapsed"
+        :tokens="state.tokens.input + state.tokens.output"
+        :capacity="capacity"
+        :open="modeHelp"
+        :replay-reason="replayReason"
+        :wired="wired"
+        :malformed="malformed"
+        :measurements="measurements"
+      >
+        <template #model>
+          <ModelSwitch
+            :mode="mode"
+            :source="source"
+            :relay-ready="relayReady"
+            @connect-relay="connectSiteRelay"
+            @connect-key="connectKey"
+            @disconnect="disconnectModel"
+          />
         </template>
-        <template v-else-if="capacity">
-          <span class="status-sep" aria-hidden="true">·</span>
-          <span>{{ capacity.visitor }} run(s) pour vous</span>
-        </template>
-      </p>
-
-      <div v-if="modeHelp" id="status-detail" class="status-detail">
-        <p v-if="mode === 'llm'">
-          Aucun agent n’est écrit d’avance. Un modèle{{ source === 'relay' ? ' hébergé par le site, sans clé de votre part' : '' }}
-          décide lesquels existent, ce qu’ils se demandent, et le code qu’ils écrivent — puis
-          l’application qu’ils posent se refait autour de ce que vous en faites, sans vous faire
-          perdre votre place.
-        </p>
-        <p v-else>
-          {{ replayReason }} Les décisions sont enregistrées et rejouées ; tout le reste est réel —
-          le code est évalué dans un fil isolé, remplacé à chaud, et exécuté sur ce que vous taperez.
-        </p>
-        <p v-if="wired.length > 0">
-          Sources branchables : {{ wired.map((s) => s.name).join(', ') }}.
-        </p>
-        <p v-if="malformed > 0">{{ malformed }} tour(s) rendus hors forme par le modèle.</p>
-        <p v-if="measurements" class="status-eval">{{ measurements }}</p>
-        <ModelSwitch
-          :mode="mode"
-          :source="source"
-          :relay-ready="relayReady"
-          @use-relay="connectSiteRelay"
-          @use-key="connectKey"
-          @disconnect="disconnectModel"
-        />
-      </div>
+      </StatusLine>
 
       <!-- La conversation. Du plus ancien au plus récent, comme on lit. -->
-      <div ref="threadEl" class="thread" aria-live="polite">
-        <p v-if="state.log.length === 0" class="thread-empty">
-          Écrivez un besoin. Rien n’existe encore : les agents, leurs outils et l’application
-          naîtront de ce que vous taperez — puis se referont autour de ce que vous en ferez.
-        </p>
-        <p v-for="message in state.log" :key="message.sequence" class="thread-message">
-          <span class="thread-author">{{ message.author }}</span>
-          {{ message.message }}
-        </p>
-        <p v-if="error" class="thread-incident" role="alert">{{ error }}</p>
-        <p v-else-if="state.incidents.length" class="thread-incident" role="status">
-          {{ state.incidents.length }} incident(s) — {{ state.incidents.at(-1)?.error.message }}
-        </p>
-      </div>
+      <RunConversation
+        :log="state.log"
+        :incidents="state.incidents"
+        :error="error"
+        :last-sequence="state.lastSequence"
+      />
 
       <!-- Le composeur, en bas, là où l'on écrit. -->
-      <div class="composer">
-        <h1 class="hidden-title">L'usine agentique — l'application qui se refait sous vous</h1>
-        <label class="hidden-title" for="brief">Le besoin</label>
-        <textarea
-          id="brief"
-          v-model="brief"
-          class="brief-field"
-          rows="2"
-          placeholder="Décrivez un besoin. L’usine n’existe pas encore."
-          @keydown.meta.enter="restart"
-          @keydown.ctrl.enter="restart"
-        ></textarea>
-        <div class="composer-row">
-          <!-- Le site sans clé ne peut rien inventer : une seule entrée rejoue
-               le run enregistré, pour qu'il ne soit pas muet. Rien de jargon
-               n'est exposé — le libellé du besoin reste caché. -->
-          <button
-            v-if="mode === 'demo' && !started"
-            type="button"
-            class="picker recorded-run"
-            @click="playRecordedRun"
-          >
-            Voir un run enregistré
-          </button>
-          <span class="composer-hint">
-            {{ mode === 'demo' && brief.trim().length > 0 && !briefReplayable ? 'Sans modèle branché, ce besoin ne produira rien.' : '⌘↵' }}
-          </span>
-          <!-- Importer une trace d'un agent étranger (LangGraph, OTLP) : elle est
-               rejouée et mesurée, mais non forkable. -->
-          <label class="picker import-trace">
-            Importer une trace
-            <input
-              type="file"
-              accept="application/json,.json"
-              class="hidden-title"
-              aria-label="Importer une trace d'agent (LangGraph ou OTLP, JSON)"
-              @change="onImportTrace"
-            />
-          </label>
-          <button class="button" :disabled="starting || brief.trim().length === 0" @click="restart">
-            {{ started ? 'Relancer' : "Lancer l'usine" }}
-          </button>
-        </div>
-      </div>
+      <RunComposer
+        v-model="brief"
+        :mode="mode"
+        :started="started"
+        :starting="starting"
+        :replayable="briefReplayable"
+        @launch="restart"
+        @play-recorded="playRecordedRun"
+        @import-trace="onImportTrace"
+      />
     </section>
 
     <main class="live" aria-label="Le run en direct">
@@ -858,33 +545,37 @@ onBeforeUnmount(() => {
         :archive="forkArchive"
         :at="forkAt"
         :notice="branchNotice"
-        @replace="onBranchReplace"
-        @reject="onBranchReject"
-        @exit="onForkExit"
+        @replace="replaceOnBranch"
+        @reject="rejectBranch"
+        @exit="exitFork"
       />
 
       <!-- Avant tout run, la scène n'est pas un vide blanc : elle dit ce que
            fait l'atelier, en trois temps. C'est du cadrage statique — pas un
            faux graphe, pas un squelette de progression — et il disparaît dès que
            le run démarre. -->
-      <section v-else-if="!started" class="intro" aria-label="Ce que fait l'atelier">
-        <p class="intro-eyebrow">L'atelier</p>
-        <h2 class="intro-title">Rejoue la trajectoire d'un agent, forke-la, teste le correctif avant la prod.</h2>
-        <ol class="intro-beats">
-          <li class="intro-beat">
-            <span class="intro-beat-num">1</span>
-            <span class="intro-beat-text"><strong>Décris un besoin.</strong> Rien n'existe encore : des agents naissent, se parlent et écrivent l'application en direct.</span>
+      <section
+        v-else-if="!started"
+        class="intro mx-auto flex h-full max-w-[54ch] flex-col justify-center gap-5 px-10 py-12"
+        aria-label="Ce que fait l'atelier"
+      >
+        <p class="text-[11px] uppercase tracking-wide text-dimmed">L'atelier</p>
+        <h2 class="text-3xl/tight font-semibold tracking-tight text-highlighted text-balance">Rejoue la trajectoire d'un agent, forke-la, teste le correctif avant la prod.</h2>
+        <ol class="flex flex-col gap-4">
+          <li class="grid grid-cols-[1.5rem_1fr] items-start gap-3">
+            <span class="flex size-6 items-center justify-center rounded-full bg-elevated text-xs text-muted">1</span>
+            <span class="text-toned"><strong>Décris un besoin.</strong> Rien n'existe encore : des agents naissent, se parlent et écrivent l'application en direct.</span>
           </li>
-          <li class="intro-beat">
-            <span class="intro-beat-num">2</span>
-            <span class="intro-beat-text"><strong>Regarde-la se faire.</strong> Le graphe montre qui existe et ce qui se remplace à chaud ; une porte humaine valide ou rejette.</span>
+          <li class="grid grid-cols-[1.5rem_1fr] items-start gap-3">
+            <span class="flex size-6 items-center justify-center rounded-full bg-elevated text-xs text-muted">2</span>
+            <span class="text-toned"><strong>Regarde-la se faire.</strong> Le graphe montre qui existe et ce qui se remplace à chaud ; une porte humaine valide ou rejette.</span>
           </li>
-          <li class="intro-beat">
-            <span class="intro-beat-num">3</span>
-            <span class="intro-beat-text"><strong>Forke la timeline.</strong> Change l'agent sur la branche et regarde deux futurs diverger côte à côte — pour tester un correctif sur la vraie trajectoire qui a planté.</span>
+          <li class="grid grid-cols-[1.5rem_1fr] items-start gap-3">
+            <span class="flex size-6 items-center justify-center rounded-full bg-elevated text-xs text-muted">3</span>
+            <span class="text-toned"><strong>Forke la timeline.</strong> Change l'agent sur la branche et regarde deux futurs diverger côte à côte — pour tester un correctif sur la vraie trajectoire qui a planté.</span>
           </li>
         </ol>
-        <p class="intro-honesty">Le retour arrière est intra-runtime : il prévient avant un effet externe, il ne le répare pas après.</p>
+        <p class="mt-1 border-t border-default pt-4 text-sm text-muted">Le retour arrière est intra-runtime : il prévient avant un effet externe, il ne le répare pas après.</p>
       </section>
 
       <!-- The panel overlays the graph, never the counters: they stay readable
@@ -894,8 +585,14 @@ onBeforeUnmount(() => {
         <!-- Trace importée : on la rejoue et on la mesure, mais elle ne porte
              aucun comportement recompilable — donc pas de fork, et on le dit
              plutôt que de le laisser deviner (AD-41/AD-49). -->
-        <p v-if="foreignMeasure" class="foreign-banner" role="status">
-          <span class="worksite-tag">Trace importée</span>
+        <p
+          v-if="foreignMeasure"
+          class="flex flex-wrap items-center gap-2 border-b border-default px-5 py-3 text-xs text-muted"
+          data-foreign-banner
+          role="status"
+        >
+          <span class="text-[11px] uppercase tracking-wide text-dimmed">Trace importée</span>
+          <span class="text-dimmed" aria-hidden="true">·</span>
           {{ foreignMeasure.events }} événements · {{ foreignMeasure.agents }} agents ·
           {{ foreignMeasure.served ? 'a servi une application' : "n'a pas servi d'application" }}
           — rejouable et mesurable, non forkable (agent étranger, non ré-exécutable).
@@ -907,15 +604,17 @@ onBeforeUnmount(() => {
              says what it proved, and unfolds on demand. -->
         <button
           v-if="product"
-          class="graph-summary"
+          class="flex w-full flex-wrap items-center gap-2 border-b border-default px-5 py-2.5 text-left text-xs text-muted tabular-nums hover:bg-muted"
+          data-graph-summary
           :aria-expanded="graphOpen"
           aria-controls="live-graph"
           @click="graphOpen = !graphOpen"
         >
-          <span class="worksite-tag">Chantier</span>
+          <span class="text-[11px] uppercase tracking-wide text-dimmed">Chantier</span>
+          <span class="text-dimmed" aria-hidden="true">·</span>
           {{ agentsCreated }} agents · {{ state.replacements }} remplacement(s) à chaud ·
           {{ state.restarts }} redémarrage
-          <span class="graph-summary-more">{{ graphOpen ? 'replier' : 'voir le graphe' }}</span>
+          <span class="ml-auto text-primary">{{ graphOpen ? 'replier' : 'voir le graphe' }}</span>
         </button>
 
         <LiveGraph
@@ -946,6 +645,7 @@ onBeforeUnmount(() => {
           :archive="Boolean(pilot.archive())"
           :replay="pilot.isReplay()"
           :forkable="forkable"
+          :docked="!graphOpen"
           :sharing="sharing"
           :share-link="shareLink"
           @share="shareRun"

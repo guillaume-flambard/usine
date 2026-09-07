@@ -18,6 +18,13 @@ export interface FrameHostOptions {
   screen: () => { markup: string; revision: number }
   /** Where interactions are recorded. It outlives every replacement. */
   session: Session
+  /**
+   * Called the first time the frame announces itself. Until then nothing can
+   * be mounted, and a frame that never announces itself is indistinguishable
+   * from one that mounted an empty screen — which is exactly what the visitor
+   * must not be shown.
+   */
+  onReady?: () => void
   /** Called when the frame reports what it kept and what it refused. */
   onMounted?: (report: { slots: readonly string[]; refused: readonly string[] }) => void
   /** Called after each interaction, so the counter can be repainted. */
@@ -96,6 +103,7 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
       ready = true
       sentRevision = -1
       sentSlots = ''
+      options.onReady?.()
       sync()
       return
     }

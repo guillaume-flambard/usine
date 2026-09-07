@@ -2,32 +2,17 @@
 // never scrolls, the keyboard, colour never carrying information alone.
 import { describe, expect, it } from 'vitest'
 import { render } from 'vitest-browser-vue'
+import { startRun, wait } from './harness'
 import FactoryApp from '../FactoryApp.vue'
 import { installTelemetry, type Event } from '../../telemetry'
-import '../../assets/tokens.css'
+import '../../assets/main.css'
 import '../../assets/app.css'
 
-const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
 async function mount() {
   const screen = render(FactoryApp)
   await wait(60)
   return screen
-}
-
-// The run is born at the replayed model's pace: the wait follows that pace, it
-// does not guess it.
-const startRun = async () => {
-  // The field starts empty. In demo mode the recorded-run entry writes the one
-  // brief the replay knows and launches it — the way a keyless visitor starts.
-  const brief = document.querySelector<HTMLTextAreaElement>('#brief')
-  if (brief !== null && brief.value.length === 0) {
-    document.querySelector<HTMLButtonElement>('.recorded-run')?.click()
-    await wait(9000)
-    return
-  }
-  document.querySelector<HTMLButtonElement>('.composer .button')?.click()
-  await wait(9000)
 }
 
 /**
@@ -74,7 +59,7 @@ describe('the shell in a browser', () => {
   it('reaches the critical path from the keyboard', async () => {
     await mount()
     const brief = document.querySelector<HTMLTextAreaElement>('#brief')
-    const button = document.querySelector<HTMLButtonElement>('.composer .button')
+    const button = document.querySelector<HTMLButtonElement>('[data-launch]')
     expect(brief).not.toBeNull()
     expect(button).not.toBeNull()
 
@@ -90,7 +75,7 @@ describe('the shell in a browser', () => {
     brief!.dispatchEvent(new Event('input', { bubbles: true }))
     await wait(150)
 
-    const ready = document.querySelector<HTMLButtonElement>('.composer .button')
+    const ready = document.querySelector<HTMLButtonElement>('[data-launch]')
     expect(ready?.disabled).toBe(false)
     ready?.focus()
     expect(document.activeElement).toBe(ready)
@@ -116,7 +101,7 @@ describe('the shell in a browser', () => {
 
     // Rejecting surfaces the released state, which a nominal run never
     // produces: without this click the test would cover two or three states.
-    const buttons = [...document.querySelectorAll<HTMLButtonElement>('.gate-actions .button')]
+    const buttons = [...document.querySelectorAll<HTMLButtonElement>('[data-gate-action]')]
     expect(buttons).toHaveLength(2)
     buttons[0]?.click()
     await wait(600)
@@ -180,7 +165,7 @@ describe('reduced motion', () => {
     // And the nodes are still there, with their state: the motion goes, not
     // the information. The graph folds itself once the application serves, so
     // it is unfolded here the way a visitor would — by asking for it.
-    document.querySelector<HTMLButtonElement>('.graph-summary')?.click()
+    document.querySelector<HTMLButtonElement>('[data-graph-summary]')?.click()
     await wait(120)
 
     const nodes = [...document.querySelectorAll('.node')]
@@ -209,7 +194,33 @@ describe('the application, end to end in a browser', () => {
     expect(frame?.contentDocument).toBeNull()
 
     // And the gate is still there, above what it decides the fate of.
-    expect(document.querySelectorAll('.gate-actions .button')).toHaveLength(2)
+    expect(document.querySelectorAll('[data-gate-action]')).toHaveLength(2)
+  })
+
+  it('keeps the two gestures of the gate at equal visual weight', async () => {
+    await mount()
+    await startRun()
+
+    const [reject, approve] = [
+      document.querySelector<HTMLElement>('[data-gate-action="reject"]'),
+      document.querySelector<HTMLElement>('[data-gate-action="approve"]'),
+    ]
+    expect(reject, 'les deux gestes doivent exister').not.toBeNull()
+    expect(approve).not.toBeNull()
+
+    // The product does not nudge toward approval: neither gesture may weigh
+    // more than the other, whatever the theme underneath decides.
+    const weight = (element: HTMLElement) => {
+      const style = getComputedStyle(element)
+      return {
+        background: style.backgroundColor,
+        color: style.color,
+        border: style.borderWidth,
+        font: `${style.fontSize}/${style.fontWeight}`,
+        height: Math.round(element.getBoundingClientRect().height),
+      }
+    }
+    expect(weight(approve!)).toEqual(weight(reject!))
   })
 
   it('says what the hot replacement spared, without overstating it', async () => {
@@ -258,10 +269,10 @@ describe('changing the need from the page', () => {
     brief!.dispatchEvent(new Event('input', { bubbles: true }))
     await wait(150)
 
-    const hint = document.querySelector('.composer-hint')?.textContent ?? ''
+    const hint = document.querySelector('[data-composer-hint]')?.textContent ?? ''
     expect(hint).toContain('ne produira rien')
 
-    document.querySelector<HTMLButtonElement>('.composer .button')?.click()
+    document.querySelector<HTMLButtonElement>('[data-launch]')?.click()
     await wait(9000)
     const born = [...document.querySelectorAll<SVGGElement>('.node')]
     expect(born).toHaveLength(1)
@@ -276,7 +287,7 @@ describe('the graph gives way to the application', () => {
     // A graph fascinates for twenty seconds; an application is used. Once one
     // serves, the graph is a summary line — and the line carries the numbers
     // that justify having watched it.
-    const summary = document.querySelector<HTMLButtonElement>('.graph-summary')
+    const summary = document.querySelector<HTMLButtonElement>('[data-graph-summary]')
     expect(summary, 'no graph summary line').not.toBeNull()
     expect(summary?.textContent ?? '').toContain('remplacement')
     expect(summary?.getAttribute('aria-expanded')).toBe('false')
@@ -302,7 +313,7 @@ describe('the replay, announced', () => {
     // able to tell a replay from a live run without having seen the start.
     expect(document.querySelector('.status')?.textContent ?? '').toContain('rejoué')
 
-    document.querySelector<HTMLButtonElement>('.status-toggle')?.click()
+    document.querySelector<HTMLButtonElement>('[data-status-toggle]')?.click()
     await wait(60)
     const explanation = document.querySelector('#status-detail')?.textContent ?? ''
 
@@ -321,7 +332,7 @@ describe('the replay, announced', () => {
     // path, it would drift from the live one and stop being a proof.
     expect(document.querySelectorAll('.node').length).toBeGreaterThan(3)
     expect(document.querySelector('.live-frame')).not.toBeNull()
-    expect(document.querySelectorAll('.gate-actions .button')).toHaveLength(2)
+    expect(document.querySelectorAll('[data-gate-action]')).toHaveLength(2)
   })
 })
 
@@ -332,12 +343,12 @@ describe('la zone du run tient sa géométrie', () => {
 
     // Déplié d'abord : replié, le graphe est en display:none et sa largeur
     // vaut zéro — ce qui ne dit rien de sa géométrie.
-    document.querySelector<HTMLButtonElement>('.graph-summary')?.click()
+    document.querySelector<HTMLButtonElement>('[data-graph-summary]')?.click()
     await wait(150)
 
     const zone = document.querySelector<HTMLElement>('.zone')
     const canvas = document.querySelector<HTMLElement>('.canvas')
-    const summary = document.querySelector<HTMLElement>('.graph-summary')
+    const summary = document.querySelector<HTMLElement>('[data-graph-summary]')
     expect(zone && canvas && summary).toBeTruthy()
     if (zone === null || canvas === null || summary === null) return
 
@@ -352,19 +363,48 @@ describe('la zone du run tient sa géométrie', () => {
     )
   })
 
-  it('pose l’application au bas de la zone, jamais à côté du graphe', async () => {
+  it('pose l’application au bas de la zone quand le graphe est visible, jamais à côté', async () => {
     await mount()
     await startRun()
+
+    // Le graphe se replie de lui-même dès qu'une application sert : on le
+    // rouvre, parce que c'est là que la contrainte de géométrie compte.
+    const summary = document.querySelector<HTMLButtonElement>('[data-graph-summary]')
+    if (summary?.getAttribute('aria-expanded') === 'false') {
+      summary.click()
+      await wait(200)
+    }
 
     const canvas = document.querySelector<HTMLElement>('.canvas')
     const app = document.querySelector<HTMLElement>('.live-app')
     expect(app).not.toBeNull()
     if (canvas === null || app === null) return
 
+    // En simple élément de flux, elle se plaçait à côté du graphe et lui
+    // prenait la moitié de la largeur, ce qui écrasait le tracé contre le bord.
     expect(getComputedStyle(app).position).toBe('absolute')
     // Elle recouvre le bas : le graphe garde toute sa largeur au-dessus.
     expect(app.getBoundingClientRect().width).toBeGreaterThan(
       canvas.getBoundingClientRect().width * 0.9,
+    )
+  })
+
+  it('donne la scène à l’application quand le graphe est replié', async () => {
+    await mount()
+    await startRun()
+
+    // Repliée, la scène n'a plus rien qui prenne sa hauteur : sans ça elle
+    // laissait un grand vide au-dessus d'une application tassée en bas.
+    const summary = document.querySelector<HTMLButtonElement>('[data-graph-summary]')
+    expect(summary?.getAttribute('aria-expanded'), 'le graphe doit être replié').toBe('false')
+
+    const zone = document.querySelector<HTMLElement>('.zone')
+    const app = document.querySelector<HTMLElement>('.live-app')
+    if (zone === null || app === null) return
+
+    expect(getComputedStyle(app).position).toBe('static')
+    expect(app.getBoundingClientRect().height).toBeGreaterThan(
+      zone.getBoundingClientRect().height * 0.5,
     )
   })
 })
@@ -378,7 +418,7 @@ describe('the atelier redesign', () => {
     expect(document.querySelectorAll('.examples').length).toBe(0)
     expect(document.querySelector<HTMLTextAreaElement>('#brief')?.value).toBe('')
     // Keyless demo mode keeps one recorded-run entry so the site is not mute.
-    const recorded = document.querySelector<HTMLButtonElement>('.recorded-run')
+    const recorded = document.querySelector<HTMLButtonElement>('[data-recorded-run]')
     expect(recorded, 'the recorded-run entry is missing').not.toBeNull()
     expect(recorded?.textContent ?? '').toContain('enregistré')
   })

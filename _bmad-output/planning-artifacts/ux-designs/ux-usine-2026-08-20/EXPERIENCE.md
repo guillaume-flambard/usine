@@ -2,7 +2,7 @@
 name: Memo Labs — L'usine agentique
 status: final
 created: '2026-08-20'
-updated: '2026-08-20'
+updated: '2026-09-07'
 design: ./DESIGN.md
 sources:
   - _bmad-output/planning-artifacts/prds/prd-usine-2026-08-20/prd.md
@@ -16,9 +16,15 @@ L'identité visuelle vit dans [DESIGN.md](./DESIGN.md) ; les tokens y sont réf�
 
 ## Foundation
 
-**Facteur de forme** — application web plein écran, 100vh, thème clair unique. Pas d'application native, pas de mode hors ligne, pas de compte.
+**Facteur de forme** — application web plein écran, 100vh. Pas d'application native, pas de mode hors ligne. *(Révisé le 2026-09-07 : le thème clair unique n'est plus une règle — le mode couleur par défaut de la bibliothèque est actif, et l'écran suit la préférence du visiteur. Les comptes existent depuis, voir le PRD.)*
 
-**Système d'interface** — aucun. Pas de shadcn, pas de Material, pas de bibliothèque de composants. Le design system Memo Labs vit dans `src/assets/usine.css` et les composants sont écrits pour lui. Le graphe est du SVG écrit à la main ; seul le calcul de coordonnées est délégué à `@dagrejs/dagre`.
+**Système d'interface** — **Nuxt UI v4, en mode Vue, dans ses défauts.** *(Révisé le 2026-09-07 ; cette ligne disait « aucun ».)*
+
+L'interdit avait une raison : une bibliothèque impose son vocabulaire visuel, et le produit voulait le sien. Il a été levé sur un constat mesuré, pas sur une préférence. Le CSS maison avait doublé sans être purgé — 1205 lignes dans un seul espace de noms, six sélecteurs déclarés deux fois, quatre idiomes de bouton concurrents, et surtout **quatre superpositions qui n'étaient pas des dialogues** : ni `role="dialog"`, ni piège de focus, ni fond inerte. Écrire soi-même un dialogue accessible est précisément ce qu'on écrit mal, et on l'avait écrit mal quatre fois.
+
+Le produit ne déclare donc plus ni couleur, ni police, ni rayon : la bibliothèque les porte. La personnalisation viendra, mais sur une base propre, décidée pour elle-même plutôt que négociée contre un héritage.
+
+Reste écrit à la main ce qu'aucune classe utilitaire ne dit : la mise en page plein écran, la scène et ses feuilles du bas, et le graphe — du SVG, dont les six états portent chacun un signal qui n'est pas la couleur. Le calcul de coordonnées reste délégué à `@dagrejs/dagre`. Le tout vit dans `src/assets/app.css`, 268 lignes. *(L'ancien renvoi vers `src/assets/usine.css` pointait vers un fichier disparu depuis longtemps.)*
 
 **Contrainte structurante** — le corps de page ne défile **jamais**. Tout ce qui dépasse défile dans son propre conteneur. Cette règle prime sur toute considération de contenu : si quelque chose ne tient pas, on le met dans un conteneur défilant ou on le coupe, jamais on n'allonge la page.
 

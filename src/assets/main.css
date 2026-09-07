@@ -1,0 +1,23 @@
+/* Les défauts de Nuxt UI, sans thème. Le produit ne déclare ni couleur, ni
+   police, ni rayon : la bibliothèque les porte, et la personnalisation se
+   décidera plus tard sur une base propre.
+
+   Le cadre sablé est un document séparé sous sa propre politique : il ne doit
+   pas être aspiré dans cette feuille. */
+@import 'tailwindcss';
+@import '@nuxt/ui';
+
+@source not '../../sandbox.html';
+
+/* Une seule place pour la préférence de mouvement réduit : elle couvre
+   animations et transitions, et le run reste compréhensible sans elles. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

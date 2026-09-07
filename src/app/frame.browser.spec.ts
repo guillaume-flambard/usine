@@ -12,6 +12,17 @@ import type { Behaviour } from './behaviour'
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
+// The frame is a real document fetched from the dev server: how long it takes
+// to answer depends on what else the page loaded. Waiting on the fact rather
+// than on a duration is what keeps this suite honest when the bundle grows.
+async function waitFor(ready: () => boolean, timeout = 5000): Promise<void> {
+  const deadline = Date.now() + timeout
+  while (!ready()) {
+    if (Date.now() > deadline) throw new Error('le cadre n’a pas répondu à temps')
+    await wait(40)
+  }
+}
+
 const behaviour = (name: string, version: number, answer: (input: string) => string): Behaviour => ({
   name,
   version,
@@ -64,7 +75,7 @@ async function harness(initial: readonly Behaviour[]): Promise<Harness> {
   })
 
   // The bridge announces itself; the host answers with the screen.
-  await wait(600)
+  await waitFor(() => frame.contentDocument?.querySelector('[data-invoke]') != null)
   const inner = frame.contentDocument
   if (inner === null) throw new Error('le cadre est inaccessible')
 
@@ -116,7 +127,7 @@ describe('the bridge', () => {
       session,
       onMounted: (report) => reports.push(report),
     })
-    await wait(600)
+    await waitFor(() => reports.length > 0)
 
     expect(reports[0]?.refused).toContain('<script>')
     // Scoped to the screen: the frame's own bridge is a script too, and it is

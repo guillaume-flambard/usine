@@ -3,5 +3,7 @@ import FactoryApp from './ui/FactoryApp.vue'
 </script>
 
 <template>
-  <FactoryApp />
+  <UApp>
+    <FactoryApp />
+  </UApp>
 </template>
