@@ -7,6 +7,7 @@
 // défile, personne d'autre n'a à tenir sa référence.
 import { nextTick, ref, watch } from 'vue'
 import type { LogMessage } from '../state/model'
+import { count } from '../app/plural'
 
 const props = defineProps<{
   log: readonly LogMessage[]
@@ -59,7 +60,7 @@ watch(
     </p>
     <p v-if="error" class="text-sm text-error" data-incident role="alert">{{ error }}</p>
     <p v-else-if="incidents.length" class="text-sm text-error" data-incident role="status">
-      {{ incidents.length }} incident(s) — {{ incidents.at(-1)?.error.message }}
+      {{ count(incidents.length, 'incident', 'incidents') }} — {{ incidents.at(-1)?.error.message }}
     </p>
   </div>
 </template>

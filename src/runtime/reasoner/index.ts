@@ -54,6 +54,12 @@ export interface Reasoning {
   tokens?: { input: number; output: number }
   /** What made the call fail, when we fell back. */
   failure?: string
+  /**
+   * True when the provider cut the output at its budget. The text then ends
+   * mid-sentence, and nothing in the text itself says so: a caller that shows
+   * it verbatim publishes an unfinished sentence.
+   */
+  truncated?: boolean
 }
 
 export interface Reasoner {

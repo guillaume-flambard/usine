@@ -182,6 +182,12 @@ export function jsonObject(raw: string): unknown {
 export interface Turn {
   thought: string
   actions: readonly Action[]
+  /**
+   * True when the provider cut its output at the budget. What the turn says
+   * then stops mid-sentence, and only the caller knows whether an unfinished
+   * sentence is publishable.
+   */
+  truncated?: boolean
 }
 
 /**

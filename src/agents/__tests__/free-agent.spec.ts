@@ -186,6 +186,42 @@ describe('what an agent is told about the application', () => {
 })
 
 /** Wraps a reasoner to keep every context it was handed. */
+/** Un fournisseur dont la dernière réponse est coupée au budget de sortie. */
+function cutOff(inner: Reasoner): Reasoner {
+  return {
+    origin: inner.origin,
+    reason: async (request) => ({ ...(await inner.reason(request)), truncated: true }),
+  }
+}
+
+describe('an objection the provider cut short', () => {
+  it('publishes the written one rather than an unfinished sentence', async () => {
+    const kernel = createKernel()
+    const events: RunEvent[] = []
+    kernel.subscribe((event) => events.push(event))
+    await startFactory(kernel, {
+      brief: 'Un outil qui repère les allégations thérapeutiques interdites.',
+      reasoner: cutOff(scriptedModel()),
+      spawnWorker: spawnVmWorker,
+      sources: [],
+      stepMs: 10,
+      settleTimeoutMs: 4000,
+    })
+    const deadline = Date.now() + 8000
+    while (Date.now() < deadline && kernel.pendingGates().length === 0) {
+      await new Promise((next) => setTimeout(next, 10))
+    }
+
+    const gate = events.find((e) => e.type === 'gate-reached')
+    const subject = (gate as { subject: { objection: string } }).subject
+    // Le texte du modèle finit au milieu d'une phrase. Sous le titre
+    // « sceptique », c'est la phrase écrite à la main qui se publie.
+    expect(subject.objection).not.toContain('trois motifs')
+    expect(subject.objection).toMatch(/Rien d'exécutable|rien ne prouve/)
+    await kernel.releaseAll()
+  })
+})
+
 function watching(inner: Reasoner, into: string[]): Reasoner {
   return {
     origin: inner.origin,

@@ -41,6 +41,13 @@ export function initialState(): FullState {
 const isLive = (node: NodeView) => node.state !== 'released' && node.state !== 'failed'
 
 /**
+ * An agent, as opposed to what an agent wrote. A component carrying a `build`
+ * is a behaviour or a tool a model produced: counting it as an agent inflates
+ * the only number the visitor is asked to trust.
+ */
+const isAgent = (node: NodeView) => node.build === undefined
+
+/**
  * Read-only is not just a matter of types: the state is frozen, so a component
  * trying to push something into it fails instead of silently corrupting the
  * view.
@@ -348,7 +355,7 @@ export function reduce(state: FullState, event: RunEvent): FullState {
       log,
       incidents,
       tokens,
-      liveAgents: nodes.filter(isLive).length,
+      liveAgents: nodes.filter((n) => isLive(n) && isAgent(n)).length,
       screen,
       replacements,
       interactions,

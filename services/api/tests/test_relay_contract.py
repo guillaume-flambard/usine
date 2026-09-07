@@ -187,6 +187,26 @@ def test_an_answer_cut_off_says_so_instead_of_being_empty() -> None:
     assert "coupée" in response.json()["error"]
 
 
+def test_a_partial_answer_is_flagged_rather_than_passed_off_as_finished() -> None:
+    """Un texte coupé au budget finit au milieu d'une phrase.
+
+    Rien dans le texte ne le dit, donc l'appelant le publierait tel quel. Le
+    fait voyage avec la réponse.
+    """
+    client, _ = client_for(spy=Spy(body=model_answer("une phrase qui ne", finish="length")))
+
+    body = ask(client).json()
+
+    assert body["text"] == "une phrase qui ne"
+    assert body["truncated"] is True
+
+
+def test_a_finished_answer_carries_no_truncation_flag() -> None:
+    client, _ = client_for()
+
+    assert "truncated" not in ask(client).json()
+
+
 def test_a_provider_that_throws_becomes_a_502_not_a_crash() -> None:
     client, _ = client_for(spy=Spy(boom=RuntimeError("réseau coupé")))
 

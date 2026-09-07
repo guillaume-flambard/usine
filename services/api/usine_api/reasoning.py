@@ -66,6 +66,10 @@ class Reasoning:
     model: str
     tokens: dict[str, int]
     calls: list[ToolCall] = field(default_factory=list)
+    #: Vrai quand le fournisseur a coupé la sortie au budget. Un texte coupé
+    #: finit au milieu d'une phrase, et l'appelant ne peut pas le voir depuis
+    #: le texte seul : le fait voyage, il ne se devine pas.
+    truncated: bool = False
 
 
 class Caller(Protocol):
@@ -169,6 +173,7 @@ async def reason(
             "output": int(usage.get("completion_tokens") or 0),
         },
         calls=calls,
+        truncated=choice.get("finish_reason") == "length",
     )
 
 

@@ -10,6 +10,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { createFrameHost, type FrameHost } from '../app/frame-host'
 import type { Behaviour } from '../app/behaviour'
 import type { Interaction, Session } from '../app/session'
+import { count } from '../app/plural'
 
 const props = defineProps<{
   behaviours: readonly Behaviour[]
@@ -144,12 +145,12 @@ onBeforeUnmount(() => {
       sablée : la rouvrir dans une autre fenêtre suffit en général.
     </p>
 
-    <p class="live-counter flex flex-wrap gap-2 font-mono text-xs text-muted tabular-nums">
-      <span>{{ props.session.counts.replacements }} remplacement(s) à chaud</span>
+    <p class="live-counter flex flex-wrap gap-2 text-xs text-muted tabular-nums">
+      <span>{{ count(props.session.counts.replacements, 'remplacement à chaud', 'remplacements à chaud') }}</span>
       <span>·</span>
-      <span>{{ props.session.counts.restarts }} redémarrage</span>
+      <span>{{ count(props.session.counts.restarts, 'redémarrage', 'redémarrages') }}</span>
       <span>·</span>
-      <span>{{ interactions }} interaction(s) conservée(s)</span>
+      <span>{{ count(interactions, 'interaction conservée', 'interactions conservées') }}</span>
     </p>
 
     <p v-if="refused.length > 0" class="text-sm text-muted">
