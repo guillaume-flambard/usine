@@ -117,6 +117,17 @@ quatorze avant de refondre.
 > branche) et un bandeau de comparaison de branches. La divergence se montre
 > *dans* la scène, pas dans une cinquième zone.
 
+**La stack UI, depuis le 2026-09-07 : Nuxt UI v4 en mode Vue, dans ses défauts.**
+Le produit ne déclare ni couleur, ni police, ni rayon — la bibliothèque les
+porte, et les composants s'habillent avec ses classes utilitaires
+(`text-muted`, `bg-elevated`, `border-default`). Aucune police n'est chargée :
+la pile système est le défaut réel de la bibliothèque, `Public Sans` étant la
+police de son site de doc et non du paquet. `src/assets/app.css` ne garde que
+ce qu'aucune classe ne dit : le plein écran, la scène et ses feuilles du bas,
+et le SVG du graphe. La personnalisation reste à décider, et se décidera sur
+cette base propre. Les tests visent des attributs `data-*`, jamais une classe
+de présentation.
+
 `_bmad-output/planning-artifacts/ux-designs/ux-usine-2026-08-20/DESIGN.md` porte
 les jetons, les composants et les règles d'honnêteté : chaque élément à l'écran
 doit être payé par un événement réel du run. Aucun squelette, aucune barre de

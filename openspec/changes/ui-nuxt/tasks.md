@@ -30,9 +30,9 @@
 
 ## 5. Documents
 
-- [ ] 5.1 `EXPERIENCE.md` : lever l'interdit de bibliothèque de composants avec sa raison, et corriger le renvoi vers `src/assets/usine.css`, fichier disparu. Verify: aucun renvoi vers un fichier inexistant.
-- [ ] 5.2 `DESIGN.md` : frontmatter de jetons à jour, section Typography réécrite, Do's et Don'ts alignés sur les interdits levés. Verify: `DESIGN.md` et `tokens.css` déclarent les mêmes valeurs.
-- [ ] 5.3 `CLAUDE.md` : une ligne sur la stack UI. Verify: la stack se lit sans ouvrir `package.json`.
+- [x] 5.1 `EXPERIENCE.md` : lever l'interdit de bibliothèque de composants avec sa raison, et corriger le renvoi vers `src/assets/usine.css`, fichier disparu. Verify: aucun renvoi vers un fichier inexistant.
+- [x] 5.2 `DESIGN.md` : frontmatter de jetons à jour, section Typography réécrite, Do's et Don'ts alignés sur les interdits levés. Verify: `DESIGN.md` et `tokens.css` déclarent les mêmes valeurs.
+- [x] 5.3 `CLAUDE.md` : une ligne sur la stack UI. Verify: la stack se lit sans ouvrir `package.json`.
 
 ## 6. Vérification complète
 
