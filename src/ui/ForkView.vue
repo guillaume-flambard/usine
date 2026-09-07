@@ -206,7 +206,7 @@ onBeforeUnmount(() => {
 <template>
   <section class="fork flex h-full min-h-0 flex-col gap-4 p-5" aria-label="Deux futurs du run, côte à côte">
     <header class="flex flex-wrap items-start gap-3">
-      <p class="text-[11px] font-semibold uppercase tracking-wider text-muted">Fork — deux futurs du même run, sous votre décision</p>
+      <p class="text-xs font-semibold uppercase tracking-wider text-muted">Fork — deux futurs du même run, sous votre décision</p>
       <p class="max-w-[68ch] text-sm text-muted">
         Le retour arrière est intra-runtime : on prévient avant un effet externe, on ne le
         répare pas après.
@@ -254,7 +254,7 @@ onBeforeUnmount(() => {
         ></iframe>
 
         <form class="fork-edit flex flex-col gap-2" @submit.prevent="applyEdit">
-          <label class="text-[11px] font-semibold uppercase tracking-wider text-muted" for="fork-behaviour">Éditer un comportement</label>
+          <label class="text-xs font-semibold uppercase tracking-wider text-muted" for="fork-behaviour">Éditer un comportement</label>
           <select id="fork-behaviour" v-model="editedName" class="w-full rounded border border-accented bg-default px-2 py-1 text-sm">
             <option v-for="behaviour in branchBehaviours" :key="behaviour.name" :value="behaviour.name">
               {{ behaviour.name }} — v{{ behaviour.version }}

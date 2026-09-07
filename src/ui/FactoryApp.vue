@@ -392,7 +392,7 @@ onBeforeUnmount(() => {
       le reste est une ligne d'état qui se déplie si on la lui demande.
     -->
     <section class="controls">
-      <header class="flex items-center gap-2.5 px-5 py-3.5">
+      <header class="flex items-center gap-2 px-5 py-4">
         <span class="size-4 shrink-0 rounded-sm bg-primary" aria-hidden="true"></span>
         <span class="shrink-0 text-sm font-semibold text-highlighted">Memo&nbsp;Labs</span>
         <span class="hidden whitespace-nowrap text-sm text-muted lg:inline">usine agentique</span>
@@ -556,10 +556,10 @@ onBeforeUnmount(() => {
            le run démarre. -->
       <section
         v-else-if="!started"
-        class="intro mx-auto flex h-full max-w-[54ch] flex-col justify-center gap-5 px-10 py-12"
+        class="intro mx-auto flex h-full max-w-[54ch] flex-col justify-center gap-5 px-8 py-12"
         aria-label="Ce que fait l'atelier"
       >
-        <p class="text-[11px] uppercase tracking-wide text-muted">L'atelier</p>
+        <p class="text-xs uppercase tracking-wide text-muted">L'atelier</p>
         <h2 class="text-3xl/tight font-semibold tracking-tight text-highlighted text-balance">Rejoue la trajectoire d'un agent, forke-la, teste le correctif avant la prod.</h2>
         <ol class="flex flex-col gap-4">
           <li class="grid grid-cols-[1.5rem_1fr] items-start gap-3">
@@ -591,7 +591,7 @@ onBeforeUnmount(() => {
           data-foreign-banner
           role="status"
         >
-          <span class="text-[11px] uppercase tracking-wide text-muted">Trace importée</span>
+          <span class="text-xs uppercase tracking-wide text-muted">Trace importée</span>
           <span class="text-dimmed" aria-hidden="true">·</span>
           {{ foreignMeasure.events }} événements · {{ foreignMeasure.agents }} agents ·
           {{ foreignMeasure.served ? 'a servi une application' : "n'a pas servi d'application" }}
@@ -604,13 +604,13 @@ onBeforeUnmount(() => {
              says what it proved, and unfolds on demand. -->
         <button
           v-if="product"
-          class="flex w-full flex-wrap items-center gap-2 border-b border-default px-5 py-2.5 text-left text-xs text-muted tabular-nums hover:bg-muted"
+          class="flex w-full flex-wrap items-center gap-2 border-b border-default px-5 py-2 text-left text-xs text-muted tabular-nums hover:bg-muted"
           data-graph-summary
           :aria-expanded="graphOpen"
           aria-controls="live-graph"
           @click="graphOpen = !graphOpen"
         >
-          <span class="text-[11px] uppercase tracking-wide text-muted">Chantier</span>
+          <span class="text-xs uppercase tracking-wide text-muted">Chantier</span>
           <span class="text-dimmed" aria-hidden="true">·</span>
           {{ agentsCreated }} agents · {{ state.replacements }} remplacement(s) à chaud ·
           {{ state.restarts }} redémarrage
@@ -632,16 +632,19 @@ onBeforeUnmount(() => {
              the application serves during the run, hiding the gate behind it
              would make the decision unreachable. The gate sits above what it
              decides the fate of. -->
-        <HumanGate
-          v-if="state.gate && state.gate.decision === undefined"
+        <Transition name="sheet">
+          <HumanGate
+            v-if="state.gate && state.gate.decision === undefined"
           :gate="state.gate"
-          :serving="product"
-          @approve="approve"
-          @reject="reject"
-        />
+            :serving="product"
+            @approve="approve"
+            @reject="reject"
+          />
+        </Transition>
 
-        <LiveApplication
-          v-if="product"
+        <Transition name="sheet">
+          <LiveApplication
+            v-if="product"
           :archive="Boolean(pilot.archive())"
           :replay="pilot.isReplay()"
           :forkable="forkable"
@@ -656,8 +659,9 @@ onBeforeUnmount(() => {
           :session="pilot.session()"
           :pulse="state.lastSequence"
           :contact="CONTACT"
-          @interaction="onVisitorInteraction"
-        />
+            @interaction="onVisitorInteraction"
+          />
+        </Transition>
 
         <NodePanel
           v-if="selectedNode"

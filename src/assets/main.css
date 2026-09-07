@@ -9,6 +9,27 @@
 
 @source not '../../sandbox.html';
 
+/* La seule correction apportée aux défauts, et c'est de l'accessibilité, pas
+ * du goût : la primaire d'origine est `green-500`, sur laquelle du texte blanc
+ * donne 2,22:1 — très loin des 4,5 exigés. Les boutons pleins et les libellés
+ * d'accent étaient donc illisibles en thème clair.
+ *
+ * Aucune teinte ne tient sur les deux fonds à la fois : il en faut une par
+ * thème. Mesuré sur l'échelle de Tailwind :
+ *
+ *   green-700 sur blanc  4,94   blanc dessus  4,94   -> thème clair
+ *   green-400 sur slate-900  10,05                   -> thème sombre
+ *
+ * La famille ne change pas : c'est le vert de la bibliothèque, à une teinte
+ * utilisable. */
+:root {
+  --ui-primary: var(--ui-color-primary-700);
+}
+
+.dark {
+  --ui-primary: var(--ui-color-primary-400);
+}
+
 /* Une seule place pour la préférence de mouvement réduit : elle couvre
    animations et transitions, et le run reste compréhensible sans elles. */
 @media (prefers-reduced-motion: reduce) {

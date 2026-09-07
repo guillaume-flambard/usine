@@ -264,6 +264,27 @@ body,
   opacity: 0.5;
 }
 
+/* Les feuilles de la scène entrent et sortent : la porte quand une décision
+   est demandée, l'application quand elle se met à servir. Le mouvement est
+   court et vient du bas, d'où la feuille arrive réellement — il dit ce qui
+   change, il ne décore pas.
+
+   `prefers-reduced-motion` est déjà traité globalement dans `main.css` : la
+   durée y tombe à 0,01 ms, l'élément apparaît sans glisser, et rien n'est
+   perdu. */
+.sheet-enter-active,
+.sheet-leave-active {
+  transition:
+    opacity 200ms ease,
+    transform 200ms ease;
+}
+
+.sheet-enter-from,
+.sheet-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
 /* Une apparition qui glisse : elle exprime un événement réel du run, un agent
    qui vient de naître. */
 .appearing {

@@ -51,7 +51,7 @@ watch(
     >
       <span
         v-if="speakerChanges(index)"
-        class="mb-1 block text-[11px] uppercase tracking-wide text-muted"
+        class="mb-1 block text-xs uppercase tracking-wide text-muted"
       >
         {{ message.author }}
       </span>

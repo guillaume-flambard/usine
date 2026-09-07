@@ -47,10 +47,10 @@ watch(
     :aria-label="gate.decision === undefined ? 'Décision requise' : 'Décision prise'"
   >
     <div class="min-w-0 flex-1">
-      <p class="text-[11px] uppercase tracking-wide text-primary">
+      <p class="text-xs uppercase tracking-wide text-primary">
         {{ gate.decision === undefined ? 'Décision requise' : 'Décision prise' }}
       </p>
-      <p id="gate-summary" class="mt-1.5 max-w-[68ch] text-base text-highlighted">{{ gate.subject.summary }}</p>
+      <p id="gate-summary" class="mt-2 max-w-[68ch] text-base text-highlighted">{{ gate.subject.summary }}</p>
       <p
         id="gate-objection"
         class="mt-3 max-w-[68ch] border-l-2 border-accented pl-3 text-sm text-muted"
@@ -64,7 +64,7 @@ watch(
         <b>Écarter</b> la retire : les composants sont relâchés et vous perdez ce qui tourne.
       </p>
     </div>
-    <div v-if="gate.decision === undefined" class="flex shrink-0 gap-2.5">
+    <div v-if="gate.decision === undefined" class="flex shrink-0 gap-2">
       <UButton
         ref="firstButton"
         variant="outline"

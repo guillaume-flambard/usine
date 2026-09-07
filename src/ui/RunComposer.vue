@@ -21,7 +21,7 @@ defineEmits<{ launch: []; playRecorded: []; importTrace: [Event] }>()
 </script>
 
 <template>
-  <div class="composer flex flex-col gap-2.5 border-t border-default bg-default p-5">
+  <div class="composer flex flex-col gap-2 border-t border-default bg-default p-5">
     <h1 class="hidden-title">L'usine agentique — l'application qui se refait sous vous</h1>
     <label class="hidden-title" for="brief">Le besoin</label>
     <UTextarea
