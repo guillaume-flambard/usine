@@ -2,7 +2,7 @@
 // The shell: two panes, 100vh, the page never scrolls.
 // Everything that makes the run live is in the pilot, outside this component:
 // that is what makes the wiring testable without a browser.
-import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { createPilot } from '../orchestration/pilot'
 import { CONTACT } from '../examples'
 import { demoReasoner, DEMO_BRIEF } from '../examples/demo'
@@ -12,31 +12,17 @@ import NodePanel from './NodePanel.vue'
 import HumanGate from './HumanGate.vue'
 import LiveApplication from './LiveApplication.vue'
 import ForkView from './ForkView.vue'
-import type { Fork } from '../orchestration/pilot'
-import type { RunArchive } from '../app/replay'
-import ModelSwitch, { type ModelSource } from './ModelSwitch.vue'
-import { relayReasoner, relayState, type RelayState } from '../runtime/reasoner/relay'
+import ModelSwitch from './ModelSwitch.vue'
 import { fetchRun, linkFor, requestedRun, storeRun } from '../app/archive-client'
-import { importTrace, isImportError } from '../app/import'
-import { measureRun } from '../app/measure'
-import { logout, requestLink, sessionStatus, type SessionStatus } from '../app/auth-client'
-import {
-  exportUrl,
-  listRuns,
-  purgeRun,
-  restoreRun,
-  revokeRunById,
-  shareRunById,
-  trashRun,
-  type RunSummary,
-} from '../app/runs-client'
-import { accountExportUrl, eraseAccount } from '../app/account-client'
 import { fetchEvaluation, formatEvaluation, type Evaluation } from '../app/eval-client'
-import { availableSources, serviceFetcher } from '../app/sources'
 import type { Interaction } from '../app/session'
 import { takeawayHtml, takeawayOf } from '../app/takeaway'
-import type { ReasoningOrigin } from '../runtime/reasoner'
 import { gateReached, productServed, runStarted, checkSubmitted } from '../telemetry'
+import { useFork } from './composables/useFork'
+import { useTraceImport } from './composables/useTraceImport'
+import { useModelSource } from './composables/useModelSource'
+import { useAccount } from './composables/useAccount'
+import { useMyRuns } from './composables/useMyRuns'
 
 const pilot = createPilot()
 // With no model, the factory can invent nothing. Rather than a blank screen it
@@ -148,150 +134,49 @@ async function shareRun() {
     sharing.value = false
   }
 }
-const mode = ref<ReasoningOrigin>(pilot.reasoningMode())
-const source = ref<ModelSource>('none')
-const relayReady = ref(false)
-/** Les sources que le service sert. Vide tant qu'il n'a pas répondu. */
-const wired = ref<readonly { name: string; description: string }[]>([])
-/**
- * What the relay says is left, in runs. Undefined until the probe answers —
- * not zero: "your capacity is spent" and "we have not asked yet" are
- * different facts, and telling the second as the first is a lie.
- */
-const capacity = ref<RelayState['runs'] | undefined>()
+// Trois blocs sortis du shell, chacun avec sa propre raison d'exister : d'où
+// vient le raisonnement, qui est le visiteur, et ce qu'il a gardé. Ils ne se
+// parlent que par la session — un compte qui se ferme vide la liste tout seul.
+const {
+  mode,
+  source,
+  relayReady,
+  wired,
+  capacity,
+  replayReason,
+  connectSiteRelay,
+  connectKey,
+  disconnectModel,
+  probeRelay,
+} = useModelSource(pilot, (message) => (error.value = message))
 
-// L'authentification. Un visiteur anonyme fait tourner la démo et ouvre les
-// liens partagés ; se connecter par lien magique débloque conserver/partager.
-const session = ref<SessionStatus>({ authenticated: false })
-const signInOpen = ref(false)
-const signInEmail = ref('')
-const signInSent = ref(false)
+const {
+  session,
+  signInOpen,
+  signInEmail,
+  signInSent,
+  accountExport,
+  eraseConfirm,
+  requestSignInLink,
+  signOut,
+  eraseAccountForGood,
+  loadSession,
+} = useAccount((message) => (error.value = message))
 
-async function onRequestLink() {
-  const email = signInEmail.value.trim()
-  if (email.length === 0) return
-  const ok = await requestLink(email)
-  signInSent.value = ok
-  error.value = ok ? undefined : "Le lien n'a pas pu être envoyé."
-}
-
-async function onLogout() {
-  await logout()
-  session.value = { authenticated: false }
-  signInSent.value = false
-  runsOpen.value = false
-}
-
-// La vue « mes runs » : sans elle, un visiteur connecté ne verrait aucun de ses
-// runs (la tenancy les rend privés).
-const runsOpen = ref(false)
-const runsTab = ref<'live' | 'trash'>('live')
-const myRuns = ref<RunSummary[]>([])
-const myTrash = ref<RunSummary[]>([])
-// Les deux onglets de « mes runs ». Le compte est dans le libellé : c'est la
-// seule information que l'onglet porte, et elle change avec la liste.
-const runsTabs = computed(() => [
-  { label: `actifs (${myRuns.value.length})`, value: 'live', slot: 'live' as const },
-  { label: `corbeille (${myTrash.value.length})`, value: 'trash', slot: 'trash' as const },
-])
-const runExportUrl = exportUrl
-
-async function refreshRuns() {
-  ;[myRuns.value, myTrash.value] = await Promise.all([listRuns(false), listRuns(true)])
-}
-
-async function toggleRuns() {
-  runsOpen.value = !runsOpen.value
-  if (runsOpen.value) await refreshRuns()
-}
-
-function openRun(id: string) {
-  // Rejouer ce run, par le chemin de rejeu existant (?run=<id>).
-  window.location.search = `?run=${encodeURIComponent(id)}`
-}
-
-async function onTrashRun(id: string) {
-  if (await trashRun(id)) await refreshRuns()
-}
-async function onRestoreRun(id: string) {
-  if (await restoreRun(id)) await refreshRuns()
-}
-async function onPurgeRun(id: string) {
-  if (await purgeRun(id)) await refreshRuns()
-}
-async function onToggleShare(run: RunSummary) {
-  const done = run.shared ? await revokeRunById(run.id) : await shareRunById(run.id)
-  if (done) await refreshRuns()
-}
-
-// Mes données (RGPD) : exporter tout, ou effacer son compte (irréversible).
-const accountExport = accountExportUrl()
-const eraseConfirm = ref(false)
-
-async function onEraseAccount() {
-  if (await eraseAccount()) {
-    session.value = { authenticated: false }
-    runsOpen.value = false
-    eraseConfirm.value = false
-  }
-}
-
-/**
- * What the visitor is told before clicking. Capacity is not a technical
- * detail here: a run that dies halfway because the day is spent is worse than
- * a replay that says what it is.
- */
-/**
- * Why the page is replaying rather than running live. A replay announced with
- * no reason reads as a limitation of the product; the reason is usually that
- * the day's capacity is spent, which is a different thing entirely.
- */
-const replayReason = computed(() => {
-  if (source.value === 'key' || source.value === 'relay') return 'Le modèle n’a pas répondu.'
-  if (capacity.value === undefined) return 'Aucun modèle n’est branché.'
-  if (capacity.value.visitor <= 0) return 'Votre capacité du jour est atteinte.'
-  if (capacity.value.site <= 0) return 'La capacité du jour du site est atteinte.'
-  return 'Aucun modèle n’est branché.'
-})
-
-
-/**
- * The site's model. The key is not here: it lives on the relay, and the
- * browser only ever sees a same-origin route. With no relay configured we stay
- * on the demo without announcing anything false.
- */
-function connectSiteRelay() {
-  pilot.connect(relayReasoner())
-  source.value = 'relay'
-  mode.value = pilot.reasoningMode()
-  error.value = undefined
-}
-
-async function connectKey(key: string) {
-  try {
-    // Dynamic import: with nothing connected, the SDK is never loaded and the
-    // default bundle carries not a line of it.
-    const { claudeReasoner } = await import('../runtime/reasoner/claude')
-    pilot.connect(claudeReasoner({ key }))
-    source.value = 'key'
-    error.value = undefined
-  } catch (cause) {
-    // A chunk that fails to load must say so, not let the screen announce a
-    // mode that is not its own.
-    error.value = `Le modèle n'a pas pu être branché : ${
-      cause instanceof Error ? cause.message : String(cause)
-    }`
-  }
-  mode.value = pilot.reasoningMode()
-}
-
-function disconnectModel() {
-  // Disconnecting does not make the page inert: it falls back to the replayed
-  // demo, which announces itself as such.
-  pilot.connect(demoReasoner())
-  source.value = 'none'
-  mode.value = pilot.reasoningMode()
-}
+const {
+  runsOpen,
+  runsTab,
+  myRuns,
+  myTrash,
+  runsTabs,
+  runExportUrl,
+  toggleRuns,
+  openRun,
+  trash: onTrashRun,
+  restore: onRestoreRun,
+  purge: onPurgeRun,
+  toggleShare: onToggleShare,
+} = useMyRuns(session)
 
 const startedAt = ref(0)
 const now = ref(0)
@@ -424,108 +309,27 @@ async function reject() {
   await pilot.reject()
 }
 
-// Le fork courant : tronc + branche, deux futurs côte à côte. Absent hors fork
-// — la scène normale ne bouge alors pas d'un pixel.
-const fork = ref<Fork | undefined>()
-// L'archive forkée et le point N, figés au moment du fork : le bandeau mesure le
-// préfixe du tronc contre le flux de la branche.
-const forkArchive = ref<RunArchive | undefined>()
-const forkAt = ref(0)
-// Le verdict du dernier remplacement de branche : rien si la version a pris, un
-// mot si le code n'a pas compilé (la précédente sert toujours).
-const branchNotice = ref<string | undefined>()
+// Le fork et l'import de trace : deux blocs entiers, chacun avec ses propres
+// modes d'échec, qui n'ont besoin que du pilote et d'un endroit où dire ce qui
+// n'a pas marché.
+const { fork, forkArchive, forkAt, branchNotice, startFork, replaceOnBranch, rejectBranch, exitFork } =
+  useFork(pilot, (message) => (error.value = message))
 
-// La mesure d'une trace importée, lue sur son seul flux (AD-40) : les mêmes
-// chiffres que le bandeau de fork, ici pour dire ce que la trace étrangère a
-// fait. Absent hors import. Dépend de `lastSequence` pour se recalculer au fil
-// du rejeu.
-const foreignMeasure = computed(() => {
-  void state.value.lastSequence
-  const archive = pilot.archive()
-  return archive?.origin === 'foreign' ? measureRun(archive) : undefined
-})
+const { foreignMeasure, forkable, importFromFileEvent } = useTraceImport(
+  pilot,
+  () => state.value.lastSequence,
+  (message) => (error.value = message),
+)
 
-// Forkable seulement pour un run interne. Une trace importée (`origin: 'foreign'`)
-// ne porte aucun `build.source` : rien n'est recompilable, donc rien à forker ni
-// à hot-swap (AD-49). On masque la porte en amont pour ne rien promettre (AD-41).
-const forkable = computed(() => {
-  const archive = pilot.archive()
-  return archive !== undefined && archive.origin !== 'foreign'
-})
-
-// Importer une trace étrangère : la lire, la traduire, la rejouer. On ne joint
-// personne — le fichier est lu côté client — et on refuse proprement ce qu'on ne
-// reconnaît pas plutôt que d'afficher un run à moitié inventé.
 async function onImportTrace(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = '' // Réarmer : réimporter le même fichier doit relancer l'événement.
-  if (file === undefined) return
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(await file.text())
-  } catch {
-    error.value = "Ce fichier n'est pas un JSON lisible."
-    return
-  }
-  const result = importTrace(parsed)
-  if (isImportError(result)) {
-    error.value = `Trace non importée : ${result.reason}.`
-    return
-  }
-  error.value = undefined
-  brief.value = result.brief
+  const imported = await importFromFileEvent(event)
+  if (imported === undefined) return
+  brief.value = imported.brief
   started.value = true
-  await pilot.replay(result)
 }
 
 async function onFork() {
-  const archive = pilot.archive()
-  if (archive === undefined || fork.value !== undefined) return
-  try {
-    forkArchive.value = archive
-    forkAt.value = state.value.lastSequence
-    branchNotice.value = undefined
-    // `markRaw` : le Fork porte des objets vivants (kernels, stores qui gèrent
-    // leur propre réactivité par des refs internes). Le rendre réactif ferait
-    // « déballer » ces refs imbriquées — `branch.store.state` cesserait d'être
-    // un ref et `.value` deviendrait undefined. On le garde brut.
-    fork.value = markRaw(await pilot.fork(archive, forkAt.value))
-  } catch (cause) {
-    // Le fork n'a pas pu rendre les deux applications : on le dit plutôt que de
-    // montrer un panneau vide (Block If de la story).
-    error.value = `Le fork a échoué : ${cause instanceof Error ? cause.message : String(cause)}`
-    fork.value = undefined
-    forkArchive.value = undefined
-  }
-}
-
-// L'autorité qui applique le remplacement (AD-31) : la branche seule bouge, le
-// tronc jamais. Le verdict revient à ForkView par `branchNotice`.
-async function onBranchReplace(edit: { name: string; code: string }) {
-  const current = fork.value
-  if (current === undefined) return
-  const took = await current.branch.replace(edit.name, edit.code)
-  branchNotice.value = took
-    ? undefined
-    : 'Ce code n’a pas compilé — la version précédente de la branche sert toujours.'
-}
-
-// Rejeter la branche : un teardown entier (kernel + store + session), distinct
-// du rollback d'un remplacement (AD-47). Le run et le tronc restent intacts.
-async function onBranchReject() {
-  const current = fork.value
-  fork.value = undefined
-  forkArchive.value = undefined
-  branchNotice.value = undefined
-  await current?.branch.kernel.releaseAll()
-}
-
-// Revenir au run : on referme la vue fork, la scène normale revient.
-function onForkExit() {
-  fork.value = undefined
-  forkArchive.value = undefined
-  branchNotice.value = undefined
+  await startFork(state.value.lastSequence)
 }
 
 // Le site sans clé n'a rien à taper qui produise un run : le modèle est ce qui
@@ -538,8 +342,7 @@ async function playRecordedRun() {
 }
 
 onMounted(() => {
-  // Qui l'on est, une fois. Silencieux : un service absent laisse anonyme.
-  void sessionStatus().then((status) => (session.value = status))
+  void loadSession()
   // Le rapport d'éval, une fois : il porte sur l'ensemble des runs conservés,
   // pas sur un run précis. On ne le lit donc PAS quand la page rejoue un run
   // partagé — le visiteur est venu voir *ce* run, pas une moyenne d'atelier —
@@ -548,8 +351,6 @@ onMounted(() => {
   if (requestedRun() === undefined) {
     void fetchEvaluation().then((report) => (evaluation.value = report))
   }
-  // Probe the relay once: if it carries a key, the visitor sees real reasoning
-  // without having to supply anything.
   // Un lien de rejeu prime sur tout : le visiteur est venu voir *ce* run.
   const asked = requestedRun()
   if (asked !== undefined) {
@@ -565,23 +366,9 @@ onMounted(() => {
     return
   }
 
-  void relayState().then((state) => {
-    // Only a relay that answered can say anything about capacity. An absent
-    // relay leaves it unknown rather than reporting zero, which would blame
-    // the visitor for a run they never made.
-    if (state.ready) capacity.value = state.runs
-    const usable = state.ready && state.runs.visitor > 0 && state.runs.site > 0
-    relayReady.value = usable
-    if (usable && source.value === 'none') connectSiteRelay()
-    // Les sources ne sont demandées que si le service répond. Sondées de
-    // toute façon, elles feraient partir une requête là où la page promet de
-    // ne joindre personne.
-    if (!state.ready) return
-    void availableSources().then((sources) => {
-      wired.value = sources
-      pilot.connectSources(sources, serviceFetcher())
-    })
-  })
+  // Probe the relay once: if it carries a key, the visitor sees real reasoning
+  // without having to supply anything.
+  void probeRelay()
 })
 
 // Le fil suit ce qui arrive : sans ça, la dernière chose dite sort de l'écran
@@ -642,7 +429,7 @@ onBeforeUnmount(() => {
             mes runs
           </UButton>
           <span class="account-email">{{ session.email }}</span>
-          <UButton variant="link" color="neutral" data-logout @click="onLogout">quitter</UButton>
+          <UButton variant="link" color="neutral" data-logout @click="signOut">quitter</UButton>
         </span>
         <UButton
           v-else
@@ -663,7 +450,7 @@ onBeforeUnmount(() => {
         v-if="signInOpen && !session.authenticated"
         id="signin-panel"
         class="signin"
-        @submit.prevent="onRequestLink"
+        @submit.prevent="requestSignInLink"
       >
         <p v-if="signInSent" class="signin-sent" role="status">
           Lien envoyé. Ouvrez-le depuis votre email pour vous connecter.
@@ -757,7 +544,7 @@ onBeforeUnmount(() => {
               color="error"
               class="my-data-erase"
               data-account-erase-confirm
-              @click="onEraseAccount"
+              @click="eraseAccountForGood"
             >
               confirmer
             </UButton>
@@ -898,9 +685,9 @@ onBeforeUnmount(() => {
         :archive="forkArchive"
         :at="forkAt"
         :notice="branchNotice"
-        @replace="onBranchReplace"
-        @reject="onBranchReject"
-        @exit="onForkExit"
+        @replace="replaceOnBranch"
+        @reject="rejectBranch"
+        @exit="exitFork"
       />
 
       <!-- Avant tout run, la scène n'est pas un vide blanc : elle dit ce que
