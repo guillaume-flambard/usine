@@ -119,7 +119,20 @@ describe("the isolated frame's own policy", () => {
   it('names the host explicitly, because an opaque origin has no `self`', () => {
     // The frame is sandboxed without `allow-same-origin`, so `'self'` would
     // match nothing and its own bridge would be blocked.
-    expect(frame).toContain('script-src $scheme://$host')
+    expect(frame).toContain('script-src $client_scheme://$host')
     expect(frame).not.toContain("script-src 'self'")
+  })
+
+  it('names the scheme the client sees, not the one nginx sees', () => {
+    // Traefik terminates TLS and speaks plain HTTP to this container, so
+    // `$scheme` is `http` there while the visitor is on `https`. A policy
+    // built on it names the wrong origin, and the bridge — which cannot fall
+    // back on `'self'` — gets nothing. Measured in production on 2026-09-07:
+    // `/sandbox.html` answered 200 and its module was never requested.
+    expect(frame).not.toContain('$scheme://')
+    expect(nginx).toMatch(/map \$http_x_forwarded_proto \$client_scheme \{/)
+    // The fallback matters as much: served with no proxy in front, nginx's own
+    // scheme is the right one.
+    expect(nginx).toMatch(/default \$scheme;/)
   })
 })
