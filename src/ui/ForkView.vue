@@ -206,7 +206,7 @@ onBeforeUnmount(() => {
 <template>
   <section class="fork flex h-full min-h-0 flex-col gap-4 p-5" aria-label="Deux futurs du run, côte à côte">
     <header class="flex flex-wrap items-start gap-3">
-      <p class="text-[11px] font-semibold uppercase tracking-wider text-dimmed">Fork — deux futurs du même run, sous votre décision</p>
+      <p class="text-[11px] font-semibold uppercase tracking-wider text-muted">Fork — deux futurs du même run, sous votre décision</p>
       <p class="max-w-[68ch] text-sm text-muted">
         Le retour arrière est intra-runtime : on prévient avant un effet externe, on ne le
         répare pas après.
@@ -227,7 +227,7 @@ onBeforeUnmount(() => {
       <section class="fork-panel flex min-h-0 flex-col gap-2 rounded-md border border-default p-3" data-side="trunk" aria-label="Tronc — enregistrement">
         <p class="flex flex-wrap items-baseline gap-2">
           <span class="font-semibold text-highlighted">Tronc</span>
-          <span class="text-xs text-dimmed">enregistrement · lecture seule</span>
+          <span class="text-xs text-muted">enregistrement · lecture seule</span>
         </p>
         <iframe
           ref="trunkFrame"
@@ -243,7 +243,7 @@ onBeforeUnmount(() => {
       <section class="fork-panel flex min-h-0 flex-col gap-2 rounded-md border border-default p-3" data-side="branch" aria-label="Branche — exécution neuve">
         <p class="flex flex-wrap items-baseline gap-2">
           <span class="font-semibold text-highlighted">Branche</span>
-          <span class="text-xs text-dimmed">exécution neuve</span>
+          <span class="text-xs text-muted">exécution neuve</span>
         </p>
         <iframe
           ref="branchFrame"
@@ -254,7 +254,7 @@ onBeforeUnmount(() => {
         ></iframe>
 
         <form class="fork-edit flex flex-col gap-2" @submit.prevent="applyEdit">
-          <label class="text-[11px] font-semibold uppercase tracking-wider text-dimmed" for="fork-behaviour">Éditer un comportement</label>
+          <label class="text-[11px] font-semibold uppercase tracking-wider text-muted" for="fork-behaviour">Éditer un comportement</label>
           <select id="fork-behaviour" v-model="editedName" class="w-full rounded border border-accented bg-default px-2 py-1 text-sm">
             <option v-for="behaviour in branchBehaviours" :key="behaviour.name" :value="behaviour.name">
               {{ behaviour.name }} — v{{ behaviour.version }}
