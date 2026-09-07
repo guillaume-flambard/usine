@@ -1,13 +1,6 @@
 /* Full-screen application — 100vh, two panes, the page never scrolls.
    Tokens come from tokens.css; this file only does the app layout. */
 
-:root {
-  --etat-cours: var(--accent);
-  --etat-fait: var(--ink);
-  --etat-erreur: #8c2f10;
-  --etat-libere: #b9b1a7;
-}
-
 html,
 body,
 #app {
@@ -22,20 +15,6 @@ body,
   background: var(--bg);
 }
 
-.controls {
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid var(--line);
-  min-height: 0;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 24px;
-  border-bottom: 1px solid var(--line);
-}
 .brand-square {
   width: 14px;
   height: 14px;
@@ -71,69 +50,11 @@ body,
   height: 8px;
   border: 1px solid var(--muted);
 }
-.mode-help {
-  margin-left: auto;
-  background: none;
-  border: none;
-  font: inherit;
-  color: var(--muted);
-  cursor: pointer;
-  text-decoration: underline;
-  padding: 0;
-}
-.mode-help:hover {
-  color: var(--ink);
-}
-.mode-explanation {
-  padding: 0 24px 12px;
-  border-bottom: 1px solid var(--line);
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--muted);
-}
-
-/* Model switch */
-.mode-connect {
-  padding: 0 24px 12px;
-  border-bottom: 1px solid var(--line);
-}
-.model-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-top: 10px;
-}
-.model-field {
-  min-height: 0;
-  max-width: none;
-}
-.model-note {
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--muted);
-}
-.model-consent {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--muted);
-}
 /* The mode dot does not rely on colour alone: hollow with no model, solid
    when one is connected. */
 .mode-dot[data-connected='true'] {
   background: var(--accent);
   border-color: var(--accent);
-}
-
-.pane {
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  flex: 1;
-  min-height: 0;
 }
 
 .hidden-title {
@@ -168,11 +89,6 @@ body,
   outline: 2px solid var(--accent);
   outline-offset: 0;
 }
-
-.action-row {
-  display: flex;
-  gap: 10px;
-}
 .button {
   background: var(--ink);
   color: var(--bg);
@@ -195,17 +111,6 @@ body,
   opacity: 0.4;
   cursor: default;
   background: var(--ink);
-  border-color: var(--ink);
-}
-.button-ghost {
-  background: none;
-  color: var(--muted);
-  border: 1px solid var(--line);
-  flex: 0 0 auto;
-}
-.button-ghost:hover {
-  background: none;
-  color: var(--ink);
   border-color: var(--ink);
 }
 .button:focus-visible,
@@ -231,36 +136,6 @@ body,
   border-top: 1px solid var(--line);
   min-height: 84px;
 }
-.narration-empty {
-  color: var(--muted);
-}
-
-.thread {
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
-  overflow: auto;
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-}
-.thread-message {
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--muted);
-}
-.thread-author {
-  color: var(--ink);
-  font-weight: 500;
-  letter-spacing: 0.03em;
-}
-.thread-sequence {
-  float: right;
-  font-size: 11px;
-  /* The released tone on cream falls to ~2:1: below the AA threshold. */
-  color: var(--muted);
-}
 
 .incident {
   border-left: 2px solid var(--etat-erreur);
@@ -268,14 +143,6 @@ body,
   font-size: 13px;
   line-height: 1.5;
   color: var(--etat-erreur);
-}
-
-.counter-note {
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-  padding-top: 4px;
 }
 
 .identity {
@@ -372,22 +239,6 @@ body,
 }
 .counter:last-child {
   border-right: none;
-}
-.counter-key {
-  font-size: 11px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.counter-value {
-  font-size: 32px;
-  font-weight: 400;
-  line-height: 1.05;
-  letter-spacing: -0.01em;
-}
-.counter-value.petit {
-  font-size: 19px;
-  padding-top: 10px;
 }
 
 .canvas {
@@ -612,12 +463,6 @@ body,
   gap: 12px;
   z-index: 4;
 }
-.product-help {
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--muted);
-  max-width: 72ch;
-}
 
 .panel {
   position: absolute;
@@ -655,22 +500,6 @@ body,
   letter-spacing: 0.14em;
   font-size: 11px;
   padding-top: 2px;
-}
-.panel-close {
-  align-self: flex-start;
-  background: none;
-  border: 1px solid var(--line);
-  color: var(--muted);
-  font: inherit;
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  padding: 8px 12px;
-  cursor: pointer;
-}
-.panel-close:hover {
-  color: var(--ink);
-  border-color: var(--ink);
 }
 
 .hover-card {
@@ -726,14 +555,6 @@ body,
   }
 }
 
-/* The worksite the factory gave itself, under the narration. */
-.worksite-summary {
-  margin: 0.5rem 0 0;
-  font-size: 0.78rem;
-  line-height: 1.5;
-  color: var(--muted);
-}
-
 .worksite-tag {
   display: inline-block;
   margin-right: 0.4rem;
@@ -743,23 +564,6 @@ body,
   font-size: 0.66rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-}
-
-/* What the tool written during the run returned. Its shape is unknown: we
-   show it as is rather than pretending to lay it out. */
-.product-output {
-  margin: 0.75rem 0 0;
-  padding: 0.75rem;
-  max-height: 30vh;
-  overflow: auto;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.76rem;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 
 /* Une trace importée : rejouée et mesurée, mais non forkable. Le bandeau le dit
@@ -807,21 +611,6 @@ body,
 }
 
 /* Les exemples écrivent dans le champ ; ils ne lancent rien. */
-.examples {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.examples-key {
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
 button.picker {
   padding: 4px 10px;
   border: 1px solid var(--line);
@@ -836,10 +625,6 @@ button.picker:hover {
   border-color: var(--ink);
 }
 
-.capacity-note {
-  color: var(--muted);
-}
-
 /* Le partage : il n'apparaît qu'une fois qu'il y a quelque chose à partager. */
 .share {
   display: flex;
@@ -848,12 +633,6 @@ button.picker:hover {
   margin-top: 10px;
 }
 
-.share-link {
-  font-size: 12px;
-  word-break: break-all;
-}
-
-
 /* ── La colonne de conversation ───────────────────────────────────────────
    Une seule chose à lire, du haut vers le bas : ce que les agents disent.
    Le composeur est en bas, là où l'on écrit. Tout le reste est une ligne. */
@@ -861,6 +640,8 @@ button.picker:hover {
 .controls {
   display: flex;
   flex-direction: column;
+  /* Le filet vertical qui sépare la colonne de la scène. */
+  border-right: 1px solid var(--line);
   min-height: 0;
 }
 
@@ -869,18 +650,8 @@ button.picker:hover {
   align-items: center;
   gap: 8px;
   flex: 0 0 auto;
-}
-
-.status-toggle {
-  margin-left: auto;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 12px;
-  text-decoration: underline;
-  cursor: pointer;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--line);
 }
 
 /* La connexion, dans la ligne de marque. Discrète : un lien, un email affiché. */
@@ -996,10 +767,6 @@ button.picker:hover {
   font-size: 12px;
 }
 
-.my-data-erase {
-  color: var(--accent, #c4633a);
-}
-
 .my-data-warn {
   color: var(--muted);
 }
@@ -1044,9 +811,10 @@ button.picker:hover {
 
 /* Le fil prend la place qui reste, et défile seul. */
 .thread {
+  border-top: 1px solid var(--line);
   flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
+  overflow: auto;
   padding: 16px 0;
   display: flex;
   flex-direction: column;
@@ -1064,6 +832,7 @@ button.picker:hover {
   margin: 0;
   font-size: 14px;
   line-height: 1.55;
+  color: var(--muted);
 }
 
 /* L'auteur est un repère, pas un titre : il ne doit pas peser plus que ce
@@ -1071,6 +840,7 @@ button.picker:hover {
 .thread-author {
   display: block;
   font-size: 11px;
+  font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
@@ -1115,6 +885,7 @@ button.picker:hover {
 .examples {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
   margin: 0;
 }

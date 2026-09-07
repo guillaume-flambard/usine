@@ -56,9 +56,9 @@ export function takeawayHtml(takeaway: Takeaway): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(takeaway.brief.slice(0, 80)) || 'Application'}</title>
 <style>
-  :root { color-scheme: light; --ink:#16130f; --cream:#faf9f7; --muted:#6b6560; --line:#e0dbd4; }
+  :root { color-scheme: light; --ink:#16130f; --bg:#faf9f7; --muted:#6b6055; --line:#e7e2da; }
   *{box-sizing:border-box}
-  body{margin:0;padding:24px;max-width:760px;background:var(--cream);color:var(--ink);
+  body{margin:0;padding:24px;max-width:760px;background:var(--bg);color:var(--ink);
        font:15px/1.5 ui-sans-serif,system-ui,sans-serif}
   h1{font-size:20px;font-weight:400;margin:0 0 12px}
   label{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;
@@ -67,7 +67,7 @@ export function takeawayHtml(takeaway: Takeaway): string {
         border-radius:0;background:#fff;color:inherit;font:inherit}
   textarea{min-height:76px}
   button{padding:8px 16px;border:1px solid var(--ink);border-radius:0;background:var(--ink);
-        color:var(--cream);font:inherit;cursor:pointer}
+        color:var(--bg);font:inherit;cursor:pointer}
   button[disabled]{border-color:var(--line);background:transparent;color:var(--muted)}
   [data-output]{margin:8px 0 12px;padding:10px 12px;border-left:2px solid var(--line);
         white-space:pre-wrap;word-break:break-word}

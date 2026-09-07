@@ -11,6 +11,14 @@
   --accent: #ad4c16;
   --accent-soft: #e58a4a;
   --grid: rgba(22, 19, 15, 0.042);
+
+  /* Les six états d'un nœud. Aucun n'est porté par la couleur seule : chacun a
+     aussi un signal de trait ou de marque, sans quoi une capture en noir et
+     blanc ne dirait plus rien. */
+  --etat-cours: var(--accent);
+  --etat-fait: var(--ink);
+  --etat-erreur: #8c2f10;
+  --etat-libere: #b9b1a7;
 }
 
 html {
