@@ -35,7 +35,7 @@ defineEmits<{
     <UTabs v-model="tab" :items="tabs" class="w-full">
       <template #live>
         <ul class="flex flex-col gap-1 pt-2">
-          <li v-if="runs.length === 0" class="my-runs-empty py-2 text-sm text-dimmed">Aucun run conservé.</li>
+          <li v-if="runs.length === 0" class="my-runs-empty py-2 text-sm text-muted">Aucun run conservé.</li>
           <li v-for="run in runs" :key="run.id" class="flex flex-wrap items-center gap-2 text-sm">
             <UButton
               variant="link"
@@ -46,7 +46,7 @@ defineEmits<{
             >
               {{ run.brief || 'run' }}
             </UButton>
-            <span class="text-xs text-dimmed tabular-nums">
+            <span class="text-xs text-muted tabular-nums">
               {{ run.events }} évts{{ run.shared ? ' · partagé' : '' }}
             </span>
             <span class="ml-auto flex items-center gap-1">
@@ -77,7 +77,7 @@ defineEmits<{
 
       <template #trash>
         <ul class="flex flex-col gap-1 pt-2">
-          <li v-if="trash.length === 0" class="my-runs-empty py-2 text-sm text-dimmed">Corbeille vide.</li>
+          <li v-if="trash.length === 0" class="my-runs-empty py-2 text-sm text-muted">Corbeille vide.</li>
           <li v-for="run in trash" :key="run.id" class="flex flex-wrap items-center gap-2 text-sm">
             <span class="my-runs-open truncate">{{ run.brief || 'run' }}</span>
             <span class="ml-auto flex items-center gap-1">

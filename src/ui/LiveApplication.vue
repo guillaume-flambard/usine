@@ -105,7 +105,7 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="live-app flex min-h-0 flex-col gap-3 p-5" :class="docked ? 'is-docked' : ''">
-    <p class="text-[11px] uppercase tracking-wide text-dimmed">Application</p>
+    <p class="text-[11px] uppercase tracking-wide text-muted">Application</p>
 
     <!--
       `allow-scripts` and nothing else. Without `allow-same-origin` the frame

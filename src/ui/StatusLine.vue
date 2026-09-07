@@ -36,7 +36,7 @@ defineProps<{
 
 <template>
   <p
-    class="status mx-4 mb-3 flex flex-wrap items-center gap-1.5 rounded-md bg-elevated px-3 py-2 text-xs text-muted tabular-nums"
+    class="status mx-4 mb-3 flex flex-wrap items-center gap-1.5 rounded-md bg-elevated px-3 py-2 text-xs text-toned tabular-nums"
     aria-live="polite"
   >
     <!-- Le point ne repose pas sur la couleur seule : creux sans modèle,

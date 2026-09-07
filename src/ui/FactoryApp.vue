@@ -395,7 +395,7 @@ onBeforeUnmount(() => {
       <header class="flex items-center gap-2.5 px-5 py-3.5">
         <span class="size-4 shrink-0 rounded-sm bg-primary" aria-hidden="true"></span>
         <span class="shrink-0 text-sm font-semibold text-highlighted">Memo&nbsp;Labs</span>
-        <span class="hidden whitespace-nowrap text-sm text-dimmed lg:inline">usine agentique</span>
+        <span class="hidden whitespace-nowrap text-sm text-muted lg:inline">usine agentique</span>
         <UButton
           variant="link"
           color="neutral"
@@ -423,7 +423,7 @@ onBeforeUnmount(() => {
           >
             mes runs
           </UButton>
-          <span class="account-email truncate text-xs text-dimmed">{{ session.email }}</span>
+          <span class="account-email truncate text-xs text-muted">{{ session.email }}</span>
           <UButton variant="link" color="neutral" size="xs" data-logout @click="signOut">quitter</UButton>
         </span>
         <UButton
@@ -559,19 +559,19 @@ onBeforeUnmount(() => {
         class="intro mx-auto flex h-full max-w-[54ch] flex-col justify-center gap-5 px-10 py-12"
         aria-label="Ce que fait l'atelier"
       >
-        <p class="text-[11px] uppercase tracking-wide text-dimmed">L'atelier</p>
+        <p class="text-[11px] uppercase tracking-wide text-muted">L'atelier</p>
         <h2 class="text-3xl/tight font-semibold tracking-tight text-highlighted text-balance">Rejoue la trajectoire d'un agent, forke-la, teste le correctif avant la prod.</h2>
         <ol class="flex flex-col gap-4">
           <li class="grid grid-cols-[1.5rem_1fr] items-start gap-3">
-            <span class="flex size-6 items-center justify-center rounded-full bg-elevated text-xs text-muted">1</span>
+            <span class="flex size-6 items-center justify-center rounded-full bg-elevated text-xs text-toned">1</span>
             <span class="text-toned"><strong>Décris un besoin.</strong> Rien n'existe encore : des agents naissent, se parlent et écrivent l'application en direct.</span>
           </li>
           <li class="grid grid-cols-[1.5rem_1fr] items-start gap-3">
-            <span class="flex size-6 items-center justify-center rounded-full bg-elevated text-xs text-muted">2</span>
+            <span class="flex size-6 items-center justify-center rounded-full bg-elevated text-xs text-toned">2</span>
             <span class="text-toned"><strong>Regarde-la se faire.</strong> Le graphe montre qui existe et ce qui se remplace à chaud ; une porte humaine valide ou rejette.</span>
           </li>
           <li class="grid grid-cols-[1.5rem_1fr] items-start gap-3">
-            <span class="flex size-6 items-center justify-center rounded-full bg-elevated text-xs text-muted">3</span>
+            <span class="flex size-6 items-center justify-center rounded-full bg-elevated text-xs text-toned">3</span>
             <span class="text-toned"><strong>Forke la timeline.</strong> Change l'agent sur la branche et regarde deux futurs diverger côte à côte — pour tester un correctif sur la vraie trajectoire qui a planté.</span>
           </li>
         </ol>
@@ -591,7 +591,7 @@ onBeforeUnmount(() => {
           data-foreign-banner
           role="status"
         >
-          <span class="text-[11px] uppercase tracking-wide text-dimmed">Trace importée</span>
+          <span class="text-[11px] uppercase tracking-wide text-muted">Trace importée</span>
           <span class="text-dimmed" aria-hidden="true">·</span>
           {{ foreignMeasure.events }} événements · {{ foreignMeasure.agents }} agents ·
           {{ foreignMeasure.served ? 'a servi une application' : "n'a pas servi d'application" }}
@@ -610,7 +610,7 @@ onBeforeUnmount(() => {
           aria-controls="live-graph"
           @click="graphOpen = !graphOpen"
         >
-          <span class="text-[11px] uppercase tracking-wide text-dimmed">Chantier</span>
+          <span class="text-[11px] uppercase tracking-wide text-muted">Chantier</span>
           <span class="text-dimmed" aria-hidden="true">·</span>
           {{ agentsCreated }} agents · {{ state.replacements }} remplacement(s) à chaud ·
           {{ state.restarts }} redémarrage

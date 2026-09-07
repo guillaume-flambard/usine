@@ -50,7 +50,7 @@ defineEmits<{ launch: []; playRecorded: []; importTrace: [Event] }>()
       >
         Voir un run enregistré
       </UButton>
-      <span class="font-mono text-xs text-dimmed" data-composer-hint>
+      <span class="font-mono text-xs text-muted" data-composer-hint>
         {{
           mode === 'demo' && brief.trim().length > 0 && !replayable
             ? 'Sans modèle branché, ce besoin ne produira rien.'

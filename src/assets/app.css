@@ -18,7 +18,13 @@ body,
 
 .app {
   display: grid;
-  grid-template-columns: 392px 1fr;
+  /* La colonne de conduite cède avant la scène. Figée à 392 px, elle laissait
+     500 px à la scène sur une fenêtre de 900, et la porte de décision y
+     tombait à une dizaine de caractères par ligne : illisible au moment
+     précis où l'on demande une décision.
+     La page ne défile jamais, donc empiler est exclu : la colonne se
+     rétrécit, elle ne passe pas dessous. */
+  grid-template-columns: clamp(300px, 30vw, 392px) 1fr;
   height: 100vh;
   background: var(--ui-bg);
   color: var(--ui-text);
