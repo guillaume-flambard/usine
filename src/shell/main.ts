@@ -5,6 +5,7 @@ import settings from '../client/app/settings'
 import status from '../client/app/status'
 import styles from '../client/app/styles'
 import theme from '../client/app/theme'
+import flotte from './flotte'
 import portes from './portes'
 import run from './run'
 
@@ -40,6 +41,7 @@ root.plugin(theme)
 // Ours, in place of theirs. Their home page gates everything on a socket that
 // will never exist; ours is the human gate over the correcteur's work: what the
 // frozen cases said about a gate's prompt, case by case.
+root.plugin(flotte)
 root.plugin(portes)
 root.plugin(run)
 

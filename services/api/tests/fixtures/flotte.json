@@ -1,0 +1,190 @@
+{
+  "le": "2026-09-10T16:12:52",
+  "fenetre_h": 24,
+  "alertes": 4,
+  "agents": [
+    {
+      "nom": "prospecteur",
+      "quoi": "cherche une idee de produit et la tue avant nous",
+      "statut": "running",
+      "depuis": "1 h 7 min",
+      "redemarrages": 0,
+      "compteurs": {
+        "cycles": 8,
+        "idees jugees": 2,
+        "passages reussis": 2,
+        "rejets": 0,
+        "delais depasses": 0,
+        "sources web en refus": 0,
+        "erreurs": 0,
+        "envois en echec": 0,
+        "mails partis": 2,
+        "quota du modele": 3
+      },
+      "alertes": [
+        "3 refus de quota cote MODELE. Les penseurs partagent UN compte b.ai : regarder d'abord leurs heures de demarrage. Le 2026-09-09, un deploiement groupe a aligne trois agents sur la meme minute et produit vingt-quatre minutes de 429 sans que le fournisseur soit tombe — la conclusion inverse a coute une passerelle deployee pour rien, voir omniroute-verdict. Les refus de sources web sont comptes a part et ne declenchent rien.",
+        "13/15 cas conformes seulement. Le jugement a change : lire /var/lib/prospecteur-eval/rapport. Ce n'est PAS une panne d'unite, c'est un verdict qui derive."
+      ],
+      "modele": "qwen3.8-flash",
+      "battement": "2026-09-10T13:49:09.228322+00:00"
+    },
+    {
+      "nom": "eclaireur",
+      "quoi": "veille web : outils, papiers, sujets de fond",
+      "statut": "running",
+      "depuis": "19 h 26 min",
+      "redemarrages": 0,
+      "compteurs": {
+        "cycles": 3,
+        "idees jugees": 0,
+        "passages reussis": 0,
+        "rejets": 0,
+        "delais depasses": 0,
+        "sources web en refus": 0,
+        "erreurs": 0,
+        "envois en echec": 0,
+        "mails partis": 0,
+        "quota du modele": 3
+      },
+      "alertes": [
+        "3 refus de quota cote MODELE. Les penseurs partagent UN compte b.ai : regarder d'abord leurs heures de demarrage. Le 2026-09-09, un deploiement groupe a aligne trois agents sur la meme minute et produit vingt-quatre minutes de 429 sans que le fournisseur soit tombe — la conclusion inverse a coute une passerelle deployee pour rien, voir omniroute-verdict. Les refus de sources web sont comptes a part et ne declenchent rien."
+      ],
+      "modele": "qwen3.8-flash",
+      "battement": null
+    },
+    {
+      "nom": "atelier",
+      "quoi": "lit les PR et les depots, propose le prochain geste",
+      "statut": "running",
+      "depuis": "19 h 26 min",
+      "redemarrages": 0,
+      "compteurs": {
+        "cycles": 1,
+        "idees jugees": 0,
+        "passages reussis": 0,
+        "rejets": 0,
+        "delais depasses": 0,
+        "sources web en refus": 0,
+        "erreurs": 0,
+        "envois en echec": 0,
+        "mails partis": 0,
+        "quota du modele": 0
+      },
+      "alertes": [],
+      "modele": "qwen3.8-flash",
+      "battement": null
+    },
+    {
+      "nom": "veilleur",
+      "quoi": "croise les PR ouvertes et le pipeline de candidatures",
+      "statut": "running",
+      "depuis": "1 h 15 min",
+      "redemarrages": 0,
+      "compteurs": {
+        "cycles": 1,
+        "idees jugees": 0,
+        "passages reussis": 0,
+        "rejets": 0,
+        "delais depasses": 0,
+        "sources web en refus": 0,
+        "erreurs": 0,
+        "envois en echec": 0,
+        "mails partis": 0,
+        "quota du modele": 0
+      },
+      "alertes": [],
+      "modele": "?",
+      "battement": null
+    },
+    {
+      "nom": "acheteur",
+      "quoi": "prend une idee deja passee, et cherche des acheteurs NOMMES et joignables",
+      "statut": "running",
+      "depuis": "1 h 17 min",
+      "redemarrages": 0,
+      "compteurs": {
+        "cycles": 2,
+        "idees jugees": 0,
+        "passages reussis": 0,
+        "rejets": 0,
+        "delais depasses": 0,
+        "sources web en refus": 0,
+        "erreurs": 0,
+        "envois en echec": 0,
+        "mails partis": 1,
+        "quota du modele": 0
+      },
+      "alertes": [],
+      "modele": "qwen3.8-flash",
+      "battement": "2026-09-10T14:06:38.804864+00:00"
+    },
+    {
+      "nom": "boutique",
+      "quoi": "cherche un produit a vendre en ligne, et le tue avant nous",
+      "statut": "running",
+      "depuis": "22 min",
+      "redemarrages": 0,
+      "compteurs": {
+        "cycles": 2,
+        "idees jugees": 1,
+        "passages reussis": 0,
+        "rejets": 1,
+        "delais depasses": 0,
+        "sources web en refus": 0,
+        "erreurs": 0,
+        "envois en echec": 0,
+        "mails partis": 0,
+        "quota du modele": 0
+      },
+      "alertes": [],
+      "modele": "qwen3.8-flash",
+      "battement": "2026-09-10T13:52:44.478261+00:00"
+    },
+    {
+      "nom": "courtier",
+      "quoi": "cherche des missions payables avant l'horizon, et facturables aujourd'hui",
+      "statut": "running",
+      "depuis": "1 h 17 min",
+      "redemarrages": 0,
+      "compteurs": {
+        "cycles": 7,
+        "idees jugees": 0,
+        "passages reussis": 0,
+        "rejets": 0,
+        "delais depasses": 0,
+        "sources web en refus": 0,
+        "erreurs": 3,
+        "envois en echec": 0,
+        "mails partis": 0,
+        "quota du modele": 0
+      },
+      "alertes": [],
+      "modele": "qwen3.8-flash",
+      "battement": "2026-09-10T14:06:07.934224+00:00"
+    },
+    {
+      "nom": "debouche",
+      "quoi": "cherche ce qui cree un besoin date chez un lieu, et quoi lui vendre",
+      "statut": "running",
+      "depuis": "6 min",
+      "redemarrages": 0,
+      "compteurs": {
+        "cycles": 2,
+        "idees jugees": 0,
+        "passages reussis": 0,
+        "rejets": 0,
+        "delais depasses": 2,
+        "sources web en refus": 0,
+        "erreurs": 0,
+        "envois en echec": 0,
+        "mails partis": 0,
+        "quota du modele": 2
+      },
+      "alertes": [
+        "2 refus de quota cote MODELE. Les penseurs partagent UN compte b.ai : regarder d'abord leurs heures de demarrage. Le 2026-09-09, un deploiement groupe a aligne trois agents sur la meme minute et produit vingt-quatre minutes de 429 sans que le fournisseur soit tombe — la conclusion inverse a coute une passerelle deployee pour rien, voir omniroute-verdict. Les refus de sources web sont comptes a part et ne declenchent rien."
+      ],
+      "modele": "qwen3.8-flash",
+      "battement": null
+    }
+  ]
+}
