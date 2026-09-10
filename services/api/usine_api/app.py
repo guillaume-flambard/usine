@@ -48,6 +48,7 @@ from .portes import Absent as PortesAbsent
 from .portes import dossier as portes_dir
 from .portes import lancer as lancer_portes
 from .portes import lire as read_portes
+from .portes import lister as list_portes
 from .portes import suivre as suivre_portes
 from .reasoning import (
     BAI_REASONING_OFF,
@@ -310,6 +311,13 @@ def create_app(
                 "callsPerRun": bounds.calls_per_run,
             }
         )
+
+    @app.get("/portes")
+    async def portes_liste() -> JSONResponse:
+        # Quels agents portent une décision, et à quel score. L'écran unique
+        # l'appelle une fois : interroger les huit agents de la flotte au cas
+        # où ferait huit requêtes pour au plus une réponse utile.
+        return no_store({"portes": list_portes()})
 
     @app.get("/portes/{agent}")
     async def portes(agent: str) -> JSONResponse:

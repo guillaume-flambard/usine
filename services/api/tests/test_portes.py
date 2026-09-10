@@ -11,9 +11,11 @@ import json
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
+from usine_api.app import create_app
 from usine_api.invites import etat, etiqueter
-from usine_api.portes import Absent, lancer, lire, suivre
+from usine_api.portes import Absent, lancer, lire, lister, suivre
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -34,6 +36,58 @@ def test_lit_la_mesure_reelle() -> None:
     assert len(passes) == 9
     assert all(c["raison"] for c in passes)
     assert all(c["pourquoi"] for c in cas)
+
+
+def test_liste_les_agents_mesures() -> None:
+    # Ce que l'écran unique lit pour savoir quels agents portent une décision.
+    resumes = lister(FIXTURES)
+    assert [r["agent"] for r in resumes] == ["acheteur"]
+    assert resumes[0]["conformes"] == 9
+    assert resumes[0]["total"] == 9
+    assert resumes[0]["invites"] == "production"
+
+
+def test_la_liste_ecarte_les_mesures_lancees_depuis_l_ecran(tmp_path: Path) -> None:
+    # `<agent>-<etiquette>.json` est ce qu'écrit une mesure lancée depuis
+    # l'écran, dans le même dossier. Le tiret est légal dans un nom d'agent :
+    # sans le filtre, la flotte gagnerait un agent « acheteur-candidat ».
+    mesure = json.loads((FIXTURES / "acheteur.json").read_text(encoding="utf-8"))
+    (tmp_path / "acheteur.json").write_text(json.dumps(mesure), encoding="utf-8")
+    (tmp_path / "acheteur-candidat.json").write_text(json.dumps(mesure), encoding="utf-8")
+    assert [r["agent"] for r in lister(tmp_path)] == ["acheteur"]
+
+
+def test_la_liste_ignore_un_fichier_illisible(tmp_path: Path) -> None:
+    # Un verdict corrompu ne doit pas vider la liste : les autres agents
+    # gardent une décision à prendre.
+    mesure = json.loads((FIXTURES / "acheteur.json").read_text(encoding="utf-8"))
+    (tmp_path / "acheteur.json").write_text(json.dumps(mesure), encoding="utf-8")
+    (tmp_path / "courtier.json").write_text("{ pas du json", encoding="utf-8")
+    assert [r["agent"] for r in lister(tmp_path)] == ["acheteur"]
+
+
+def test_la_liste_est_vide_sans_dossier(tmp_path: Path) -> None:
+    assert lister(tmp_path) == []
+
+
+def test_la_route_rend_la_liste(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Le seul appel que la page unique fait au chargement pour savoir quels
+    # agents portent une décision.
+    monkeypatch.setenv("PORTES_DIR", str(FIXTURES))
+    client = TestClient(create_app(key=None, call=None))
+    reponse = client.get("/portes")
+    assert reponse.status_code == 200
+    assert [p["agent"] for p in reponse.json()["portes"]] == ["acheteur"]
+
+
+def test_la_route_sans_dossier_rend_une_liste_vide(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Pas de 404 ici : la fonction est éteinte, ce qui n'est pas la même chose
+    # qu'un agent introuvable. L'écran distingue les deux par le code.
+    monkeypatch.delenv("PORTES_DIR", raising=False)
+    client = TestClient(create_app(key=None, call=None))
+    reponse = client.get("/portes")
+    assert reponse.status_code == 200
+    assert reponse.json() == {"portes": []}
 
 
 def test_agent_inconnu(tmp_path: Path) -> None:
