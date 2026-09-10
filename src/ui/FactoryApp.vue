@@ -573,7 +573,7 @@ onBeforeUnmount(() => {
       >
         <p class="text-xs uppercase tracking-wide text-muted">L'atelier</p>
         <h2 class="text-3xl/tight font-semibold tracking-tight text-highlighted text-balance">
-          Rejoue la trajectoire d'un agent, forke-la, teste le correctif avant la prod.
+          Écrire le jugement d'un agent, et le prouver avant qu'il serve.
         </h2>
         <ol class="flex flex-col gap-4">
           <li class="grid grid-cols-[1.5rem_1fr] items-start gap-3">
@@ -582,8 +582,8 @@ onBeforeUnmount(() => {
               >1</span
             >
             <span class="text-toned"
-              ><strong>Décris un besoin.</strong> Rien n'existe encore : des agents naissent, se
-              parlent et écrivent l'application en direct.</span
+              ><strong>Ce qui décide tient dans une consigne.</strong> Ce qu'un agent accepte, ce
+              qu'il refuse, et sur quel fait. C'est là que ça dérive.</span
             >
           </li>
           <li class="grid grid-cols-[1.5rem_1fr] items-start gap-3">
@@ -592,8 +592,8 @@ onBeforeUnmount(() => {
               >2</span
             >
             <span class="text-toned"
-              ><strong>Regarde-la se faire.</strong> Le graphe montre qui existe et ce qui se
-              remplace à chaud ; une porte humaine valide ou rejette.</span
+              ><strong>Des cas figés la jugent.</strong> Chacun dit ce qu'il protège. Une consigne
+              trop sévère tue les bonnes idées, et aucun test ne l'attrape.</span
             >
           </li>
           <li class="grid grid-cols-[1.5rem_1fr] items-start gap-3">
@@ -602,9 +602,8 @@ onBeforeUnmount(() => {
               >3</span
             >
             <span class="text-toned"
-              ><strong>Forke la timeline.</strong> Change l'agent sur la branche et regarde deux
-              futurs diverger côte à côte — pour tester un correctif sur la vraie trajectoire qui a
-              planté.</span
+              ><strong>Un humain tranche avant la prod.</strong> La proposition se mesure avant de
+              servir, jamais après. C'est la même porte que celle du run ci-dessous.</span
             >
           </li>
         </ol>
@@ -631,7 +630,7 @@ onBeforeUnmount(() => {
           <span class="text-dimmed" aria-hidden="true">·</span>
           {{ foreignMeasure.events }} événements · {{ foreignMeasure.agents }} agents ·
           {{ foreignMeasure.served ? 'a servi une application' : "n'a pas servi d'application" }}
-          — rejouable et mesurable, non forkable (agent étranger, non ré-exécutable).
+          : rejouable et mesurable, non forkable (agent étranger, non ré-exécutable).
         </p>
 
         <!-- The application is the protagonist; the graph is the evidence.

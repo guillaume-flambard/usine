@@ -452,10 +452,18 @@ describe('the atelier redesign', () => {
   it('explains the workshop before any run, without faking a run', async () => {
     await mount()
     // scene-legibility: an intro naming the three beats, not a void.
+    //
+    // All three are asserted, not one: the test says it guards the three beats,
+    // and checking a single phrase let the copy be rewritten around it. That is
+    // exactly what happened on 2026-09-10, when the intro moved to the current
+    // angle and this test caught it on one sentence out of three.
     const intro = document.querySelector('[data-scene-intro]')
     expect(intro, 'the scene intro is missing before a run').not.toBeNull()
-    expect(intro?.textContent ?? '').toContain('Forke la timeline')
-    expect(intro?.textContent ?? '').toContain('intra-runtime')
+    const texte = intro?.textContent ?? ''
+    expect(texte).toContain('tient dans une consigne')
+    expect(texte).toContain('Des cas figés la jugent')
+    expect(texte).toContain('Un humain tranche avant la prod')
+    expect(texte).toContain('intra-runtime')
     // No fake run content before a run: no application frame, and nothing
     // moving. A skeleton is an animation, so that is what we look for —
     // a `.skeleton` class the product never declares proves nothing.

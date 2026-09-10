@@ -80,7 +80,8 @@ const config = useConfig()
 
 function handleDrop(event: DragEvent) {
   hasDragOver.value = false
-  const text = event.dataTransfer.getData('text/plain')
+  // Idem : sans données transférées il n'y a rien à déposer.
+  const text = event.dataTransfer?.getData('text/plain') ?? ''
   if (!text.startsWith('activity:')) return
   const id = text.slice(9)
   const target = props.children[0].id

@@ -101,7 +101,10 @@ export class ClientService extends Service {
     ctx.on(
       'internal/get',
       (ctx, name, error, next) => {
-        const ref = (store[ctx.reflect.store[name] ?? name] ??= customRef((get, set) => ({
+        // `reflect.store` est indexé par nom de service, ce que son type ne
+        // déclare pas : il est parcouru par clé partout ailleurs dans cordis.
+        const alias = (ctx.reflect.store as Record<string, symbol | undefined>)[name]
+        const ref = (store[alias ?? name] ??= customRef((get, set) => ({
           get,
           set,
         })))
@@ -157,7 +160,9 @@ export class ClientService extends Service {
     if (!component) return undefined
     if (!this.ctx.$entry) return component
     let ctx = this.ctx as Context
-    if (ctx[symbols.shadow]) {
+    // `symbols.shadow` est un symbole interne : le contexte ne l'annonce pas
+    // dans son type, mais cordis le pose bien sur l'instance.
+    if ((ctx as unknown as Record<symbol, unknown>)[symbols.shadow]) {
       ctx = Object.getPrototypeOf(ctx)
     }
     return markRaw(

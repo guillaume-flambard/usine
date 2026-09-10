@@ -38,10 +38,25 @@ from .identity import (
     TokenStore,
     normalize_email,
 )
+from .invites import etat as etat_invites
+from .invites import etiqueter as etiqueter_invite_langfuse
 from .limits import Limits, RateLimiter
 from .mcp import TIMEOUT_SECONDS, McpRefusal, Server, call_tool, list_tools
 from .memory import MAX_FACT, Fact, InMemoryMemory, Memory
-from .reasoning import DEFAULT_MODEL, Reasoning, Refusal, reason
+from .portes import Absent as PortesAbsent
+from .portes import dossier as portes_dir
+from .portes import lancer as lancer_portes
+from .portes import lire as read_portes
+from .portes import suivre as suivre_portes
+from .reasoning import (
+    BAI_REASONING_OFF,
+    DEFAULT_MODEL,
+    ENDPOINT,
+    OPENROUTER_REASONING_OFF,
+    Reasoning,
+    Refusal,
+    reason,
+)
 from .runs import InMemoryRunStore, RunStore, Stored, new_id, read_archive
 from .sources import SourceRefusal, catalogue, fetch_source
 from .tracing import trace_of
@@ -174,8 +189,26 @@ def create_app(
     tool_servers: dict[str, Server] = servers or {}
     recollection: Memory = memory if memory is not None else InMemoryMemory()
     rpc = transport if transport is not None else http_rpc
-    api_key = key if key is not None else os.environ.get("OPENROUTER_API_KEY", "")
-    chosen_model = model or os.environ.get("USINE_MODEL", DEFAULT_MODEL)
+    # Deux fournisseurs, tous deux compatibles OpenAI, et `BAI_API_KEY` décide.
+    # Ce n'est pas un réglage de plus : b.ai sert des modèles Qwen, dont
+    # l'extension qui coupe le raisonnement ne porte pas le même nom que celle
+    # d'OpenRouter. Choisir l'un sans l'autre rendrait des réponses vides.
+    #
+    # Les noms de variables sont ceux du reste du lab (`stacks/_partage/modele.py`,
+    # `stacks/llm-shim/shim.py`) plutôt que de nouveaux : une seule clé à poser,
+    # au même nom, quel que soit le service qui la lit.
+    bai_key = os.environ.get("BAI_API_KEY", "")
+    if bai_key:
+        api_key = key if key is not None else bai_key
+        base = os.environ.get("BAI_BASE_URL", "https://api.b.ai/v1").rstrip("/")
+        provider_endpoint = f"{base}/chat/completions"
+        chosen_model = model or os.environ.get("BAI_MODEL", "qwen3.8-flash")
+        reasoning_off = BAI_REASONING_OFF
+    else:
+        api_key = key if key is not None else os.environ.get("OPENROUTER_API_KEY", "")
+        provider_endpoint = ENDPOINT
+        chosen_model = model or os.environ.get("USINE_MODEL", DEFAULT_MODEL)
+        reasoning_off = OPENROUTER_REASONING_OFF
     site_origin = origin or os.environ.get("USINE_ORIGIN", "https://usine.memolabs.dev")
     if not api_key:
         # Un déploiement dégradé doit se remarquer, pas servir un rejeu en silence.
@@ -276,6 +309,67 @@ def create_app(
                 "callsPerRun": bounds.calls_per_run,
             }
         )
+
+    @app.get("/portes/{agent}")
+    async def portes(agent: str) -> JSONResponse:
+        # Lecture seule, et aucun modèle appelé : c'est `lab-infra` qui juge.
+        # L'usine montre la mesure et fera décider un humain dessus.
+        try:
+            return no_store(read_portes(agent))
+        except PortesAbsent as absent:
+            return no_store({"error": absent.message}, 404)
+
+    @app.post("/portes/{agent}/juger")
+    async def juger_portes(agent: str, request: Request) -> JSONResponse:
+        # Rend la main tout de suite : une mesure dure plus d'une minute, et un
+        # POST qui bloque ce temps-là est ce que la règle du suivi vivant
+        # interdit. Le travail continue derrière, l'écran lit l'avancement.
+        try:
+            corps = await request.json()
+        except Exception:  # noqa: BLE001 — un corps absent vaut un corps vide
+            corps = {}
+        etiquette = str((corps or {}).get("invites") or "candidat")
+        dossier = portes_dir()
+        if dossier is None:
+            return no_store({"error": "aucun dossier de verdicts configuré (PORTES_DIR)"}, 404)
+        try:
+            lancee = lancer_portes(agent, etiquette, dossier / f"{agent}-{etiquette}.json")
+        except PortesAbsent as absent:
+            return no_store({"error": absent.message}, 404)
+        return no_store(lancee.vue(), 202)
+
+    @app.get("/portes/juger/{identifiant}")
+    async def suivi_portes(identifiant: str) -> JSONResponse:
+        try:
+            return no_store(suivre_portes(identifiant).vue())
+        except PortesAbsent as absent:
+            return no_store({"error": absent.message}, 404)
+
+    @app.get("/portes/{agent}/invites")
+    async def invites_portes(agent: str) -> JSONResponse:
+        try:
+            return no_store(etat_invites(agent))
+        except PortesAbsent as absent:
+            return no_store({"error": absent.message}, 404)
+
+    @app.post("/portes/{agent}/invites/{nom}/etiquette")
+    async def etiqueter_invite(agent: str, nom: str, request: Request) -> JSONResponse:
+        # Le geste que le correcteur laisse explicitement à un humain quand il
+        # ne promeut pas lui-même. Une étiquette est unique dans Langfuse :
+        # poser `production` la retire de la version qui l'avait, donc ce point
+        # d'entrée change ce que les agents en service utilisent.
+        try:
+            corps = await request.json()
+        except Exception:  # noqa: BLE001 — un corps absent est un corps vide
+            corps = {}
+        version = (corps or {}).get("version")
+        etiquette = str((corps or {}).get("etiquette") or "")
+        if not isinstance(version, int):
+            return no_store({"error": "version manquante"}, 400)
+        try:
+            return no_store(etiqueter_invite_langfuse(agent, nom, version, etiquette))
+        except PortesAbsent as absent:
+            return no_store({"error": absent.message}, 404)
 
     @app.post("/auth/request-link")
     async def request_link(request: Request) -> JSONResponse:
@@ -378,6 +472,8 @@ def create_app(
                 call=call,
                 limits=bounds,
                 tools=body.get("tools"),
+                endpoint=provider_endpoint,
+                reasoning_off=reasoning_off,
             )
         except Refusal as refused:
             return no_store({"error": refused.message}, refused.status)

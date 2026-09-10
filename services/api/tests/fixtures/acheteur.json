@@ -1,0 +1,100 @@
+{
+  "agent": "acheteur",
+  "le": "2026-09-10T12:42:57",
+  "invites": "production",
+  "total": 9,
+  "conformes": 9,
+  "duree_s": 67,
+  "cas": [
+    {
+      "id": "denombrable-annuaire-nomme",
+      "porte": "denombrable",
+      "attendu": "pass",
+      "obtenu": "pass",
+      "conforme": true,
+      "raison": "Liste possible : Annuaire officiel des notaires de France, https://www.notaires.fr/fr/annuaire-notaires",
+      "pourquoi": "Un annuaire officiel nomme avec un effectif est exactement ce que la porte cherche. Si ce cas vire au rouge, la porte est devenue trop severe et l'agent ne demarchera plus rien.",
+      "recherches": 1
+    },
+    {
+      "id": "denombrable-pas-de-source",
+      "porte": "denombrable",
+      "attendu": "kill",
+      "obtenu": "kill",
+      "conforme": true,
+      "raison": "Aucune source publique ne permet de lister les acheteurs : on ne saurait pas a qui ecrire.",
+      "pourquoi": "Le defaut que cet agent existe pour corriger : « les cabinets d expertise comptable » est une classe, pas une liste. Un article de presse sur la numerisation d un secteur ne permet d ecrire aucun nom.",
+      "recherches": 1
+    },
+    {
+      "id": "joignable-marche-publique",
+      "porte": "joignable",
+      "attendu": "pass",
+      "obtenu": "pass",
+      "conforme": true,
+      "raison": "Joignable : https://community.atlassian.com",
+      "pourquoi": "Une place de marche ou l acheteur installe lui-meme est le canal type d un duo sans carnet d adresses. Si ce cas vire au rouge, la porte refuse le seul canal que ce duo puisse tenir.",
+      "recherches": 1
+    },
+    {
+      "id": "joignable-appel-d-offres-seulement",
+      "porte": "joignable",
+      "attendu": "kill",
+      "obtenu": "kill",
+      "conforme": true,
+      "raison": "Aucun chemin de contact sans reseau : le premier message n'aurait pas de destinataire.",
+      "pourquoi": "Un appel d offres public est un canal REEL mais il suppose un dossier, des references et des mois. Le laisser passer ferait ecrire un premier message a quelqu un qui ne peut pas y repondre.",
+      "recherches": 1
+    },
+    {
+      "id": "paye-deja-prix-affiche",
+      "porte": "paye deja",
+      "attendu": "pass",
+      "obtenu": "pass",
+      "conforme": true,
+      "raison": "Budget prouve : Qualioform, https://qualioform.fr/tarifs a à partir de 49 euros par mois et par organisme",
+      "pourquoi": "Un editeur qui affiche un tarif mensuel prouve qu un budget logiciel existe chez cet acheteur. C est la preuve positive que la porte cherche, et elle doit la reconnaitre.",
+      "recherches": 1
+    },
+    {
+      "id": "paye-deja-secteur-qui-se-numerise",
+      "porte": "paye deja",
+      "attendu": "kill",
+      "obtenu": "kill",
+      "conforme": true,
+      "raison": "Rien ne prouve que ces acheteurs paient deja pour du logiciel : le budget est une hypothese.",
+      "pourquoi": "« Le secteur investit dans le numerique » est ce que le modele accepte spontanement comme une preuve de budget. C en est une sur le SECTEUR, jamais sur l acheteur qu on va demarcher, et la difference decide si un mail obtient une reponse.",
+      "recherches": 1
+    },
+    {
+      "id": "delai-cycle-court",
+      "porte": "delai",
+      "attendu": "pass",
+      "obtenu": "pass",
+      "conforme": true,
+      "raison": "Premier euro estime a 4 semaines, sous l'horizon de 9.",
+      "pourquoi": "Un essai gratuit avec paiement par carte et sans validation budgetaire est le cycle le plus court qui existe. Si ce cas vire au rouge, plus aucune idee ne passe la quatrieme porte.",
+      "recherches": 1
+    },
+    {
+      "id": "delai-au-dela-de-l-horizon",
+      "porte": "delai",
+      "attendu": "kill",
+      "obtenu": "kill",
+      "conforme": true,
+      "raison": "Premier euro estime a 40 semaines, au-dela de l'horizon de 9 : cette idee ne finance pas le depart.",
+      "pourquoi": "La raison d etre de cette porte. Une idee excellente dont le premier euro tombe apres le depart ne finance pas le depart, et le classement du prospecteur, qui trie sur rendement divise par effort, ne peut pas le voir. Ce cas est le SEUL que la porte affirme encore depuis le desserrage du 2026-09-09 : un delai documente au-dela de l'horizon tue toujours.",
+      "recherches": 1
+    },
+    {
+      "id": "delai-non-documente-passe",
+      "porte": "delai",
+      "attendu": "pass",
+      "obtenu": "pass",
+      "conforme": true,
+      "raison": "Cycle d'achat non documente : le delai reste INCONNU, il n'est pas estime. A etablir au premier contact.",
+      "pourquoi": "Le desserrage du 2026-09-09, verrouille. Le delai d'un cycle d'achat ne figure quasiment jamais dans une recherche web : tuer sur ce doute bloquait TOUT, six unites jugees et zero passee. La porte laisse passer, mais elle ne doit JAMAIS inventer un chiffre : `delai semaines` reste absent des acquis, et c'est ce que ce cas verifie. Le jour ou quelqu'un fait estimer le delai au modele, ce cas vire au rouge.",
+      "recherches": 1
+    }
+  ]
+}

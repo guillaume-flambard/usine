@@ -1,15 +1,18 @@
 <template>
   <nav
     class="layout-activity flex flex-col justify-evenly"
-    @contextmenu.stop="trigger($event, null)"
+    @contextmenu.stop="trigger($event, undefined)"
   >
     <template v-for="(data, index) in groups.top" :key="data[0].id">
       <activity-separator position="top" :index="index" />
       <activity-item placement="right" :children="data"></activity-item>
     </template>
     <activity-separator position="top" :index="groups.top.length" />
+    <!-- `hidden` vaut désormais toujours un tableau, jamais `undefined` :
+         c'est la longueur qui décide, pas l'existence. Un tableau vide est
+         truthy, et rendait ici un élément sans le moindre enfant. -->
     <activity-item
-      v-if="groups.hidden"
+      v-if="groups.hidden.length > 0"
       placement="bottom"
       :children="groups.hidden"
     ></activity-item>
@@ -34,8 +37,13 @@ const config = useConfig()
 const trigger = useMenu('theme.activity')
 const { height } = useWindowSize()
 
+/** `Activity.order` est optionnel : une activité sans rang se range à zéro. */
+const orderOf = (activity: Activity): number => activity.order ?? 0
+
 const groups = computed(() => {
-  let hidden: Activity[]
+  // Assigné dès la déclaration : la branche qui le remplit est conditionnelle,
+  // et le `return` le lit toujours.
+  let hidden: Activity[] = []
   const root = getComputedStyle(document.documentElement)
   const navWidth = parseFloat(root.getPropertyValue('--nav-width'))
   const iconMargin = parseFloat(root.getPropertyValue('--nav-icon-margin'))
@@ -54,20 +62,20 @@ const groups = computed(() => {
       continue
     }
     Object.assign(available[id][0], override)
-    const parent = available[override.parent]
+    const parent = override.parent === undefined ? undefined : available[override.parent]
     if (parent) {
       parent.push(available[id][0])
       delete available[id]
     }
   }
-  const list = Object.values(available).sort(([a], [b]) => a.order - b.order)
+  const list = Object.values(available).sort(([a], [b]) => orderOf(a) - orderOf(b))
   if (list.length * unit > total) {
     hidden = list
       .splice(0, list.length + 1 - Math.floor(total / unit))
       .sort(([a], [b]) => {
         const scale = a.position === 'top' ? -1 : 1
         if (a.position === b.position) {
-          return scale * (a.order - b.order)
+          return scale * (orderOf(a) - orderOf(b))
         }
         return scale
       })

@@ -126,8 +126,10 @@ export function install(app: App) {
       props: {
         name: String,
       },
-      render(props) {
-        const component = registry[props.name]
+      // `render` reçoit les props déclarées juste au-dessus ; les nommer ici
+      // évite un `any` implicite sans changer le composant.
+      render(props: { name?: string }) {
+        const component = props.name === undefined ? undefined : registry[props.name]
         return component && h(component)
       },
     }),

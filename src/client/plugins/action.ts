@@ -157,10 +157,14 @@ function createScope(scope: Store<ActionContext>, prefix = '') {
   return new Proxy(
     {},
     {
-      get: (target, key) => {
+      // Le mandataire lit une cible vide et un magasin indexé par chemin
+      // pointé : ni l'une ni l'autre ne déclare d'index, alors qu'ils sont
+      // parcourus par clé, c'est tout ce que fait cette fonction.
+      get: (target: Record<string | symbol, unknown>, key) => {
         if (typeof key === 'symbol') return target[key]
         key = prefix + key
-        if (key in scope) return toValue(scope[key])
+        const bag = scope as Record<string, unknown>
+        if (key in scope) return toValue(bag[key])
         const _prefix = key + '.'
         if (Object.keys(scope).some((k) => k.startsWith(_prefix))) {
           return createScope(scope, key + '.')

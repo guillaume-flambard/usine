@@ -43,7 +43,12 @@ export default defineConfigWithVueTs(
     // about a second engine-facing layer; hiding it under `src/runtime/` to
     // satisfy the linter would not be. The rule's intent still holds for the
     // rest of the application, which keeps consuming the `RunEvent` stream.
-    ignores: ['src/runtime/**', 'src/client/**', 'spike/**'],
+    //
+    // `src/shell/` is our own code, and it is here for the same reason: it
+    // composes that shell, so it names cordis to register plugins and read
+    // services. It stays in the strict TypeScript project, unlike the vendored
+    // tree, precisely so the compiler keeps holding it to our standard.
+    ignores: ['src/runtime/**', 'src/client/**', 'src/shell/**', 'spike/**'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -78,11 +83,16 @@ export default defineConfigWithVueTs(
     },
   },
 
-  // La coquille console de `src/client/` est vendorisée depuis `@cordisjs/client`
-  // (MIT, cordiverse/webui). Elle est jugée sur les conventions de son auteur,
-  // pas sur les nôtres, pour la même raison que `tsconfig.client.json` existe :
-  // récrire son style, c'est l'éloigner de l'amont ligne à ligne et transformer
-  // la prochaine resynchro en réécriture.
+  // `src/client/` vient de `@cordisjs/client` (MIT, cordiverse/webui). Le
+  // TypeScript, lui, est désormais tenu au standard du dépôt : le projet séparé
+  // qui le jugeait plus doucement a été supprimé, parce qu'un même programme ne
+  // peut pas avoir deux niveaux de sévérité dès que les deux moitiés se
+  // parlent. Les 61 erreurs ont été payées.
+  //
+  // Restent éteintes ici des règles de STYLE, et elles seules : renommer 45
+  // fichiers d'icônes ou retyper leurs registres dynamiques ne corrigerait
+  // aucun défaut, et éloignerait le dossier de l'amont sans rien acheter.
+  // `src/shell/`, qui est notre code, n'a droit à aucune de ces exemptions.
   //
   // Ce qui reste actif : tout ce qui attrape un défaut, pas un goût. Les règles
   // `vue/valid-v-for` et `vue/require-v-for-key` ont d'ailleurs trouvé cinq

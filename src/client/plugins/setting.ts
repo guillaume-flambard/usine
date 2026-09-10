@@ -32,8 +32,12 @@ export let useStorage = <T extends object>(
   fallback?: () => T,
 ): RemovableRef<T> => {
   const initial = fallback ? fallback() : ({} as T)
-  initial['__version__'] = version
-  const storage = useLocalStorage('cordis.webui.' + key, initial)
+  // Le numéro de version voyage dans l'objet stocké lui-même, sous une clé que
+  // `T` ne déclare pas : c'est le marqueur qui permet d'invalider un stockage
+  // écrit par une version antérieure.
+  const versioned = initial as T & { __version__?: number }
+  versioned['__version__'] = version
+  const storage = useLocalStorage('cordis.webui.' + key, versioned)
   if (storage.value['__version__'] !== version) {
     storage.value = initial
   }
