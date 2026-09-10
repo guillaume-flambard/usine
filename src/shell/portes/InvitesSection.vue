@@ -1,12 +1,12 @@
 <template>
   <section class="invites">
-    <h2>Invites</h2>
+    <h4>Invites</h4>
 
-    <p v-if="erreur" class="portes-echec" data-invites-echec>{{ erreur }}</p>
+    <p v-if="erreur" class="porte-echec" data-invites-echec>{{ erreur }}</p>
 
     <article v-for="invite in invites" :key="invite.nom" class="invite">
       <div class="invite-tete">
-        <code class="portes-id">{{ invite.nom }}</code>
+        <code class="porte-id">{{ invite.nom }}</code>
         <span class="text-muted">
           en service : version {{ invite.service?.version ?? 'aucune' }}
         </span>
@@ -121,7 +121,7 @@ defineExpose({ ampleur })
 
 <style lang="scss">
 .invites {
-  margin-top: 2.5rem;
+  margin-top: 1.5rem;
 
   .invite {
     padding: 0.75rem 0;
@@ -139,7 +139,7 @@ defineExpose({ ampleur })
   .invite-diff {
     margin: 0.5rem 0;
     padding: 0.75rem;
-    background: var(--bg-secondary);
+    background: var(--bg-primary);
     border: 1px solid var(--border-primary);
     font-family: var(--font-mono);
     font-size: 0.75rem;

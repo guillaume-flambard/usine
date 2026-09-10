@@ -49,6 +49,43 @@ export async function lireVerdict(agent: string): Promise<Verdict> {
   return { etat: 'mesure', mesure: (await reponse.json()) as Mesure }
 }
 
+/** Ce que la page unique sait d'une porte avant de l'ouvrir. */
+export interface ResumePorte {
+  agent: string
+  le: string | null
+  invites: string | null
+  total: number | null
+  conformes: number | null
+}
+
+export type EtatPortes =
+  { etat: 'lues'; portes: readonly ResumePorte[] } | { etat: 'absente'; raison: string }
+
+/**
+ * Les agents qui portent une décision.
+ *
+ * Un seul appel : demander sa porte à chacun des huit agents de la flotte
+ * ferait huit requêtes pour au plus une réponse utile.
+ *
+ * Un échec ne rend pas une liste vide. Elle se lirait « aucune décision ne
+ * t'attend », c'est-à-dire l'inverse de « je ne sais pas », et c'est le seul
+ * endroit de la page où une décision peut se perdre sans que rien ne le dise.
+ */
+export async function listerPortes(): Promise<EtatPortes> {
+  let reponse: Response
+  try {
+    reponse = await fetch('/api/portes')
+  } catch {
+    return { etat: 'absente', raison: 'le service ne répond pas' }
+  }
+  if (!reponse.ok) {
+    const corps = (await reponse.json().catch(() => null)) as { error?: string } | null
+    return { etat: 'absente', raison: corps?.error ?? `le service a répondu ${reponse.status}` }
+  }
+  const corps = (await reponse.json()) as { portes?: ResumePorte[] }
+  return { etat: 'lues', portes: corps.portes ?? [] }
+}
+
 /** Une mesure en cours ou finie, telle que le service la rend. */
 export interface Avancement {
   id: string

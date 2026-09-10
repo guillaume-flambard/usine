@@ -65,6 +65,49 @@ def lire(agent: str, racine: Path | None = None) -> dict[str, Any]:
     return mesure
 
 
+def lister(racine: Path | None = None) -> list[dict[str, Any]]:
+    """Les agents dont une mesure est lisible, avec leur score.
+
+    L'écran unique en a besoin pour savoir, sans ouvrir quoi que ce soit, quels
+    agents portent une décision. Il ne rend que ce que le fichier contient
+    déjà : rien n'est rejoué ici, et un agent sans mesure n'apparaît pas plutôt
+    que d'apparaître à zéro sur zéro, ce qui se lirait comme un échec.
+    """
+    base = racine if racine is not None else dossier()
+    if base is None:
+        return []
+    resumes: list[dict[str, Any]] = []
+    try:
+        fichiers = sorted(base.glob("*.json"))
+    except OSError:
+        return []
+    for fichier in fichiers:
+        agent = fichier.stem
+        # Les mesures lancées depuis l'écran s'écrivent `<agent>-<etiquette>.json`
+        # à côté des verdicts, et `NOM` les accepte : le tiret y est légal, donc
+        # un agent « acheteur-candidat » entrerait dans la liste alors qu'il
+        # n'existe pas. Le suffixe est ce qui les distingue, et il est borné par
+        # `ETIQUETTES`, pas deviné.
+        if not NOM.match(agent):
+            continue
+        if any(agent.endswith(f"-{etiquette}") for etiquette in ETIQUETTES):
+            continue
+        try:
+            mesure = lire(agent, base)
+        except Absent:
+            continue
+        resumes.append(
+            {
+                "agent": agent,
+                "le": mesure.get("le"),
+                "invites": mesure.get("invites"),
+                "total": mesure.get("total"),
+                "conformes": mesure.get("conformes"),
+            }
+        )
+    return resumes
+
+
 # --- Lancer le harnais, sans bloquer la requête ---------------------------
 #
 # Une mesure prend une minute et plus : la rendre au bout d'un POST bloquant

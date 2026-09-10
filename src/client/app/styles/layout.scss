@@ -1,5 +1,7 @@
 :root {
-  --nav-width: 48px;
+  /* Zéro : la barre d'activités n'existe plus, et `.k-layout.page-content` se
+     décale de cette largeur. La garder à 48px laisserait une colonne vide. */
+  --nav-width: 0px;
   --nav-marker-width: 3px;
   --nav-marker-height: 24px;
   --nav-icon-margin: 6px;
@@ -8,7 +10,8 @@
   --aside-width: 260px;
   --header-height: 44px;
   --tab-bar-height: 44px;
-  --footer-height: 28px;
+  /* Zéro pour la même raison : la barre de statut est partie avec elle. */
+  --footer-height: 0px;
 
   --card-margin: 2rem;
   --card-padding-vertical: 1.5rem;
