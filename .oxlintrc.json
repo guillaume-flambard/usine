@@ -16,5 +16,15 @@
   "ignorePatterns": [
     "**/dist/**",
     "**/dist-*/**"
+  ],
+  "overrides": [
+    {
+      "files": [
+        "src/client/**"
+      ],
+      "rules": {
+        "no-unused-vars": "off"
+      }
+    }
   ]
 }

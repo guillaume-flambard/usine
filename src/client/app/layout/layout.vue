@@ -7,16 +7,22 @@
       <template #right>
         <slot name="menu">
           <template v-if="typeof menu === 'string'">
-            <template v-for="item in ctx.client.action.menus[menu]" :key="menu">
+            <template v-for="item in ctx.client.action.menus[menu]" :key="item.id">
               <layout-menu-item
                 v-if="item.id !== '@separator'"
-                :item="{ ...item, ...ctx.client.action.actions[item.id.startsWith('.') ? menu + item.id : item.id] }"
-                :menu-key="menu" :menu-data="menuData"
+                :item="{
+                  ...item,
+                  ...ctx.client.action.actions[item.id.startsWith('.') ? menu + item.id : item.id],
+                }"
+                :menu-key="menu"
+                :menu-data="menuData"
               />
             </template>
           </template>
           <template v-else>
-            <layout-menu-item v-for="item in menu" :item="item" />
+            <!-- A legacy menu item is typed `Omit<MenuItem, 'id'>`: it has no
+                 identity of its own, so the index is the only key available. -->
+            <layout-menu-item v-for="(item, index) in menu" :key="index" :item="item" />
           </template>
         </slot>
       </template>
@@ -28,7 +34,6 @@
 </template>
 
 <script lang="ts" setup>
-
 import { useRoute, useContext } from '@cordisjs/client'
 import type { LegacyMenuItem } from '@cordisjs/client'
 import LayoutHeader from './header.vue'
@@ -43,11 +48,9 @@ defineProps<{
 
 const route = useRoute()
 const ctx = useContext()
-
 </script>
 
 <style lang="scss">
-
 .k-layout.page-content {
   position: fixed;
   box-sizing: border-box;
@@ -62,5 +65,4 @@ const ctx = useContext()
   flex-direction: column;
   overflow: hidden;
 }
-
 </style>

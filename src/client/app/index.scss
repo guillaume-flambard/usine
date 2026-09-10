@@ -7,7 +7,9 @@ body {
   color: var(--text-primary);
   background-color: var(--bg-primary);
   position: relative;
-  transition: color 0.3s ease, background-color 0.3s ease;
+  transition:
+    color 0.3s ease,
+    background-color 0.3s ease;
 }
 
 code {
@@ -20,7 +22,8 @@ a {
   transition: color 0.3s ease;
 }
 
-p, ul {
+p,
+ul {
   margin: 1em 0;
   line-height: 1.7;
 }
@@ -30,8 +33,9 @@ table {
   width: 100%;
   border-collapse: collapse;
 
-  td, th {
-    padding: .5em 1em;
+  td,
+  th {
+    padding: 0.5em 1em;
   }
 
   tr {
@@ -45,7 +49,8 @@ table {
 }
 
 .markdown {
-  a, code a {
+  a,
+  code a {
     color: var(--accent);
 
     &:hover {
@@ -59,6 +64,8 @@ table {
     background-color: var(--bg-tertiary);
     border-radius: var(--radius-sm);
     overflow-wrap: break-word;
-    transition: background-color 0.3s ease, color 0.3s ease;
+    transition:
+      background-color 0.3s ease,
+      color 0.3s ease;
   }
 }

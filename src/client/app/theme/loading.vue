@@ -10,7 +10,6 @@
 </template>
 
 <style lang="scss" scoped>
-
 .loading {
   flex: 1;
   display: flex;
@@ -29,7 +28,8 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
-
 </style>

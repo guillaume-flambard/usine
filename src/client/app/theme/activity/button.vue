@@ -4,16 +4,20 @@
     class="activity-button"
     draggable="true"
     :id="data.id"
-    :class="{ 'dragging': isDragging }"
+    :class="{ dragging: isDragging }"
     @dragstart="handleDragStart"
-    @dragend="handleDragEnd">
-    <k-icon v-if="typeof data.icon === 'string'" class="activity-button-icon" :name="data.icon"></k-icon>
+    @dragend="handleDragEnd"
+  >
+    <k-icon
+      v-if="typeof data.icon === 'string'"
+      class="activity-button-icon"
+      :name="data.icon"
+    ></k-icon>
     <component v-else :is="data.icon" class="activity-button-icon"></component>
   </component>
 </template>
 
 <script lang="ts" setup>
-
 import { ref } from 'vue'
 import { Activity } from '@cordisjs/client'
 
@@ -31,11 +35,9 @@ function handleDragStart(event: DragEvent) {
 function handleDragEnd(event: DragEvent) {
   isDragging.value = false
 }
-
 </script>
 
 <style lang="scss" scoped>
-
 .activity-button {
   height: calc(var(--nav-width) - 2 * var(--nav-icon-margin));
   display: flex;
@@ -52,7 +54,8 @@ function handleDragEnd(event: DragEvent) {
     pointer-events: none;
   }
 
-  &:hover, &.dragging {
+  &:hover,
+  &.dragging {
     color: var(--text-primary);
     background-color: var(--bg-hover);
   }
@@ -79,7 +82,7 @@ function handleDragEnd(event: DragEvent) {
 
   &.is-group {
     &::before {
-      content: "";
+      content: '';
       position: absolute;
       right: 0;
       bottom: 4px;
@@ -91,5 +94,4 @@ function handleDragEnd(event: DragEvent) {
     }
   }
 }
-
 </style>

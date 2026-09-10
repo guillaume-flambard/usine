@@ -14,7 +14,7 @@ import Schema from 'schemastery'
 // hook. Widgets are registered as they are ported, one schema type at a time,
 // so an unported type fails loudly instead of rendering an empty box.
 
-export interface Extension {
+export interface SchemaExtension {
   type: string
   role?: string
   component: Component
@@ -22,10 +22,10 @@ export interface Extension {
   validate?: (value: unknown, schema: Schema) => boolean
 }
 
-const extensions = new Set<Extension>()
+const extensions = new Set<SchemaExtension>()
 
-function resolve(type: string, role?: string): Extension | undefined {
-  let fallback: Extension | undefined
+function resolve(type: string, role?: string): SchemaExtension | undefined {
+  let fallback: SchemaExtension | undefined
   for (const extension of extensions) {
     if (extension.type !== type) continue
     if (extension.role === role) return extension
@@ -58,9 +58,11 @@ export const SchemaBase = {
   },
 }
 
-// Upstream wrote this type as `SchemaBase.Extension`. A namespace cannot
-// merge with a const, so it is exported on its own and the one call site was
-// updated to match.
+// Upstream wrote this type as `SchemaBase.Extension`. A namespace cannot merge
+// with a const, so it is exported on its own, and named `SchemaExtension`
+// rather than `Extension`: the barrel also re-exports the loader's own
+// `Extension`, and two identical names in one `export *` is an ambiguity TS
+// refuses.
 export default SchemaBase
 
 export { Schema, extensions, resolve, useModel }

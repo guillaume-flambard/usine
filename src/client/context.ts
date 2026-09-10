@@ -1,11 +1,10 @@
 import { Context, Fiber, Service } from 'cordis'
-import type {} from '@cordisjs/plugin-loader'
-import type * as shared from '@cordisjs/plugin-webui/shared'
+import type { WebuiEvents } from './data'
 import { inject, markRaw, onScopeDispose, ref } from 'vue'
 import type { InjectionKey, Ref } from 'vue'
 
 declare module 'cordis' {
-  interface Events extends shared.Events {}
+  interface Events extends WebuiEvents {}
 }
 
 export const kContext = Symbol('context') as InjectionKey<Context>
@@ -21,10 +20,12 @@ export function useInject<K extends string & keyof Context>(name: K): Ref<Contex
   const parent = inject(kContext)!
   const initial = parent.get(name)
   const service = ref<any>(typeof initial == 'object' && initial ? markRaw(initial) : initial)
-  onScopeDispose(parent.on('internal/service', () => {
-    const value = parent.get(name)
-    service.value = typeof value == 'object' && value ? markRaw(value) : value
-  }))
+  onScopeDispose(
+    parent.on('internal/service', () => {
+      const value = parent.get(name)
+      service.value = typeof value == 'object' && value ? markRaw(value) : value
+    }),
+  )
   return service
 }
 

@@ -1,14 +1,26 @@
 <template>
-  <UTooltip v-if="!hidden" :disabled="disabled" :text="toValue(item.label)" :content="{ side: 'bottom' }">
+  <UTooltip
+    v-if="!hidden"
+    :disabled="disabled"
+    :text="toValue(item.label)"
+    :content="{ side: 'bottom' }"
+  >
     <span class="menu-item" :class="[toValue(item.type), { disabled }]" @click="trigger">
-      <k-icon v-if="typeof toValue(item.icon) === 'string'" class="menu-icon" :name="toValue(item.icon)"></k-icon>
-      <component v-else-if="toValue(item.icon)" :is="toValue(item.icon)" class="menu-icon"></component>
+      <k-icon
+        v-if="typeof toValue(item.icon) === 'string'"
+        class="menu-icon"
+        :name="toValue(item.icon)"
+      ></k-icon>
+      <component
+        v-else-if="toValue(item.icon)"
+        :is="toValue(item.icon)"
+        class="menu-icon"
+      ></component>
     </span>
   </UTooltip>
 </template>
 
 <script lang="ts" setup>
-
 import { useContext } from '@cordisjs/client'
 import type { MaybeGetter } from '@cordisjs/client'
 import { computed } from 'vue'
@@ -32,9 +44,15 @@ const disabled = computed(() => {
   return toValue(props.item.disabled)
 })
 
-const scope = computed(() => ctx.client.action.createScope(props.menuKey ? {
-    [props.menuKey]: props.menuData,
-  } : {}))
+const scope = computed(() =>
+  ctx.client.action.createScope(
+    props.menuKey
+      ? {
+          [props.menuKey]: props.menuData,
+        }
+      : {},
+  ),
+)
 
 function toValue<T>(getter: MaybeGetter<T>): T {
   if (typeof getter !== 'function') return getter
@@ -44,5 +62,4 @@ function toValue<T>(getter: MaybeGetter<T>): T {
 function trigger() {
   return props.item.action(scope.value)
 }
-
 </script>

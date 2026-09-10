@@ -1,11 +1,7 @@
 <template>
   <activity-bar></activity-bar>
   <keep-alive>
-    <component
-      v-if="matched"
-      :is="matched.component"
-      :key="matched.path"
-    ></component>
+    <component v-if="matched" :is="matched.component" :key="matched.path"></component>
   </keep-alive>
   <not-found v-if="!matched && showNotFound"></not-found>
   <loading v-if="!matched && !showNotFound"></loading>
@@ -14,7 +10,6 @@
 </template>
 
 <script lang="ts" setup>
-
 import { computed } from 'vue'
 import { useContext, useRoute } from '@cordisjs/client'
 import ActivityBar from './activity/index.vue'
@@ -45,5 +40,4 @@ const showNotFound = computed(() => {
   const loader = ctx.client.loader
   return loader.initialStatus === 404 || loader.ready.value
 })
-
 </script>

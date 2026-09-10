@@ -7,7 +7,6 @@
 </template>
 
 <style lang="scss">
-
 .k-content {
   --content-padding: 3rem;
 
@@ -38,5 +37,4 @@
     margin: 2rem 0 1rem;
   }
 }
-
 </style>

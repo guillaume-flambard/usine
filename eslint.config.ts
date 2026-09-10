@@ -78,6 +78,33 @@ export default defineConfigWithVueTs(
     },
   },
 
+  // La coquille console de `src/client/` est vendorisée depuis `@cordisjs/client`
+  // (MIT, cordiverse/webui). Elle est jugée sur les conventions de son auteur,
+  // pas sur les nôtres, pour la même raison que `tsconfig.client.json` existe :
+  // récrire son style, c'est l'éloigner de l'amont ligne à ligne et transformer
+  // la prochaine resynchro en réécriture.
+  //
+  // Ce qui reste actif : tout ce qui attrape un défaut, pas un goût. Les règles
+  // `vue/valid-v-for` et `vue/require-v-for-key` ont d'ailleurs trouvé cinq
+  // `v-for` sans clé dans leur barre de menus, corrigés plutôt que tus.
+  {
+    name: 'app/coquille-vendorisee',
+    files: ['src/client/**/*.{vue,js,mjs,cjs,jsx,ts,mts,cts,tsx}'],
+    rules: {
+      // Leurs icônes sont un fichier par glyphe : `home.vue`, `moon.vue`.
+      'vue/multi-word-component-names': 'off',
+      // Leur transport et leur registre de composants sont typés larges.
+      '@typescript-eslint/no-explicit-any': 'off',
+      // `interface ActionContext {}` est une couture d'augmentation, voulue.
+      '@typescript-eslint/no-empty-object-type': 'off',
+      // `namespace Config` porte les types de l'interface qu'il fusionne.
+      '@typescript-eslint/no-namespace': 'off',
+      // Leurs gestionnaires de glisser-déposer déclarent `event` sans s'en
+      // servir, et n'ont pas la convention du préfixe `_`.
+      '@typescript-eslint/no-unused-vars': 'off',
+    },
+  },
+
   // L'évaluation du code écrit par un modèle est cantonnée au fil isolé, et à
   // lui seul. Elle a lieu là où l'on peut arrêter une boucle infinie et où les
   // capacités réseau et stockage ont été retirées — pas dans la page hôte, où

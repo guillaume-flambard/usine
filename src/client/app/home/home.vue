@@ -4,8 +4,7 @@
       <span class="crumb">Cordis</span>
     </template>
 
-    <template #menu>
-    </template>
+    <template #menu> </template>
 
     <div class="content-area" v-if="socket">
       <UScrollArea class="content-body">
@@ -19,16 +18,13 @@
 </template>
 
 <script lang="ts" setup>
-
 import { useContext } from '@cordisjs/client'
 
 const ctx = useContext()
 const socket = ctx.client.socket
-
 </script>
 
 <style lang="scss">
-
 .page-home {
   &.loading {
     display: flex;
@@ -48,5 +44,4 @@ const socket = ctx.client.socket
     }
   }
 }
-
 </style>

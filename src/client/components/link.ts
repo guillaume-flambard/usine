@@ -18,15 +18,20 @@ const KActivityLink = defineComponent({
       // wraps every wildcard / optional segment in braces, so this rule
       // covers all our route patterns. Cached path (last-visited sub-route
       // for this activity) wins when present.
-      const target = ctx.client.router.cache[activity?.id] || activity?.path.replace(/\{[^}]*\}/g, '')
-      return h('a', {
-        href: target,
-        onClick: (e: MouseEvent) => {
-          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
-          e.preventDefault()
-          if (target) ctx.client.router.router.push(target)
+      const target =
+        ctx.client.router.cache[activity?.id] || activity?.path.replace(/\{[^}]*\}/g, '')
+      return h(
+        'a',
+        {
+          href: target,
+          onClick: (e: MouseEvent) => {
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
+            e.preventDefault()
+            if (target) ctx.client.router.router.push(target)
+          },
         },
-      }, slots.default?.() ?? activity?.name)
+        slots.default?.() ?? activity?.name,
+      )
     }
   },
 })

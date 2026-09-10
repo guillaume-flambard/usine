@@ -120,13 +120,16 @@ function fromNuxtUi(name: string): Component {
 }
 
 export function install(app: App) {
-  app.component('k-icon', defineComponent({
-    props: {
-      name: String,
-    },
-    render(props) {
-      const component = registry[props.name]
-      return component && h(component)
-    },
-  }))
+  app.component(
+    'k-icon',
+    defineComponent({
+      props: {
+        name: String,
+      },
+      render(props) {
+        const component = registry[props.name]
+        return component && h(component)
+      },
+    }),
+  )
 }

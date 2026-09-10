@@ -1,5 +1,5 @@
 import { Schema, SchemaBase } from '@cordisjs/components'
-import type { Extension as SchemaExtension } from '@cordisjs/components'
+import type { SchemaExtension } from '@cordisjs/components'
 import { useLocalStorage } from '@vueuse/core'
 import type { RemovableRef } from '@vueuse/core'
 import { Context, Service } from 'cordis'
@@ -26,8 +26,12 @@ interface SettingOptions extends Ordered {
   component?: Component
 }
 
-export let useStorage = <T extends object>(key: string, version?: number, fallback?: () => T): RemovableRef<T> => {
-  const initial = fallback ? fallback() : {} as T
+export let useStorage = <T extends object>(
+  key: string,
+  version?: number,
+  fallback?: () => T,
+): RemovableRef<T> => {
+  const initial = fallback ? fallback() : ({} as T)
   initial['__version__'] = version
   const storage = useLocalStorage('cordis.webui.' + key, initial)
   if (storage.value['__version__'] !== version) {
@@ -44,7 +48,10 @@ export function provideStorage(factory: typeof useStorage) {
 // constructors), read `ctx.client.setting.{original,resolved}` directly.
 export const useConfig = (useOriginal = false): Ref<Config> => {
   const ctx = inject(kContext)
-  if (!ctx) throw new Error('useConfig() requires a Vue setup context with kContext provided (use ctx.client.setting.{original,resolved} outside setup)')
+  if (!ctx)
+    throw new Error(
+      'useConfig() requires a Vue setup context with kContext provided (use ctx.client.setting.{original,resolved} outside setup)',
+    )
   return useOriginal ? ctx.client.setting.original : ctx.client.setting.resolved
 }
 
@@ -89,10 +96,15 @@ export default class SettingService {
       return Schema.intersect(list)
     })
 
-    const doWatch = () => watch(this.resolved, (value) => {
-      console.debug('config', value)
-      this.original.value = schema.value.simplify(value)
-    }, { deep: true })
+    const doWatch = () =>
+      watch(
+        this.resolved,
+        (value) => {
+          console.debug('config', value)
+          this.original.value = schema.value.simplify(value)
+        },
+        { deep: true },
+      )
 
     let stop = doWatch()
 
@@ -125,7 +137,7 @@ export default class SettingService {
     options.order ??= 0
     options.component = this.ctx.client.wrapComponent(options.component)
     return this.ctx.effect(() => {
-      const list = this._settings[options.id] ||= []
+      const list = (this._settings[options.id] ||= [])
       insert(list, options)
       return () => {
         remove(list, options)

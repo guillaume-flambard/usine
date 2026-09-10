@@ -1,6 +1,6 @@
 <template>
   <div ref="el" class="k-menu" :style="getStyle()">
-    <template v-for="item of ctx.client.action.menus[id]">
+    <template v-for="(item, index) of ctx.client.action.menus[id]" :key="`${item.id}-${index}`">
       <div class="k-menu-separator" v-if="item.id === '@separator'"></div>
       <menu-item v-else v-bind="{ prefix: id, ...item }"></menu-item>
     </template>
@@ -8,7 +8,6 @@
 </template>
 
 <script lang="ts" setup>
-
 import { ref } from 'vue'
 import { useContext } from '@cordisjs/client'
 import type { ActiveMenu } from '@cordisjs/client'
@@ -36,5 +35,4 @@ const getStyle = () => {
   }
   return style
 }
-
 </script>

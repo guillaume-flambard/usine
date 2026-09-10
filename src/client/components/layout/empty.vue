@@ -5,7 +5,6 @@
 </template>
 
 <style lang="scss">
-
 .k-empty {
   height: 100%;
   display: flex;
@@ -30,5 +29,4 @@
     }
   }
 }
-
 </style>

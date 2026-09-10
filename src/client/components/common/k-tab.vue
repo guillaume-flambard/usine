@@ -1,25 +1,26 @@
 <template>
   <span class="k-horizontal-tab">
-    <span class="k-horizontal-tab-item"
-      v-for="(label, key) in data" :key="key"
+    <span
+      class="k-horizontal-tab-item"
+      v-for="(label, key) in data"
+      :key="key"
       :class="{ active: modelValue === key }"
-      @click="$emit('update:modelValue', key)">{{ label }}</span>
+      @click="$emit('update:modelValue', key)"
+      >{{ label }}</span
+    >
   </span>
 </template>
 
 <script lang="ts" setup>
-
 defineProps<{
   data: Record<string | number, string>
   modelValue: string | number
 }>()
 
 defineEmits(['update:modelValue'])
-
 </script>
 
 <style lang="scss">
-
 .k-horizontal-tab-item {
   cursor: pointer;
   position: relative;
@@ -43,5 +44,4 @@ defineEmits(['update:modelValue'])
     color: var(--fg1);
   }
 }
-
 </style>

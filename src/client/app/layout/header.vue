@@ -11,15 +11,12 @@
 </template>
 
 <script lang="ts" setup>
-
 import { useRoute } from '@cordisjs/client'
 
 const route = useRoute()
-
 </script>
 
 <style lang="scss">
-
 .layout-header {
   flex: 0 0 auto;
 
@@ -49,8 +46,12 @@ const route = useRoute()
     }
 
     @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+      0% {
+        transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(360deg);
+      }
     }
 
     &.disabled {
@@ -64,5 +65,4 @@ const route = useRoute()
     }
   }
 }
-
 </style>

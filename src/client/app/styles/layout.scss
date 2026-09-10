@@ -75,7 +75,9 @@
   }
 }
 
-.nav-spacer { flex: 1; }
+.nav-spacer {
+  flex: 1;
+}
 
 .nav-divider {
   width: 24px;
@@ -115,15 +117,21 @@
   gap: 6px;
   font-size: 13px;
 
-  .separator { color: var(--text-tertiary); }
-  .crumb { color: var(--text-secondary); }
+  .separator {
+    color: var(--text-tertiary);
+  }
+  .crumb {
+    color: var(--text-secondary);
+  }
   .crumb:last-child {
     color: var(--text-primary);
     font-weight: 500;
   }
 }
 
-.layout-header-spacer { flex: 1; }
+.layout-header-spacer {
+  flex: 1;
+}
 
 .layout-header-actions {
   display: flex;
@@ -156,13 +164,17 @@
   align-items: center;
   box-sizing: border-box;
 
-  &:hover { color: var(--text-primary); }
+  &:hover {
+    color: var(--text-primary);
+  }
 
   &.active {
     color: var(--text-primary);
     border-bottom-color: var(--accent);
 
-    .tab-label { font-weight: 500; }
+    .tab-label {
+      font-weight: 500;
+    }
   }
 }
 
@@ -223,7 +235,8 @@
   padding: 8px;
 }
 
-.page-sidebar, .layout-left {
+.page-sidebar,
+.layout-left {
   .el-tree {
     user-select: none;
     line-height: 2.25rem;
@@ -337,10 +350,18 @@
   flex-shrink: 0;
   background: var(--text-tertiary);
 
-  &.running { background: var(--success); }
-  &.stopped { background: var(--text-tertiary); }
-  &.error { background: var(--error); }
-  &.warning { background: var(--warning); }
+  &.running {
+    background: var(--success);
+  }
+  &.stopped {
+    background: var(--text-tertiary);
+  }
+  &.error {
+    background: var(--error);
+  }
+  &.warning {
+    background: var(--warning);
+  }
 }
 
 .badge {
@@ -418,10 +439,18 @@
     font-weight: 500;
     width: 36px;
 
-    &.info { color: var(--accent); }
-    &.warn { color: var(--warning); }
-    &.error { color: var(--error); }
-    &.debug { color: var(--text-tertiary); }
+    &.info {
+      color: var(--accent);
+    }
+    &.warn {
+      color: var(--warning);
+    }
+    &.error {
+      color: var(--error);
+    }
+    &.debug {
+      color: var(--text-tertiary);
+    }
   }
 
   .log-source {

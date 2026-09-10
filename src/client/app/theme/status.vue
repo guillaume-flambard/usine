@@ -6,7 +6,6 @@
 </template>
 
 <style lang="scss">
-
 .layout-status {
   position: fixed;
   box-sizing: border-box;
@@ -40,5 +39,4 @@
     margin-right: 2px;
   }
 }
-
 </style>

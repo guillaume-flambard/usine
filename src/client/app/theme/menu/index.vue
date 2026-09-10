@@ -5,7 +5,6 @@
 </template>
 
 <script lang="ts" setup>
-
 import { useContext } from '@cordisjs/client'
 import { useEventListener } from '@vueuse/core'
 import KMenu from './menu.vue'
@@ -19,5 +18,4 @@ useEventListener('click', () => {
 useEventListener('contextmenu', () => {
   ctx.client.action.activeMenus.splice(0)
 })
-
 </script>

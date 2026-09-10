@@ -14,15 +14,12 @@
 </template>
 
 <script lang="ts" setup>
-
 defineOptions({
   inheritAttrs: false,
 })
-
 </script>
 
 <style lang="scss" scoped>
-
 .k-status {
   cursor: default;
   padding: 0 0.5rem;
@@ -36,11 +33,9 @@ defineOptions({
     background-color: var(--k-hover-bg);
   }
 }
-
 </style>
 
 <style lang="scss">
-
 .el-popper.k-status-tooltip {
   padding: 0 0;
   border-radius: 8px;
@@ -49,5 +44,4 @@ defineOptions({
     display: none;
   }
 }
-
 </style>

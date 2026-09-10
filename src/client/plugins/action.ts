@@ -28,11 +28,18 @@ export type MaybeGetter<T> = T | ((scope: Flatten<ActionContext>) => T)
 
 type Store<S extends {}> = { [K in keyof S]?: MaybeRefOrGetter<S[K]> }
 
-type Flatten<S extends {}> = Intersect<{
-  [K in keyof S]: K extends `${infer L}.${infer R}`
-    ? { [P in L]: Flatten<{ [P in R]: S[K] }> }
-    : { [P in K]: S[K] }
-}[keyof S]>
+// Every branch is optional, where upstream wrote them required. `Store<S>`
+// already makes the write side partial, and the service's own calls pass `{}`:
+// a scope opened outside a menu has no activity. Upstream never hit this
+// because it compiles `client/` without the augmentation that fills
+// `ActionContext` in the first place.
+type Flatten<S extends {}> = Intersect<
+  {
+    [K in keyof S]: K extends `${infer L}.${infer R}`
+      ? { [P in L]?: Flatten<{ [P in R]: S[K] }> }
+      : { [P in K]?: S[K] }
+  }[keyof S]
+>
 
 export interface ActiveMenu {
   id: string
@@ -63,7 +70,7 @@ export function useMenu<K extends keyof ActionContext>(id: K) {
 }
 
 export default class ActionService {
-  scope: Store<ActionContext> = shallowReactive({})
+  scope: Store<ActionContext> = shallowReactive({} as Store<ActionContext>)
   menus: Dict<MenuItem[]> = reactive({})
   actions: Dict<ActionOptions> = reactive({})
   activeMenus: ActiveMenu[] = reactive([])
@@ -77,11 +84,16 @@ export default class ActionService {
       const scope = this.createScope()
       for (const action of Object.values(this.actions)) {
         if (!action.shortcut) continue
-        const keys = action.shortcut.split('+').map(key => key.toLowerCase().trim())
-        let ctrlKey = false, shiftKey = false, metaKey = false, code: string | undefined
+        const keys = action.shortcut.split('+').map((key) => key.toLowerCase().trim())
+        let ctrlKey = false,
+          shiftKey = false,
+          metaKey = false,
+          code: string | undefined
         for (const key of keys) {
           switch (key) {
-            case 'shift': shiftKey = true; continue
+            case 'shift':
+              shiftKey = true
+              continue
             case 'ctrl':
               if (navigator.platform.toLowerCase().includes('mac')) {
                 metaKey = true
@@ -119,10 +131,10 @@ export default class ActionService {
       if (item.icon && typeof item.icon === 'object') markRaw(item.icon)
     }
     return this.ctx.effect(() => {
-      const list = this.menus[id] ||= []
-      items.forEach(item => insert(list, item))
+      const list = (this.menus[id] ||= [])
+      items.forEach((item) => insert(list, item))
       return () => {
-        items.forEach(item => remove(list, item))
+        items.forEach((item) => remove(list, item))
         if (!list.length) delete this.menus[id]
       }
     })
@@ -142,15 +154,18 @@ export default class ActionService {
 }
 
 function createScope(scope: Store<ActionContext>, prefix = '') {
-  return new Proxy({}, {
-    get: (target, key) => {
-      if (typeof key === 'symbol') return target[key]
-      key = prefix + key
-      if (key in scope) return toValue(scope[key])
-      const _prefix = key + '.'
-      if (Object.keys(scope).some(k => k.startsWith(_prefix))) {
-        return createScope(scope, key + '.')
-      }
+  return new Proxy(
+    {},
+    {
+      get: (target, key) => {
+        if (typeof key === 'symbol') return target[key]
+        key = prefix + key
+        if (key in scope) return toValue(scope[key])
+        const _prefix = key + '.'
+        if (Object.keys(scope).some((k) => k.startsWith(_prefix))) {
+          return createScope(scope, key + '.')
+        }
+      },
     },
-  })
+  )
 }

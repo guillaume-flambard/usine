@@ -4,8 +4,11 @@
       <div><slot name="header"></slot></div>
     </virtual-item>
     <component :is="tag" class="virtual-list-wrapper" :style="wrapperStyle">
-      <virtual-item v-for="(item, index) in dataShown"
-        @resize="virtual.saveSize(getKey(item), $event)">
+      <virtual-item
+        v-for="(item, index) in dataShown"
+        :key="getKey(item)"
+        @resize="virtual.saveSize(getKey(item), $event)"
+      >
         <slot v-bind="item" :index="index + range.start"></slot>
       </virtual-item>
     </component>
@@ -17,7 +20,6 @@
 </template>
 
 <script lang="ts" setup generic="T">
-
 import { ref, computed, watch, nextTick, onActivated, onMounted, onUpdated } from 'vue'
 import type { PropType } from 'vue'
 import Virtual from './virtual'
@@ -52,20 +54,26 @@ function scrollEl() {
   return root.value!.$el as HTMLElement
 }
 
-watch(() => props.data.length, () => {
-  const { scrollTop, clientHeight, scrollHeight } = scrollEl()
-  if (!props.pinned || Math.abs(scrollTop + clientHeight - scrollHeight) < 1) {
-    nextTick(scrollToBottom)
-  }
-  virtual.updateUids(getUids())
-  virtual.handleDataChange()
-})
+watch(
+  () => props.data.length,
+  () => {
+    const { scrollTop, clientHeight, scrollHeight } = scrollEl()
+    if (!props.pinned || Math.abs(scrollTop + clientHeight - scrollHeight) < 1) {
+      nextTick(scrollToBottom)
+    }
+    virtual.updateUids(getUids())
+    virtual.handleDataChange()
+  },
+)
 
-watch(() => props.activeKey, (value) => {
-  if (!value) return
-  emit('update:activeKey', null)
-  scrollToUid(value, true)
-})
+watch(
+  () => props.activeKey,
+  (value) => {
+    if (!value) return
+    emit('update:activeKey', null)
+    scrollToUid(value, true)
+  },
+)
 
 const shepherd = ref<HTMLElement>()
 
@@ -143,9 +151,13 @@ onActivated(() => {
   }
 })
 
-// The payload is unused: every figure below is re-read from the element.
+// Element Plus handed a `{ scrollTop, scrollLeft }` payload, which this
+// component forwards to whoever listens to `scroll`. Nuxt UI's ScrollArea
+// emits the native event instead, so the same shape is rebuilt from the
+// element: consumers keep the contract they were written against.
 function onScroll() {
-  const offset = Math.ceil(scrollTop = scrollEl().scrollTop)
+  const ev = { scrollTop: scrollEl().scrollTop, scrollLeft: scrollEl().scrollLeft }
+  const offset = Math.ceil((scrollTop = scrollEl().scrollTop))
   const clientLength = Math.ceil(scrollEl().clientHeight)
   const scrollLength = Math.ceil(scrollEl().scrollHeight)
 
@@ -153,7 +165,12 @@ function onScroll() {
   emitEvent(offset, clientLength, scrollLength, ev)
 }
 
-function emitEvent(offset: number, clientLength: number, scrollLength: number, ev: { scrollTop: number, scrollLeft: number }) {
+function emitEvent(
+  offset: number,
+  clientLength: number,
+  scrollLength: number,
+  ev: { scrollTop: number; scrollLeft: number },
+) {
   emit('scroll', ev, virtual.range)
   checkBoundary(true)
 }
@@ -162,13 +179,18 @@ function checkBoundary(directed = false) {
   const offset = Math.ceil(scrollEl().scrollTop)
   const clientLength = Math.ceil(scrollEl().clientHeight)
   const scrollLength = Math.ceil(scrollEl().scrollHeight)
-  if ((!directed || virtual.direction < 0 && !!props.data.length) && (offset - props.threshold <= 0)) {
+  if (
+    (!directed || (virtual.direction < 0 && !!props.data.length)) &&
+    offset - props.threshold <= 0
+  ) {
     emit('top')
-  } else if ((!directed || virtual.direction > 0) && (offset + clientLength + props.threshold >= scrollLength)) {
+  } else if (
+    (!directed || virtual.direction > 0) &&
+    offset + clientLength + props.threshold >= scrollLength
+  ) {
     emit('bottom')
   }
 }
 
 onUpdated(checkBoundary)
-
 </script>

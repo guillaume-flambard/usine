@@ -26,12 +26,14 @@ export const KSlot = defineComponent({
   setup(props, { slots }) {
     const ctx = useContext()
     return () => {
-      const internal = props.single ? [] : [...slots.default?.() || []]
-        .filter(node => node.type === KSlotItem)
-        .map(node => ({ node, order: node.props?.order || 0 }))
-      const external = [...ctx.client.router.views[props.name] || []]
-        .filter(item => !item.disabled?.())
-        .map(item => ({
+      const internal = props.single
+        ? []
+        : [...(slots.default?.() || [])]
+            .filter((node) => node.type === KSlotItem)
+            .map((node) => ({ node, order: node.props?.order || 0 }))
+      const external = [...(ctx.client.router.views[props.name] || [])]
+        .filter((item) => !item.disabled?.())
+        .map((item) => ({
           node: h(item.component, { ...props.data }, slots),
           order: item.order,
           layer: 1,
@@ -40,7 +42,7 @@ export const KSlot = defineComponent({
       if (props.single) {
         return children[0]?.node || slots.default?.()
       }
-      return children.map(item => item.node)
+      return children.map((item) => item.node)
     }
   },
 })

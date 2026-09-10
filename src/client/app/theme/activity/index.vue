@@ -1,16 +1,21 @@
 <template>
   <nav
     class="layout-activity flex flex-col justify-evenly"
-    @contextmenu.stop="trigger($event, null)">
+    @contextmenu.stop="trigger($event, null)"
+  >
     <template v-for="(data, index) in groups.top" :key="data[0].id">
       <activity-separator position="top" :index="index" />
       <activity-item placement="right" :children="data"></activity-item>
     </template>
     <activity-separator position="top" :index="groups.top.length" />
-    <activity-item v-if="groups.hidden" placement="bottom" :children="groups.hidden"></activity-item>
+    <activity-item
+      v-if="groups.hidden"
+      placement="bottom"
+      :children="groups.hidden"
+    ></activity-item>
     <div v-else class="spacer"></div>
     <activity-separator position="bottom" :index="groups.top.length" />
-    <template v-for="(data, index) in groups.bottom" :key="data.id">
+    <template v-for="(data, index) in groups.bottom" :key="data[0].id">
       <activity-item placement="right" :children="data"></activity-item>
       <activity-separator position="bottom" :index="index" />
     </template>
@@ -18,7 +23,6 @@
 </template>
 
 <script lang="ts" setup>
-
 import { computed, provide } from 'vue'
 import { useWindowSize } from '@vueuse/core'
 import { Activity, useConfig, useContext, useMenu } from '@cordisjs/client'
@@ -37,10 +41,11 @@ const groups = computed(() => {
   const iconMargin = parseFloat(root.getPropertyValue('--nav-icon-margin'))
   const unit = navWidth - iconMargin
   const total = height.value - iconMargin
-  const available = Object.fromEntries(Object
-    .entries(ctx.client.router.pages)
-    .filter(([, data]) => !data.disabled())
-    .map(([key, data]) => [key, [data]]))
+  const available = Object.fromEntries(
+    Object.entries(ctx.client.router.pages)
+      .filter(([, data]) => !data.disabled())
+      .map(([key, data]) => [key, [data]]),
+  )
   for (const id of Object.keys(available)) {
     const override = config.value.activities?.[id]
     if (!override) continue
@@ -75,11 +80,9 @@ const groups = computed(() => {
 })
 
 provide('groups', groups)
-
 </script>
 
 <style lang="scss" scoped>
-
 .marker {
   position: absolute;
 }
@@ -99,5 +102,4 @@ provide('groups', groups)
     flex: 1 0 auto;
   }
 }
-
 </style>

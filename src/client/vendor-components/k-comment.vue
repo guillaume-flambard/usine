@@ -8,7 +8,6 @@
 </template>
 
 <script lang="ts" setup>
-
 import { computed } from 'vue'
 
 const props = defineProps({
@@ -18,17 +17,19 @@ const props = defineProps({
 
 const icon = computed(() => {
   switch (props.type) {
-    case 'success': return 'check-full'
-    case 'error': return 'times-full'
-    case 'warning': return 'exclamation-full'
-    default: return 'info-full'
+    case 'success':
+      return 'check-full'
+    case 'error':
+      return 'times-full'
+    case 'warning':
+      return 'exclamation-full'
+    default:
+      return 'info-full'
   }
 })
-
 </script>
 
 <style lang="scss" scoped>
-
 @mixin apply-color($name) {
   &.#{$name} {
     border-left-color: var(--k-color-#{$name});
@@ -65,7 +66,8 @@ const icon = computed(() => {
   @include apply-color(success);
   @include apply-color(danger);
 
-  > :nth-child(2) { // 1st is icon
+  > :nth-child(2) {
+    // 1st is icon
     margin-top: 0;
   }
 
@@ -85,5 +87,4 @@ const icon = computed(() => {
     }
   }
 }
-
 </style>

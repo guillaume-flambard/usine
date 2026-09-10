@@ -1,6 +1,10 @@
 import { reactive } from 'vue'
 
-enum CALC_TYPE { INIT, FIXED, DYNAMIC }
+enum CALC_TYPE {
+  INIT,
+  FIXED,
+  DYNAMIC,
+}
 
 const LEADING_BUFFER = 2
 
@@ -253,6 +257,8 @@ export default class Virtual {
 
   // get the item estimate size
   getEstimateSize() {
-    return this.isFixedType() ? this.fixedSizeValue : (this.firstRangeAverageSize || this.param.estimated)
+    return this.isFixedType()
+      ? this.fixedSizeValue
+      : this.firstRangeAverageSize || this.param.estimated
   }
 }

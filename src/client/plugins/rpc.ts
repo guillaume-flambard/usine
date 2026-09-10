@@ -1,7 +1,7 @@
 import { Context, Service } from 'cordis'
 import { defineProperty } from 'cosmokit'
 import { watch } from 'vue'
-import type { RpcResponse } from '@cordisjs/plugin-webui'
+import type { RpcResponse } from '../data'
 
 interface Pending {
   resolve: (value: any) => void
@@ -17,7 +17,7 @@ export default class RpcService {
       property: 'ctx',
     })
 
-    ctx.on('rpc:response' as any, (body: RpcResponse) => {
+    ctx.on('rpc:response', (body: RpcResponse) => {
       const pending = this._pending.get(body.sn)
       if (!pending) return
       this._pending.delete(body.sn)
@@ -26,12 +26,14 @@ export default class RpcService {
     })
 
     // Reject all pending RPCs when the socket goes away (reconnect, manual close, etc.)
-    ctx.effect(() => watch(ctx.client.socket, (value) => {
-      if (value) return
-      const error = new Error('socket disconnected')
-      for (const [, pending] of this._pending) pending.reject(error)
-      this._pending.clear()
-    }))
+    ctx.effect(() =>
+      watch(ctx.client.socket, (value) => {
+        if (value) return
+        const error = new Error('socket disconnected')
+        for (const [, pending] of this._pending) pending.reject(error)
+        this._pending.clear()
+      }),
+    )
   }
 
   call(entryId: string, method: string, args: any[]): Promise<any> {
@@ -40,10 +42,12 @@ export default class RpcService {
     const sn = ++this._sn
     return new Promise((resolve, reject) => {
       this._pending.set(sn, { resolve, reject })
-      socket.send(JSON.stringify({
-        type: 'rpc:request',
-        body: { sn, entryId, method, args },
-      }))
+      socket.send(
+        JSON.stringify({
+          type: 'rpc:request',
+          body: { sn, entryId, method, args },
+        }),
+      )
     })
   }
 }

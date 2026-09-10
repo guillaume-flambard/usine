@@ -15,14 +15,16 @@ export default function (ctx: Context) {
   })
 
   ctx.client.action.action('theme.activity.reset', {
-    action: () => config.value.activities = {},
+    action: () => (config.value.activities = {}),
   })
 
-  ctx.client.action.menu('theme.activity', [{
-  //   id: '.settings',
-  //   label: '活动栏设置',
-  // }, {
-    id: '.reset',
-    label: '重置活动栏',
-  }])
+  ctx.client.action.menu('theme.activity', [
+    {
+      //   id: '.settings',
+      //   label: '活动栏设置',
+      // }, {
+      id: '.reset',
+      label: '重置活动栏',
+    },
+  ])
 }

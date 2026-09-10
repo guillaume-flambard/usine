@@ -1,5 +1,5 @@
 import { Context, Service } from 'cordis'
-import { inject, isRef, markRaw, reactive, ref, shallowRef, toValue, watch } from 'vue'
+import { inject, isRef, markRaw, reactive, shallowRef, toValue, watch } from 'vue'
 import type { App, Component, InjectionKey, MaybeRefOrGetter, Ref } from 'vue'
 import { pathToRegexp } from 'path-to-regexp'
 import { global } from '../data'
@@ -16,7 +16,7 @@ declare module '@cordisjs/client' {
 
 declare module 'cordis' {
   interface Events {
-    'activity'(activity: Activity): boolean
+    activity(activity: Activity): boolean
   }
 }
 
@@ -93,7 +93,7 @@ export class Router {
   resolve(target: NavigationTarget): RouteLocation {
     let path: string, query: Dict<string>
     if (typeof target === 'string') {
-      ({ path, query } = parseUrl(target))
+      ;({ path, query } = parseUrl(target))
     } else {
       path = target.path ?? this.currentRoute.value.path
       query = {}
@@ -105,9 +105,17 @@ export class Router {
       const m = record.regex.exec(path)
       if (!m) continue
       const params: Dict<string> = {}
-      record.keys.forEach((key, i) => params[key] = m[i + 1] ?? '')
+      record.keys.forEach((key, i) => (params[key] = m[i + 1] ?? ''))
       const fullPath = path + stringifyQuery(query)
-      return { path, fullPath, query, params, name: record.name, meta: record.meta, matched: [record] }
+      return {
+        path,
+        fullPath,
+        query,
+        params,
+        name: record.name,
+        meta: record.meta,
+        matched: [record],
+      }
     }
     const fullPath = path + stringifyQuery(query)
     return { path, fullPath, query, params: {}, meta: {}, matched: [] }
@@ -240,7 +248,10 @@ function getActivityId(path: string) {
 export class Activity {
   id!: string
 
-  constructor(public ctx: Context, public options: Activity.Options) {
+  constructor(
+    public ctx: Context,
+    public options: Activity.Options,
+  ) {
     options.order ??= 0
     options.position ??= 'top'
     Object.assign(this, omit(options, ['icon', 'name', 'desc', 'disabled']))
@@ -248,7 +259,12 @@ export class Activity {
 
   *setup() {
     const { path, id = getActivityId(path), component } = this.options
-    yield this.ctx.client.router.router.addRoute({ path, name: id, component, meta: { activity: this } })
+    yield this.ctx.client.router.router.addRoute({
+      path,
+      name: id,
+      component,
+      meta: { activity: this },
+    })
     this.id ??= id
     this.authority ??= 0
     this.ctx.client.router.pages[this.id] = this
@@ -290,14 +306,18 @@ export default class RouterService {
     // record-table swaps would otherwise leak stale titles.
     ctx.effect(() => {
       const initialTitle = document.title
-      const stop = watch(this.router.currentRoute, (route) => {
-        const { name, fullPath } = route
-        if (name) this.cache[name] = fullPath
-        if (route.meta.activity) {
-          document.title = `${route.meta.activity.name}`
-          if (initialTitle) document.title += ` | ${initialTitle}`
-        }
-      }, { immediate: true })
+      const stop = watch(
+        this.router.currentRoute,
+        (route) => {
+          const { name, fullPath } = route
+          if (name) this.cache[name] = fullPath
+          if (route.meta.activity) {
+            document.title = `${route.meta.activity.name}`
+            if (initialTitle) document.title += ` | ${initialTitle}`
+          }
+        },
+        { immediate: true },
+      )
       return () => {
         document.title = initialTitle
         stop()
@@ -309,7 +329,7 @@ export default class RouterService {
     options.order ??= 0
     options.component = this.ctx.client.wrapComponent(options.component)
     return this.ctx.effect(() => {
-      const list = this.views[options.type] ||= []
+      const list = (this.views[options.type] ||= [])
       insert(list, options)
       return () => {
         remove(list, options)

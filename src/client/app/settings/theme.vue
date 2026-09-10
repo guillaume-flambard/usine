@@ -9,11 +9,7 @@
       <!-- Element Plus built the option list from child components; Nuxt UI
            takes a flat `items` array and renders each one through `#item`.
            The preview swatch is unchanged, it just moved into the slot. -->
-      <USelect
-        v-model="model"
-        :items="themes"
-        :ui="{ content: 'theme-select', item: 'p-0' }"
-      >
+      <USelect v-model="model" :items="themes" :ui="{ content: 'theme-select', item: 'p-0' }">
         <template #item="{ item }">
           <div
             class="theme-root"
@@ -32,7 +28,6 @@
 </template>
 
 <script setup lang="ts">
-
 import { computed } from 'vue'
 import type { PropType } from 'vue'
 import { useContext, useI18nText } from '@cordisjs/client'
@@ -54,9 +49,11 @@ const tt = useI18nText()
 
 const config = SchemaBase.useModel()
 
-const themes = computed(() => Object.keys(ctx.client.theme._themes)
-  .filter((key) => key.endsWith('-' + props.schema?.meta.extra.mode))
-  .map((key) => ({ value: key, label: tt(ctx.client.theme._themes[key].name) })))
+const themes = computed(() =>
+  Object.keys(ctx.client.theme._themes)
+    .filter((key) => key.endsWith('-' + props.schema?.meta.extra.mode))
+    .map((key) => ({ value: key, label: tt(ctx.client.theme._themes[key].name) })),
+)
 
 // Upstream read the theme's display NAME here while writing its KEY, which
 // left the control unable to match its own value against the option list.
@@ -70,11 +67,9 @@ const model = computed({
     emit('update:modelValue', value)
   },
 })
-
 </script>
 
 <style lang="scss">
-
 .theme-select {
   overflow: hidden;
 
@@ -122,5 +117,4 @@ const model = computed({
     }
   }
 }
-
 </style>

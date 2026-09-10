@@ -170,72 +170,76 @@ export default class LoaderService {
         }
         this.version = version
 
-        await Promise.all(Object.entries(entries).map(async ([key, body]) => {
-          if (!body) {
-            const $entry = this.entries[key]
-            if ($entry) {
-              delete this.entries[key]
-              delete this._methods[key]
-              for (const fiber of Object.values($entry.fibers)) {
-                fiber.dispose()
-              }
-            }
-            return
-          }
-
-          const { files, entryId, data, cursor, methods } = body
-          const state = new DeltaState()
-          if (cursor) state.restore(cursor)
-
-          let $entry = this.entries[key]
-          if ($entry) {
-            for (const url of Object.keys($entry.fibers)) {
-              if (files.includes(url)) continue
-              $entry.fibers[url].dispose()
-              delete $entry.fibers[url]
-            }
-            $entry.entryId = entryId
-            $entry.data.value = data
-            $entry.state = state
-            $entry.done.value = false
-          } else {
-            $entry = this.entries[key] = {
-              done: ref(false),
-              entryId,
-              data: ref(data),
-              fibers: {},
-              state,
-            }
-          }
-
-          this._methods[key] = methods ?? []
-          injectMethods(this.ctx, key, $entry.data.value, methods)
-
-          const ctx = this.ctx.extend({ $entry })
-          const pending = files.filter((url) => !$entry!.fibers[url])
-          const task = Promise.all(pending.map(async (url) => {
-            for (const ext in loaders) {
-              if (!url.endsWith(ext)) continue
-              try {
-                ctx.$entry!.fibers[url] = await loaders[ext](ctx, url)
-              } catch (e) {
-                console.error(`[loader] failed to load ${url}:`, e)
+        await Promise.all(
+          Object.entries(entries).map(async ([key, body]) => {
+            if (!body) {
+              const $entry = this.entries[key]
+              if ($entry) {
+                delete this.entries[key]
+                delete this._methods[key]
+                for (const fiber of Object.values($entry.fibers)) {
+                  fiber.dispose()
+                }
               }
               return
             }
-            console.error(`No loader found for ${url}`)
-          }))
-          this._bumpPending(+1)
-          // Decrement BEFORE touching $entry.done.value so that a downstream
-          // Vue update triggered by `ready` flipping (or by `done` itself)
-          // can't strand the counter. `finally` not `then`: defensive
-          // against the inner try/catch above ever being removed —
-          // otherwise a task rejection would leak the counter.
-          task.finally(() => {
-            this._bumpPending(-1)
-            $entry!.done.value = true
-          })
-        }))
+
+            const { files, entryId, data, cursor, methods } = body
+            const state = new DeltaState()
+            if (cursor) state.restore(cursor)
+
+            let $entry = this.entries[key]
+            if ($entry) {
+              for (const url of Object.keys($entry.fibers)) {
+                if (files.includes(url)) continue
+                $entry.fibers[url].dispose()
+                delete $entry.fibers[url]
+              }
+              $entry.entryId = entryId
+              $entry.data.value = data
+              $entry.state = state
+              $entry.done.value = false
+            } else {
+              $entry = this.entries[key] = {
+                done: ref(false),
+                entryId,
+                data: ref(data),
+                fibers: {},
+                state,
+              }
+            }
+
+            this._methods[key] = methods ?? []
+            injectMethods(this.ctx, key, $entry.data.value, methods)
+
+            const ctx = this.ctx.extend({ $entry })
+            const pending = files.filter((url) => !$entry!.fibers[url])
+            const task = Promise.all(
+              pending.map(async (url) => {
+                for (const ext in loaders) {
+                  if (!url.endsWith(ext)) continue
+                  try {
+                    ctx.$entry!.fibers[url] = await loaders[ext](ctx, url)
+                  } catch (e) {
+                    console.error(`[loader] failed to load ${url}:`, e)
+                  }
+                  return
+                }
+                console.error(`No loader found for ${url}`)
+              }),
+            )
+            this._bumpPending(+1)
+            // Decrement BEFORE touching $entry.done.value so that a downstream
+            // Vue update triggered by `ready` flipping (or by `done` itself)
+            // can't strand the counter. `finally` not `then`: defensive
+            // against the inner try/catch above ever being removed —
+            // otherwise a task rejection would leak the counter.
+            task.finally(() => {
+              this._bumpPending(-1)
+              $entry!.done.value = true
+            })
+          }),
+        )
 
         if (version) {
           resolve()

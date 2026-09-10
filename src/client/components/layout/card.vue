@@ -4,9 +4,9 @@
       <slot name="header">{{ title }}</slot>
     </header>
     <UScrollArea v-if="scrollbar">
-      <div class="k-card-body"><slot/></div>
+      <div class="k-card-body"><slot /></div>
     </UScrollArea>
-    <div v-else class="k-card-body"><slot/></div>
+    <div v-else class="k-card-body"><slot /></div>
     <footer v-if="$slots.footer">
       <slot name="footer"></slot>
     </footer>
@@ -14,16 +14,13 @@
 </template>
 
 <script lang="ts" setup>
-
 defineProps<{
   title?: string
   scrollbar?: boolean
 }>()
-
 </script>
 
 <style lang="scss">
-
 $paddingX: 1.25rem;
 $paddingY: 1.5rem;
 
@@ -62,5 +59,4 @@ $paddingY: 1.5rem;
     padding: 0;
   }
 }
-
 </style>

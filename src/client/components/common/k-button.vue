@@ -2,13 +2,13 @@
   <button
     @click.prevent="onClick"
     :title="disabled ? '' : title"
-    :class="['k-button', type, { disabled, solid, round, frameless }]">
-    <slot/>
+    :class="['k-button', type, { disabled, solid, round, frameless }]"
+  >
+    <slot />
   </button>
 </template>
 
 <script lang="ts" setup>
-
 const props = defineProps({
   type: {
     type: String,
@@ -27,11 +27,9 @@ function onClick(event: MouseEvent) {
   if (props.disabled) return
   emit('click', event)
 }
-
 </script>
 
 <style lang="scss">
-
 @mixin apply-color($name) {
   &.#{$name} {
     background-color: var(--#{$name}) !important;
@@ -118,5 +116,4 @@ function onClick(event: MouseEvent) {
     }
   }
 }
-
 </style>

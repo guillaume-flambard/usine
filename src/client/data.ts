@@ -23,3 +23,44 @@ export const global: ClientConfig = {
   uiPath: '/console',
   static: true,
 }
+
+// The four type-only imports below used to come from `@cordisjs/plugin-webui`
+// and `@cordisjs/plugin-loader`, the server halves of this shell. They are not
+// installed here and never will be, so the shapes the shell actually consumes
+// are declared locally. Keeping them named and narrow beats an `any`: the
+// events are still the contract between the loader, the RPC service and
+// whatever opens the loading gate.
+
+/** What the shell can do with a socket. It never has one here. */
+export interface AbstractWebSocket {
+  send(data: string): void
+  close(): void
+  addEventListener(type: string, listener: (event: any) => void): void
+  removeEventListener(type: string, listener: (event: any) => void): void
+}
+
+/** One answer to an RPC call. */
+export interface RpcResponse {
+  sn: number
+  ok: boolean
+  value?: unknown
+  message?: string
+}
+
+/** One entry as the server half described it, as the loader reads it. */
+export interface EntryBody {
+  files?: string[]
+  entryId?: string
+  data?: unknown
+  /** Opaque here: the shape belongs to `@cordisjs/muon`'s `DeltaState`. */
+  cursor?: any
+  methods?: string[]
+  [key: string]: unknown
+}
+
+/** The events the server half used to emit, typed for their local emitters. */
+export interface WebuiEvents {
+  'entry:init'(value: { version?: string; entries: Record<string, EntryBody> }): void
+  'entry:delta'(value: { id: string; [key: string]: unknown }): void
+  'rpc:response'(body: RpcResponse): void
+}

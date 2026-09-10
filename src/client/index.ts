@@ -1,5 +1,16 @@
 import { Context, Service, symbols } from 'cordis'
-import { createApp, customRef, defineComponent, h, markRaw, onErrorCaptured, provide, ref, resolveComponent, watchEffect } from 'vue'
+import {
+  createApp,
+  customRef,
+  defineComponent,
+  h,
+  markRaw,
+  onErrorCaptured,
+  provide,
+  ref,
+  resolveComponent,
+  watchEffect,
+} from 'vue'
 import type { App, Component, DefineComponent, Ref } from 'vue'
 import { locale } from '@cordisjs/components'
 import ActionService from './plugins/action'
@@ -10,7 +21,7 @@ import ThemeService from './plugins/theme'
 import RpcService from './plugins/rpc'
 import { kContext } from './context'
 import type { LoadState } from './plugins/loader'
-import type { WebSocket as AbstractWebSocket } from '@cordisjs/plugin-webui'
+import type { AbstractWebSocket } from './data'
 import install from './components'
 // Imported by path, not resolved by name: Nuxt UI's components are
 // auto-imported into SFC templates at build time, so `resolveComponent('UApp')`
@@ -52,14 +63,17 @@ export class ClientService extends Service {
     // shell's activity bar is built entirely out of tooltips. It has to be
     // the outermost node of this app, not of the host page, because this
     // service creates and mounts its own Vue app.
-    this.app = createApp(defineComponent({
-      setup: () => () => h(UApp, null, {
-        default: () => [
-          h(resolveComponent('k-slot'), { name: 'root', single: true }),
-          h(resolveComponent('k-slot'), { name: 'global' }),
-        ],
+    this.app = createApp(
+      defineComponent({
+        setup: () => () =>
+          h(UApp, null, {
+            default: () => [
+              h(resolveComponent('k-slot'), { name: 'root', single: true }),
+              h(resolveComponent('k-slot'), { name: 'global' }),
+            ],
+          }),
       }),
-    }))
+    )
     this.app.provide(kContext, ctx as Context)
     this.app.use(install)
 
@@ -73,21 +87,42 @@ export class ClientService extends Service {
 
     // Vue reactivity tracking for services
     const store = this._store
-    ctx.on('internal/service', function (this: Context, name: string) {
-      const ref1 = store[(this as any)[Context.isolate][name]]
-      if (ref1) ref1.value = Symbol(name)
-      const ref2 = store[name]
-      if (ref2) ref2.value = Symbol(name)
-    }, { global: true })
+    ctx.on(
+      'internal/service',
+      function (this: Context, name: string) {
+        const ref1 = store[(this as any)[Context.isolate][name]]
+        if (ref1) ref1.value = Symbol(name)
+        const ref2 = store[name]
+        if (ref2) ref2.value = Symbol(name)
+      },
+      { global: true },
+    )
 
-    ctx.on('internal/get', (ctx, name, error, next) => {
-      const ref = store[ctx.reflect.store[name] ?? name] ??= customRef((get, set) => ({ get, set }))
-      return ref.value, next()
-    }, { prepend: true })
+    ctx.on(
+      'internal/get',
+      (ctx, name, error, next) => {
+        const ref = (store[ctx.reflect.store[name] ?? name] ??= customRef((get, set) => ({
+          get,
+          set,
+        })))
+        // Reading `.value` is the point: it registers the reactive dependency so
+        // a later service swap re-renders. Upstream wrote it as a comma
+        // expression, which reads as a discarded value and which oxlint scores
+        // as an unused variable.
+        void ref.value
+        return next()
+      },
+      { prepend: true },
+    )
 
-    ctx.effect(() => watchEffect(() => {
-      locale.value = this.setting.resolved.value.locale ?? 'en-US'
-    }, { flush: 'post' }))
+    ctx.effect(() =>
+      watchEffect(
+        () => {
+          locale.value = this.setting.resolved.value.locale ?? 'en-US'
+        },
+        { flush: 'post' },
+      ),
+    )
 
     // Wire the router into the app + kick off the initial navigation. Both
     // run synchronously / fire-and-forget so `mount()` can paint the shell
@@ -96,7 +131,7 @@ export class ClientService extends Service {
     // resolves and currentRoute matches (or stays Loading until
     // `loader.ready` flips and the view switches to 404).
     this.router.router.install(this.app)
-    this.router.router.ready().catch(e => {
+    this.router.router.ready().catch((e) => {
       console.warn('[client] initial navigation failed:', e)
     })
   }
@@ -125,13 +160,15 @@ export class ClientService extends Service {
     if (ctx[symbols.shadow]) {
       ctx = Object.getPrototypeOf(ctx)
     }
-    return markRaw(defineComponent((props, { slots }) => {
-      provide(kContext, ctx)
-      onErrorCaptured(() => {
-        return ctx.fiber.uid !== null
-      })
-      return () => h(component, props, slots)
-    }))
+    return markRaw(
+      defineComponent((props, { slots }) => {
+        provide(kContext, ctx)
+        onErrorCaptured(() => {
+          return ctx.fiber.uid !== null
+        })
+        return () => h(component, props, slots)
+      }),
+    )
   }
 }
 
@@ -157,6 +194,6 @@ export interface Config {
 export function createClient(): Context {
   const root = new Context()
   root.client = new ClientService(root)
-  root.on('activity', data => !data)
+  root.on('activity', (data) => !data)
   return root
 }

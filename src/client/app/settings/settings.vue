@@ -23,14 +23,24 @@
     </aside>
 
     <div class="content-area">
-      <k-tab-bar v-if="tabs.length > 1" :tabs="tabs" :active="activeTab" @select="activeTab = $event" />
+      <k-tab-bar
+        v-if="tabs.length > 1"
+        :tabs="tabs"
+        :active="activeTab"
+        @select="activeTab = $event"
+      />
       <div class="content-body page-settings">
         <keep-alive>
           <k-content :key="path">
             <template v-for="(item, index) of currentItems" :key="index">
               <template v-if="item.disabled?.()"></template>
               <component v-else-if="item.component" :is="item.component" />
-              <k-form v-else-if="item.schema" :schema="item.schema" v-model="config" :initial="config" />
+              <k-form
+                v-else-if="item.schema"
+                :schema="item.schema"
+                v-model="config"
+                :initial="config"
+              />
             </template>
           </k-content>
         </keep-alive>
@@ -40,7 +50,6 @@
 </template>
 
 <script lang="ts" setup>
-
 import { useRoute, useRouter, useConfig, useContext } from '@cordisjs/client'
 import { computed, ref } from 'vue'
 
@@ -61,10 +70,12 @@ interface Tree {
   children?: Tree[]
 }
 
-const data = computed(() => Object.entries(ctx.client.setting._settings).map<Tree>(([id, [{ title }]]) => ({
-  id,
-  label: title,
-})))
+const data = computed(() =>
+  Object.entries(ctx.client.setting._settings).map<Tree>(([id, [{ title }]]) => ({
+    id,
+    label: title,
+  })),
+)
 
 const selected = computed(() => data.value.find((item) => item.id === path.value))
 
@@ -88,10 +99,12 @@ const path = computed({
 
 const items = computed(() => ctx.client.setting._settings[path.value] ?? [])
 
-const tabs = computed<TabOption[]>(() => items.value.map((item, index) => ({
-  id: String(index),
-  label: item.title ?? `Section ${index + 1}`,
-})))
+const tabs = computed<TabOption[]>(() =>
+  items.value.map((item, index) => ({
+    id: String(index),
+    label: item.title ?? `Section ${index + 1}`,
+  })),
+)
 
 const activeTab = ref('0')
 
@@ -100,5 +113,4 @@ const currentItems = computed(() => {
   const index = Number(activeTab.value) || 0
   return items.value.slice(index, index + 1)
 })
-
 </script>

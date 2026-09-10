@@ -1,12 +1,13 @@
 <template>
   <div
     class="activity-item"
-    :class="{ 'active': isActive, 'drag-over': hasDragOver }"
+    :class="{ active: isActive, 'drag-over': hasDragOver }"
     @contextmenu.stop="trigger($event, children[0])"
     @dragenter="handleDragEnter"
     @dragleave="handleDragLeave"
     @drop="handleDrop"
-    @dragover.prevent>
+    @dragover.prevent
+  >
     <UTooltip :content="{ side: 'right' }" :ui="{ content: 'activity-item-tooltip' }">
       <template #content>
         <div class="activity-info">
@@ -14,7 +15,11 @@
           <div class="desc" v-if="children[hoverIndex].desc">{{ children[hoverIndex].desc }}</div>
         </div>
         <div class="activity-group" v-if="children.length > 1">
-          <div class="activity-group-item" v-for="(child, index) in children.slice(1)" :key="child.id">
+          <div
+            class="activity-group-item"
+            v-for="(child, index) in children.slice(1)"
+            :key="child.id"
+          >
             <activity-button
               :data="child"
               @mouseenter="hoverIndex = index + 1"
@@ -23,13 +28,15 @@
           </div>
         </div>
       </template>
-      <activity-button :data="children[0]" :class="{ 'is-group': children.length > 1 }"></activity-button>
+      <activity-button
+        :data="children[0]"
+        :class="{ 'is-group': children.length > 1 }"
+      ></activity-button>
     </UTooltip>
   </div>
 </template>
 
 <script lang="ts" setup>
-
 import { computed, ref } from 'vue'
 import { useRoute, Activity, useConfig, useMenu } from '@cordisjs/client'
 import ActivityButton from './button.vue'
@@ -45,7 +52,7 @@ const props = defineProps<{
 }>()
 
 const isActive = computed(() => {
-  return Object.values(props.children).some(child => route.meta?.activity?.id === child.id)
+  return Object.values(props.children).some((child) => route.meta?.activity?.id === child.id)
 })
 
 const hasDragOver = ref(false)
@@ -54,9 +61,12 @@ const trigger = useMenu('theme.activity')
 
 const hoverIndex = ref(0)
 
-watch(() => props.children, () => {
-  hoverIndex.value = 0
-})
+watch(
+  () => props.children,
+  () => {
+    hoverIndex.value = 0
+  },
+)
 
 function handleDragEnter(event: DragEvent) {
   hasDragOver.value = true
@@ -77,7 +87,7 @@ function handleDrop(event: DragEvent) {
   if (target === id) return
   event.preventDefault()
 
-  const override = (config.value.activities ??= {})[id] ??= {}
+  const override = ((config.value.activities ??= {})[id] ??= {})
   if (override.parent === target) {
     delete override.parent
     ;(config.value.activities[target] ??= {}).parent = id
@@ -91,11 +101,9 @@ function handleDrop(event: DragEvent) {
     override.parent = target
   }
 }
-
 </script>
 
 <style lang="scss">
-
 .activity-item {
   position: relative;
   box-sizing: border-box;
@@ -150,5 +158,4 @@ function handleDrop(event: DragEvent) {
     }
   }
 }
-
 </style>

@@ -6,15 +6,14 @@
     @click.prevent="item?.action(ctx.client.action.createScope())"
   >
     <span v-if="icon" class="k-menu-icon">
-      <k-icon v-if="typeof icon === 'string'" :name="icon"/>
-      <component v-else :is="icon"/>
+      <k-icon v-if="typeof icon === 'string'" :name="icon" />
+      <component v-else :is="icon" />
     </span>
     {{ toValue(label) }}
   </div>
 </template>
 
 <script lang="ts" setup>
-
 import { useContext } from '@cordisjs/client'
 import type { MaybeGetter, MenuItem } from '@cordisjs/client'
 import { computed } from 'vue'
@@ -47,5 +46,4 @@ function toValue<T>(getter: MaybeGetter<T>): T {
   if (typeof getter !== 'function') return getter
   return (getter as any)(ctx.client.action.createScope())
 }
-
 </script>

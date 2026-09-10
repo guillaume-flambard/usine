@@ -10,7 +10,6 @@
 </template>
 
 <script lang="ts" setup>
-
 import { ref, inject } from 'vue'
 import type { ComputedRef } from 'vue'
 import { Activity, useConfig, useContext } from '@cordisjs/client'
@@ -43,8 +42,8 @@ function handleDrop(event: DragEvent) {
   if (!text?.startsWith('activity:')) return
   const id = text.slice(9)
   const list = groups.value[props.position].map(([item]) => item)
-  const oldIndex = list.findIndex(item => item.id === id)
-  if (oldIndex === props.index || oldIndex === props.index - 1 && oldIndex !== -1) return
+  const oldIndex = list.findIndex((item) => item.id === id)
+  if (oldIndex === props.index || (oldIndex === props.index - 1 && oldIndex !== -1)) return
   event.preventDefault()
 
   let index = props.index
@@ -57,7 +56,7 @@ function handleDrop(event: DragEvent) {
     list.splice(index, 0, item)
   }
 
-  const override = (config.value.activities ??= {})[id] ??= {}
+  const override = ((config.value.activities ??= {})[id] ??= {})
   delete override.parent
   if (item.options.position !== props.position) {
     override.position = props.position
@@ -73,7 +72,7 @@ function handleDrop(event: DragEvent) {
     } else {
       let order = list[anchorR].options.order
       for (let index = anchorR - 1; index >= 0; index--) {
-        const override = config.value.activities[list[index].id] ??= {}
+        const override = (config.value.activities[list[index].id] ??= {})
         override.order = order += 100
       }
     }
@@ -81,15 +80,15 @@ function handleDrop(event: DragEvent) {
     if (anchorR === -1) {
       let order = list[anchorL].options.order
       for (let index = anchorL + 1; index < list.length; index++) {
-        const override = config.value.activities[list[index].id] ??= {}
+        const override = (config.value.activities[list[index].id] ??= {})
         override.order = order -= 100
       }
     } else {
-      let orderL = list[anchorL].options.order
-      let orderR = list[anchorR].options.order
+      const orderL = list[anchorL].options.order
+      const orderR = list[anchorR].options.order
       for (let index = anchorL + 1; index < anchorR; index++) {
-        const override = config.value.activities[list[index].id] ??= {}
-        override.order = orderL + (orderR - orderL) * (index - anchorL) / (anchorR - anchorL)
+        const override = (config.value.activities[list[index].id] ??= {})
+        override.order = orderL + ((orderR - orderL) * (index - anchorL)) / (anchorR - anchorL)
       }
     }
   }
@@ -98,11 +97,9 @@ function handleDrop(event: DragEvent) {
     delete config.value.activities[id]
   }
 }
-
 </script>
 
 <style lang="scss" scoped>
-
 .separator {
   position: relative;
   height: var(--nav-icon-margin);
@@ -124,5 +121,4 @@ function handleDrop(event: DragEvent) {
     background-color: var(--k-text-active);
   }
 }
-
 </style>
