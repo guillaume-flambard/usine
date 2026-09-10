@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from usine_api.invites import etat, etiqueter
 from usine_api.portes import Absent, lancer, lire, suivre
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -91,3 +92,38 @@ def test_suivre_une_mesure_inconnue() -> None:
     with pytest.raises(Absent) as absent:
         suivre("pas-un-identifiant")
     assert "inconnue" in absent.value.message
+
+
+# --- Les invites, et le geste qui les met en service ----------------------
+
+
+def test_refuse_une_etiquette_de_promotion_hors_liste(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Ce point d'entrée change ce que les agents en service utilisent. Deux
+    # valeurs sont légitimes : mettre en service, ou écarter en gardant la trace.
+    monkeypatch.setenv("LANGFUSE_HOST", "https://exemple.invalid")
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk")
+    for mauvaise in ("latest", "candidat", "", "PRODUCTION"):
+        with pytest.raises(Absent) as absent:
+            etiqueter("acheteur", "porte-denombrable", 1, mauvaise)
+        assert "étiquette refusée" in absent.value.message
+
+
+def test_refuse_une_invite_qui_n_est_pas_une_porte(monkeypatch: pytest.MonkeyPatch) -> None:
+    # `acheteur/systeme` et `acheteur/message` existent aussi dans Langfuse.
+    # Elles ne sont pas des portes et n'ont rien à faire derrière ce bouton.
+    monkeypatch.setenv("LANGFUSE_HOST", "https://exemple.invalid")
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk")
+    for mauvaise in ("systeme", "message", "../porte-x"):
+        with pytest.raises(Absent) as absent:
+            etiqueter("acheteur", mauvaise, 1, "production")
+        assert "porte inconnue" in absent.value.message
+
+
+def test_dit_quand_langfuse_n_est_pas_configure(monkeypatch: pytest.MonkeyPatch) -> None:
+    for nom in ("LANGFUSE_HOST", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY"):
+        monkeypatch.delenv(nom, raising=False)
+    with pytest.raises(Absent) as absent:
+        etat("acheteur")
+    assert "Langfuse n'est pas configuré" in absent.value.message

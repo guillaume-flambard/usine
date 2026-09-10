@@ -82,3 +82,58 @@ export async function suivreMesure(id: string): Promise<Avancement> {
   if (!reponse.ok) throw new Error(corps.error ?? `le service a répondu ${reponse.status}`)
   return corps
 }
+
+/** Une version d'invite, telle que Langfuse la porte. */
+export interface VersionInvite {
+  version: number
+  texte: string
+  etiquettes: readonly string[]
+}
+
+/** Ce qui sert et ce qui attend, pour une porte. */
+export interface InvitePorte {
+  nom: string
+  service: VersionInvite | null
+  candidat: VersionInvite | null
+}
+
+export interface EtatInvites {
+  agent: string
+  invites: readonly InvitePorte[]
+}
+
+/** Ce qu'on peut poser sur une version depuis cet écran, et rien d'autre. */
+export type Etiquette = 'production' | 'ecartee'
+
+export async function lireInvites(agent: string): Promise<EtatInvites> {
+  const reponse = await fetch(`/api/portes/${encodeURIComponent(agent)}/invites`)
+  const corps = (await reponse.json()) as EtatInvites & { error?: string }
+  if (!reponse.ok) throw new Error(corps.error ?? `le service a répondu ${reponse.status}`)
+  return corps
+}
+
+/**
+ * Pose une étiquette sur une version d'invite.
+ *
+ * `production` change ce que les agents en service utilisent, et une étiquette
+ * est unique dans Langfuse : la poser ici la retire de la version qui l'avait.
+ */
+export async function etiqueterInvite(
+  agent: string,
+  nom: string,
+  version: number,
+  etiquette: Etiquette,
+): Promise<void> {
+  const reponse = await fetch(
+    `/api/portes/${encodeURIComponent(agent)}/invites/${encodeURIComponent(nom)}/etiquette`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ version, etiquette }),
+    },
+  )
+  if (!reponse.ok) {
+    const corps = (await reponse.json().catch(() => null)) as { error?: string } | null
+    throw new Error(corps?.error ?? `le service a répondu ${reponse.status}`)
+  }
+}

@@ -38,6 +38,8 @@ from .identity import (
     TokenStore,
     normalize_email,
 )
+from .invites import etat as etat_invites
+from .invites import etiqueter as etiqueter_invite_langfuse
 from .limits import Limits, RateLimiter
 from .mcp import TIMEOUT_SECONDS, McpRefusal, Server, call_tool, list_tools
 from .memory import MAX_FACT, Fact, InMemoryMemory, Memory
@@ -340,6 +342,32 @@ def create_app(
     async def suivi_portes(identifiant: str) -> JSONResponse:
         try:
             return no_store(suivre_portes(identifiant).vue())
+        except PortesAbsent as absent:
+            return no_store({"error": absent.message}, 404)
+
+    @app.get("/portes/{agent}/invites")
+    async def invites_portes(agent: str) -> JSONResponse:
+        try:
+            return no_store(etat_invites(agent))
+        except PortesAbsent as absent:
+            return no_store({"error": absent.message}, 404)
+
+    @app.post("/portes/{agent}/invites/{nom}/etiquette")
+    async def etiqueter_invite(agent: str, nom: str, request: Request) -> JSONResponse:
+        # Le geste que le correcteur laisse explicitement à un humain quand il
+        # ne promeut pas lui-même. Une étiquette est unique dans Langfuse :
+        # poser `production` la retire de la version qui l'avait, donc ce point
+        # d'entrée change ce que les agents en service utilisent.
+        try:
+            corps = await request.json()
+        except Exception:  # noqa: BLE001 — un corps absent est un corps vide
+            corps = {}
+        version = (corps or {}).get("version")
+        etiquette = str((corps or {}).get("etiquette") or "")
+        if not isinstance(version, int):
+            return no_store({"error": "version manquante"}, 400)
+        try:
+            return no_store(etiqueter_invite_langfuse(agent, nom, version, etiquette))
         except PortesAbsent as absent:
             return no_store({"error": absent.message}, 404)
 

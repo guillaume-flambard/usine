@@ -53,6 +53,8 @@
                 <p class="portes-pourquoi text-dimmed">{{ c.pourquoi }}</p>
               </article>
             </section>
+
+            <InvitesSection :agent="agent" />
           </template>
 
           <template v-else-if="verdict?.etat === 'absente'">
@@ -81,6 +83,7 @@
 // démarchera plus rien »). C'est ce qui permet de juger un écart au lieu de le
 // constater.
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import InvitesSection from './InvitesSection.vue'
 import {
   lancerMesure,
   lireVerdict,
