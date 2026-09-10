@@ -4,7 +4,7 @@
 import type { ComponentId, ComponentState } from '../runtime/contract'
 import type { RunEvent } from '../runtime/events'
 import { displayState } from './display-state'
-import type { EdgeView, LogMessage, NodeView, RunState } from './model'
+import type { EdgeView, LogMessage, NodeView, RunState, ThinkingView } from './model'
 
 /** What the reducer keeps about a node, beyond what is displayed. */
 interface Internal {
@@ -26,6 +26,7 @@ export function initialState(): FullState {
       exchanges: [],
       log: [],
       incidents: [],
+      thinking: [],
       tokens: { input: 0, output: 0 },
       liveAgents: 0,
       screen: { markup: '', revision: 0 },
@@ -57,6 +58,7 @@ function freeze(view: RunState): RunState {
   Object.freeze(view.edges)
   Object.freeze(view.log)
   Object.freeze(view.incidents)
+  Object.freeze(view.thinking)
   Object.freeze(view.tokens)
   return Object.freeze(view)
 }
@@ -68,6 +70,7 @@ export function reduce(state: FullState, event: RunEvent): FullState {
   let exchanges = state.view.exchanges
   let log = state.view.log
   let incidents = state.view.incidents
+  let thinking = state.view.thinking
   let narration = state.view.narration
   let gate = state.view.gate
   let tokens = state.view.tokens
@@ -137,6 +140,25 @@ export function reduce(state: FullState, event: RunEvent): FullState {
       }))
       break
 
+    case 'reasoning-started': {
+      const author = nodes.find((n) => n.id === event.id)?.name ?? event.id
+      const entry: ThinkingView = {
+        id: event.id,
+        author,
+        about: event.about,
+        since: event.at,
+      }
+      // Remplace plutot qu'ajoute : un agent n'attend qu'un modele a la fois,
+      // et un depart qui doublerait une entree ferait afficher deux fois le
+      // meme agent en train de reflechir.
+      thinking = [...thinking.filter((t) => t.id !== event.id), entry]
+      break
+    }
+
+    case 'reasoning-settled':
+      thinking = thinking.filter((t) => t.id !== event.id)
+      break
+
     case 'work-finished':
       updateNode(event.id, (node, memory) => ({
         node,
@@ -153,6 +175,12 @@ export function reduce(state: FullState, event: RunEvent): FullState {
 
     case 'component-failed': {
       incidents = [...incidents, { sequence: event.sequence, error: event.error }]
+      // Un agent tombe pendant son appel n'attend plus : sans ca l'ecran
+      // annoncerait une reflexion eternelle sur un noeud en faute, exactement
+      // le mensonge que ce suivi existe pour eviter.
+      if (event.error.component !== undefined) {
+        thinking = thinking.filter((t) => t.id !== event.error.component)
+      }
       const id = event.error.component
       // A load failure: the engine removed the entry, so the node must not
       // stay displayed, otherwise the graph shows what does not exist.
@@ -174,6 +202,8 @@ export function reduce(state: FullState, event: RunEvent): FullState {
     }
 
     case 'component-released':
+      // Meme raison qu'en faute : un composant relache n'attend plus rien.
+      thinking = thinking.filter((t) => t.id !== event.id)
       updateNode(event.id, (node, memory) => ({
         node,
         memory: { ...memory, lifecycle: 'released' },
@@ -354,6 +384,7 @@ export function reduce(state: FullState, event: RunEvent): FullState {
       ...(gate !== undefined ? { gate } : {}),
       log,
       incidents,
+      thinking,
       tokens,
       liveAgents: nodes.filter((n) => isLive(n) && isAgent(n)).length,
       screen,

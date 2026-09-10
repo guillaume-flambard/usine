@@ -6,8 +6,9 @@
 // en cours. Le suivi vit ici plutôt que dans le shell — c'est ce fil qui
 // défile, personne d'autre n'a à tenir sa référence.
 import { nextTick, ref, watch } from 'vue'
-import type { LogMessage } from '../state/model'
+import type { LogMessage, ThinkingView } from '../state/model'
 import { count } from '../app/plural'
+import ReasoningPulse from './ReasoningPulse.vue'
 
 const props = defineProps<{
   log: readonly LogMessage[]
@@ -16,6 +17,13 @@ const props = defineProps<{
   error?: string
   /** Le dernier numéro d'événement : ce qui dit que quelque chose est arrivé. */
   lastSequence: number
+  /**
+   * Qui attend un modèle en ce moment. C'est ce qui manquait : entre le départ
+   * d'un appel et son retour, le fil ne bougeait plus et le seul signe de vie
+   * était un nœud marqué « en cours » sur le graphe, identique à la première
+   * seconde et à la centième.
+   */
+  thinking: readonly ThinkingView[]
 }>()
 
 const threadEl = ref<HTMLElement | null>(null)
@@ -25,7 +33,9 @@ const speakerChanges = (index: number) =>
   index === 0 || props.log[index - 1]?.author !== props.log[index]?.author
 
 watch(
-  () => props.lastSequence,
+  // L'attente aussi fait défiler : sinon la ligne « X réfléchit » naît sous le
+  // cadre et personne ne la voit, ce qui la rend inutile.
+  () => [props.lastSequence, props.thinking.length],
   async () => {
     await nextTick()
     const thread = threadEl.value
@@ -58,6 +68,7 @@ watch(
       </span>
       {{ message.message }}
     </p>
+    <ReasoningPulse :thinking="thinking" />
     <p v-if="error" class="text-sm text-error" data-incident role="alert">{{ error }}</p>
     <p v-else-if="incidents.length" class="text-sm text-error" data-incident role="status">
       {{ count(incidents.length, 'incident', 'incidents') }} — {{ incidents.at(-1)?.error.message }}

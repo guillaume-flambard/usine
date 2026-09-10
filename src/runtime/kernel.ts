@@ -369,6 +369,30 @@ export function createKernel(options: KernelOptions = {}): Kernel {
               ...(failure !== undefined ? { failure } : {}),
             })
           },
+          beginReasoning(about: string) {
+            // Un composant deja relache ou en faute n'annonce rien : sinon
+            // l'ecran montrerait un mort en train de reflechir. La cloture
+            // rendue reste appelable et ne fait rien, pour que le `finally` de
+            // l'appelant n'ait pas a se demander ce qui s'est passe.
+            if (!usable()) return () => {}
+            const startedAtCall = Date.now()
+            let settled = false
+            emit({ type: 'reasoning-started', id, about })
+            return (failure?: string) => {
+              // Idempotent : deux clotures ne produisent pas deux fins, sans
+              // quoi un appelant maladroit rendrait la paire incoherente et le
+              // reducteur compterait une reflexion de trop.
+              if (settled) return
+              settled = true
+              if (!usable()) return
+              emit({
+                type: 'reasoning-settled',
+                id,
+                ms: Date.now() - startedAtCall,
+                ...(failure !== undefined ? { failure } : {}),
+              })
+            }
+          },
           awaitDecision(subject: DecisionSubject, onDecision: (decision: Decision) => void) {
             if (!usable()) return
             if (decisions.has(id)) {

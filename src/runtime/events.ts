@@ -85,6 +85,44 @@ export interface MessageEmitted extends Base {
   kind?: MessageKind
 }
 
+/**
+ * An agent has started a model call, and is now waiting on it.
+ *
+ * Le defaut que ca ferme : entre le depart de l'appel et son retour, le kernel
+ * n'emettait RIEN. Des dizaines de secondes pendant lesquelles un ecran qui
+ * n'affiche que des evenements ne peut, par construction, rien afficher. Le
+ * noeud passait a « en cours » et y restait, identique a la premiere seconde et
+ * a la centieme : un spinner, pas un suivi.
+ *
+ * Ce qui n'est PAS ici, et deliberement : le texte en train de s'ecrire. Le
+ * flux d'evenements est rejoue, archive et forke (AD-36, AD-46) ; y faire
+ * passer des fragments de reponse le noierait sous des milliers d'entrees qui
+ * ne veulent rien dire a la relecture. Le flux porte le resultat, jamais la
+ * frappe.
+ */
+export interface ReasoningStarted extends Base {
+  type: 'reasoning-started'
+  id: ComponentId
+  /** Ce qu'on lui demande, en une phrase. De quoi lire l'attente. */
+  about: string
+}
+
+/**
+ * L'appel s'est termine, quelle qu'en soit l'issue.
+ *
+ * Toujours emis quand un `reasoning-started` l'a ete : c'est un `finally`, pas
+ * un chemin heureux. Un demarrage sans fin laisserait l'ecran annoncer une
+ * reflexion eternelle, ce qui est pire que pas de suivi du tout.
+ */
+export interface ReasoningSettled extends Base {
+  type: 'reasoning-settled'
+  id: ComponentId
+  /** La duree reelle de l'appel, en ms. Mesuree, jamais estimee. */
+  ms: number
+  /** Ce qui l'a fait retomber sur sa reponse ecrite, le cas echeant. */
+  failure?: string
+}
+
 export interface WorkFinished extends Base {
   type: 'work-finished'
   id: ComponentId
@@ -255,6 +293,8 @@ export type RunEvent =
   | ComponentReleased
   | ComponentFailed
   | MessageEmitted
+  | ReasoningStarted
+  | ReasoningSettled
   | WorkFinished
   | ValuePassed
   | ArtifactPublished
