@@ -20,6 +20,6 @@ export interface ClientConfig {
 }
 
 export const global: ClientConfig = {
-  uiPath: '',
+  uiPath: '/console',
   static: true,
 }

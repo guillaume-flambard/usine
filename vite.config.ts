@@ -35,7 +35,12 @@ export default defineConfig({
         sandbox: fileURLToPath(new URL('./sandbox.html', import.meta.url)),
         // The vendored console shell, on its own page while it is being
         // dressed, so the shipped product keeps booting from `index.html`.
-        console: fileURLToPath(new URL('./console.html', import.meta.url)),
+        // It lives in a directory, not a bare `.html`: their router derives the
+        // route by stripping `uiPath` off `location.pathname`, so serving it at
+        // `/console/` with `uiPath: '/console'` leaves exactly `/`, which is
+        // the home route. A bare `console.html` would leave an empty string and
+        // match nothing.
+        console: fileURLToPath(new URL('./console/index.html', import.meta.url)),
       },
     },
   },

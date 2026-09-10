@@ -32,4 +32,11 @@ root.plugin(status)
 root.plugin(styles)
 root.plugin(theme)
 
+// Their loading gate only opens on an `entry:init` that a server emits over the
+// WebSocket. With no server it never opens, so the shell spins forever: the
+// spinner is eternal by construction, not by accident. The gate is opened here
+// with their own event, declaring what is true: zero remote entries, every view
+// is local and already registered above.
+root.emit('entry:init', { version: 'local', entries: {} })
+
 root.client.mount('#app')
