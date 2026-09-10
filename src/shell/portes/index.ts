@@ -1,13 +1,13 @@
 import type { Context } from '@cordisjs/client'
-import Home from './HomePage.vue'
+import Portes from './PortesPage.vue'
 
 export default function (ctx: Context) {
   ctx.client.router.page({
-    id: 'home',
+    id: 'portes',
     path: '/',
-    name: 'Accueil',
+    name: 'Portes',
     icon: 'activity:home',
     order: 1000,
-    component: Home,
+    component: Portes,
   })
 }

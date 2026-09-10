@@ -41,6 +41,8 @@ from .identity import (
 from .limits import Limits, RateLimiter
 from .mcp import TIMEOUT_SECONDS, McpRefusal, Server, call_tool, list_tools
 from .memory import MAX_FACT, Fact, InMemoryMemory, Memory
+from .portes import Absent as PortesAbsent
+from .portes import lire as read_portes
 from .reasoning import (
     BAI_REASONING_OFF,
     DEFAULT_MODEL,
@@ -302,6 +304,15 @@ def create_app(
                 "callsPerRun": bounds.calls_per_run,
             }
         )
+
+    @app.get("/portes/{agent}")
+    async def portes(agent: str) -> JSONResponse:
+        # Lecture seule, et aucun modèle appelé : c'est `lab-infra` qui juge.
+        # L'usine montre la mesure et fera décider un humain dessus.
+        try:
+            return no_store(read_portes(agent))
+        except PortesAbsent as absent:
+            return no_store({"error": absent.message}, 404)
 
     @app.post("/auth/request-link")
     async def request_link(request: Request) -> JSONResponse:

@@ -5,7 +5,7 @@ import settings from '../client/app/settings'
 import status from '../client/app/status'
 import styles from '../client/app/styles'
 import theme from '../client/app/theme'
-import home from './home'
+import portes from './portes'
 import run from './run'
 
 import '../assets/main.css'
@@ -37,9 +37,10 @@ root.plugin(status)
 root.plugin(styles)
 root.plugin(theme)
 
-// Ours, in place of theirs: the home page they ship gates everything on a
-// socket that will never exist.
-root.plugin(home)
+// Ours, in place of theirs. Their home page gates everything on a socket that
+// will never exist; ours is the human gate over the correcteur's work: what the
+// frozen cases said about a gate's prompt, case by case.
+root.plugin(portes)
 root.plugin(run)
 
 // Their loading gate only opens on an `entry:init` that a server emits. With no
