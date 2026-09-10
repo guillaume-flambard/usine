@@ -95,7 +95,7 @@ describe('le suivi de la réflexion', () => {
       ev({ type: 'reasoning-started', id: id('alice'), about: 'le plan' }),
       ev({
         type: 'component-failed',
-        error: { code: 'apply-failed', message: 'boum', component: id('alice'), name: 'alice' },
+        error: { code: 'activation-failed', message: 'boum', component: id('alice'), name: 'alice' },
       }),
     ])
     expect(state.view.thinking).toEqual([])
