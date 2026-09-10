@@ -24,6 +24,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from .audit import AuditLog, InMemoryAuditLog
 from .erasure import Erasure, erasure_for
 from .evaluation import evaluate, measure
+from .flotte import lire as lire_flotte
 from .identity import (
     SESSION_TTL_SECONDS,
     EmailSender,
@@ -342,6 +343,15 @@ def create_app(
     async def suivi_portes(identifiant: str) -> JSONResponse:
         try:
             return no_store(suivre_portes(identifiant).vue())
+        except PortesAbsent as absent:
+            return no_store({"error": absent.message}, 404)
+
+    @app.get("/flotte")
+    async def flotte() -> JSONResponse:
+        # Lecture seule : aucun agent n'est interroge, aucun modele appele.
+        # `lab-infra` observe, l'usine montre.
+        try:
+            return no_store(lire_flotte())
         except PortesAbsent as absent:
             return no_store({"error": absent.message}, 404)
 
