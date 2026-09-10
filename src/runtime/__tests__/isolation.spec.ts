@@ -21,7 +21,9 @@ const blocked = (ids: string[]) => ids.some((id) => RULES.includes(id))
 describe('composition engine isolation', { timeout: 30_000 }, () => {
   it('refuses a static cordis import outside the kernel', async () => {
     expect(
-      blocked(await messages('src/forbidden.ts', "import { Context } from 'cordis'\nvoid Context\n")),
+      blocked(
+        await messages('src/forbidden.ts', "import { Context } from 'cordis'\nvoid Context\n"),
+      ),
     ).toBe(true)
   })
 
@@ -70,6 +72,30 @@ describe('composition engine isolation', { timeout: 30_000 }, () => {
       blocked(await messages('spike/probe.ts', "import { Context } from 'cordis'\nvoid Context\n")),
     ).toBe(false)
   })
+
+  // The console shell vendored from `@cordisjs/client` binds fibers and
+  // services to Vue, so it faces the engine by construction. The exemption is
+  // deliberate and belongs under a test for the same reason the rule does.
+  it('lets the vendored console shell through', async () => {
+    expect(
+      blocked(
+        await messages(
+          'src/client/plugins/other.ts',
+          "import { Service } from 'cordis'\nvoid Service\n",
+        ),
+      ),
+    ).toBe(false)
+  })
+
+  // The exemption stops at the shell. A view that reaches for the engine
+  // directly is the erosion the rule exists to prevent.
+  it('still refuses the engine to the views next door', async () => {
+    expect(
+      blocked(
+        await messages('src/ui/sneaky.ts', "import { Context } from 'cordis'\nvoid Context\n"),
+      ),
+    ).toBe(true)
+  })
 })
 
 describe('confinement of code evaluation', () => {
@@ -105,10 +131,7 @@ describe('confinement of code evaluation', () => {
     // the local storage and the relay's route.
     expect(
       evaluates(
-        await messages(
-          'src/agents/free-agent.ts',
-          "const f = new Function('return 1')\nvoid f\n",
-        ),
+        await messages('src/agents/free-agent.ts', "const f = new Function('return 1')\nvoid f\n"),
       ),
     ).toBe(true)
   })

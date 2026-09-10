@@ -36,7 +36,14 @@ export default defineConfigWithVueTs(
     files: ['**/*.{vue,js,mjs,cjs,jsx,ts,mts,cts,tsx}'],
     // `spike/` is a proving ground outside the application: it is allowed to
     // talk to the engine directly — that is its whole purpose.
-    ignores: ['src/runtime/**', 'spike/**'],
+    //
+    // `src/client/` is the console shell vendored from `@cordisjs/client`
+    // (MIT, cordiverse/webui). It is cordis-aware by construction: its whole
+    // job is to bind fibers and services to Vue. Listing it here is honest
+    // about a second engine-facing layer; hiding it under `src/runtime/` to
+    // satisfy the linter would not be. The rule's intent still holds for the
+    // rest of the application, which keeps consuming the `RunEvent` stream.
+    ignores: ['src/runtime/**', 'src/client/**', 'spike/**'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -68,6 +75,33 @@ export default defineConfigWithVueTs(
           message: ISOLATION_MESSAGE,
         },
       ],
+    },
+  },
+
+  // La coquille console de `src/client/` est vendorisée depuis `@cordisjs/client`
+  // (MIT, cordiverse/webui). Elle est jugée sur les conventions de son auteur,
+  // pas sur les nôtres, pour la même raison que `tsconfig.client.json` existe :
+  // récrire son style, c'est l'éloigner de l'amont ligne à ligne et transformer
+  // la prochaine resynchro en réécriture.
+  //
+  // Ce qui reste actif : tout ce qui attrape un défaut, pas un goût. Les règles
+  // `vue/valid-v-for` et `vue/require-v-for-key` ont d'ailleurs trouvé cinq
+  // `v-for` sans clé dans leur barre de menus, corrigés plutôt que tus.
+  {
+    name: 'app/coquille-vendorisee',
+    files: ['src/client/**/*.{vue,js,mjs,cjs,jsx,ts,mts,cts,tsx}'],
+    rules: {
+      // Leurs icônes sont un fichier par glyphe : `home.vue`, `moon.vue`.
+      'vue/multi-word-component-names': 'off',
+      // Leur transport et leur registre de composants sont typés larges.
+      '@typescript-eslint/no-explicit-any': 'off',
+      // `interface ActionContext {}` est une couture d'augmentation, voulue.
+      '@typescript-eslint/no-empty-object-type': 'off',
+      // `namespace Config` porte les types de l'interface qu'il fusionne.
+      '@typescript-eslint/no-namespace': 'off',
+      // Leurs gestionnaires de glisser-déposer déclarent `event` sans s'en
+      // servir, et n'ont pas la convention du préfixe `_`.
+      '@typescript-eslint/no-unused-vars': 'off',
     },
   },
 

@@ -1,0 +1,50 @@
+{
+  // The console shell under `src/client/` is vendored from `@cordisjs/client`
+  // (MIT, cordiverse/webui). It gets its author's compiler settings, not ours.
+  //
+  // Why: the point of vendoring behind aliases is that upstream's own import
+  // specifiers stay intact, so a re-sync is a diff rather than a rewrite.
+  // Rewriting 67 strictness complaints inside those files would throw that
+  // away, one null check at a time, for code we did not write and do not want
+  // to own yet. Their `tsconfig` declares neither `strict` nor `noImplicitAny`
+  // (see the package's own `tsconfig.json`: target es2024, module esnext,
+  // `strictBindCallApply`, `skipLibCheck`, `esModuleInterop`), and this file
+  // reproduces that.
+  //
+  // What this does NOT do: relax anything for our code. `tsconfig.app.json`
+  // excludes `src/client/**` and stays strict for everything else, and the two
+  // projects are checked side by side by `vue-tsc --build`.
+  //
+  // The day this folder stops being vendored and becomes ours, delete this
+  // file, drop the exclusion, and pay the 67 fixes deliberately.
+  "extends": "@vue/tsconfig/tsconfig.dom.json",
+  // `env.d.ts` carries the `*.css` / `*.scss` side-effect module declarations
+  // that Vite provides. Without it the vendored stylesheets are five TS2882.
+  "include": ["env.d.ts", "src/client/**/*", "src/client/**/*.vue"],
+  "compilerOptions": {
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "noUncheckedIndexedAccess": false,
+    "skipLibCheck": true,
+
+    // Upstream targets es2024. `Array.prototype.findLastIndex` (es2023) is used
+    // by the activity bar's separator, and the base config stops earlier.
+    "target": "ES2024",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+
+    // Kept from our side on purpose: these two cost nothing upstream and catch
+    // the class of mistake that actually bit during the graft, where a type
+    // import compiled here but exploded in the browser.
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+
+    "paths": {
+      "@/*": ["./src/*"],
+      "@cordisjs/client": ["./src/client/index.ts"],
+      "@cordisjs/components": ["./src/client/vendor-components/index.ts"]
+    },
+
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.client.tsbuildinfo"
+  }
+}
