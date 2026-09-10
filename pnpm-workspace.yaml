@@ -4,6 +4,12 @@
 allowBuilds:
   esbuild: true
   vue-demi: true
+  # Arrive par `sass-embedded`, ajouté pour compiler le SCSS de la coquille
+  # vendorisée. Son script d'installation récupère un binaire préconstruit ; il
+  # ne sert que la surveillance de fichiers, dont on ne se sert pas, mais laissé
+  # indécis il fait sortir `pnpm install --frozen-lockfile` en code 1 et la CI
+  # tombe avant même le type-check.
+  '@parcel/watcher': true
 
 minimumReleaseAgeExclude:
   - '@rolldown/binding-darwin-x64@1.2.5'
