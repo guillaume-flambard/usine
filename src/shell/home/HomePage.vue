@@ -29,9 +29,14 @@
             <span v-if="failure" class="text-error" data-run-failure>{{ failure }}</span>
           </div>
 
-          <p class="text-dimmed">
-            Aucune clé n'est branchée, donc rien n'est inventé : le run rejoue des réponses
-            préparées, et l'écran ne prétend pas le contraire.
+          <p class="text-dimmed" data-run-source>
+            <template v-if="source === 'site'">
+              Un modèle est branché, côté service : ce que tu vas lire est produit à l'instant.
+            </template>
+            <template v-else>
+              Aucune clé n'est branchée, donc rien n'est inventé : le run rejoue des réponses
+              préparées, et l'écran ne prétend pas le contraire.
+            </template>
           </p>
 
           <k-slot name="home"></k-slot>
@@ -52,9 +57,17 @@
 // every page rather than from this one only.
 import { computed, ref } from 'vue'
 import { DEMO_BRIEF } from '../../examples/demo'
-import { pilot, state } from '../run/pilot'
+import { onMounted } from 'vue'
+import { pilot, probeSiteModel, source, state } from '../run/pilot'
 
 const brief = ref(DEMO_BRIEF)
+
+// La sonde part une fois, au montage : demander au service s'il porte une clé
+// est une question réseau, pas un réglage de compilation, et c'est ce qui
+// garantit que la clé ne descend jamais dans le navigateur.
+onMounted(() => {
+  void probeSiteModel()
+})
 
 // `pilot.phase()` reads the kernel, not a ref, so a computed over it alone
 // never re-evaluates. Touching the read model's sequence is how `FactoryApp`

@@ -19,6 +19,20 @@ from .limits import Limits
 DEFAULT_MODEL = "deepseek/deepseek-v4-flash"
 ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 
+#: Comment on coupe le raisonnement, fournisseur par fournisseur.
+#:
+#: Ce n'est pas un detail de confort : un modele de raisonnement depense tout
+#: son budget de sortie a reflechir et rend un contenu vide. Mesure ici deux
+#: appels sur trois, et mesure ailleurs dans le lab a 7 922 jetons pour une
+#: reponse de 800, 117 s par appel et des 504 des que la passerelle ralentit.
+#: Le nom du parametre change selon le fournisseur, la consequence de l'oublier
+#: ne change pas.
+#:
+#: - OpenRouter expose `reasoning.enabled`.
+#: - b.ai sert des modeles Qwen, dont l'extension est `enable_thinking`.
+OPENROUTER_REASONING_OFF: dict[str, Any] = {"reasoning": {"enabled": False}}
+BAI_REASONING_OFF: dict[str, Any] = {"enable_thinking": False}
+
 #: Un vocabulaire plus gros que ça n'est pas un vocabulaire, c'est une charge
 #: utile déguisée.
 MAX_TOOLS_BYTES = 40_000
@@ -91,6 +105,8 @@ async def reason(
     call: Caller,
     limits: Limits,
     tools: Any | None = None,
+    endpoint: str = ENDPOINT,
+    reasoning_off: dict[str, Any] | None = None,
 ) -> Reasoning:
     """Un tour de raisonnement, borné des deux côtés."""
     if role not in ROLES:
@@ -106,7 +122,10 @@ async def reason(
         # mesuré, deux appels sur trois revenaient avec 1200 tokens de
         # raisonnement et pas un caractère. Ce qu'on demande ici est un objet
         # JSON de forme fixe, pas une délibération.
-        "reasoning": {"enabled": False},
+        #
+        # Le nom du paramètre appartient au fournisseur, pas à cette fonction :
+        # voir `OPENROUTER_REASONING_OFF` et `BAI_REASONING_OFF`.
+        **(reasoning_off if reasoning_off is not None else OPENROUTER_REASONING_OFF),
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {
@@ -134,13 +153,17 @@ async def reason(
     headers = {
         "authorization": f"Bearer {key}",
         "content-type": "application/json",
+        # Ces deux en-têtes sont propres à OpenRouter, qui s'en sert pour
+        # attribuer l'appel. Un fournisseur compatible OpenAI qui ne les connaît
+        # pas les ignore, donc ils partent dans les deux cas plutôt que d'ajouter
+        # une branche pour rien.
         "http-referer": origin,
         # ASCII uniquement : un en-tête HTTP est une ByteString, un tiret cadratin lève.
         "x-title": "Usine agentique - Memo Labs",
     }
 
     try:
-        status, body = await call(ENDPOINT, headers=headers, payload=payload)
+        status, body = await call(endpoint, headers=headers, payload=payload)
     except Refusal:
         raise
     except Exception as cause:  # noqa: BLE001 — toute panne du fournisseur est un 502
