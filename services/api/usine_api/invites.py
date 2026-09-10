@@ -26,8 +26,19 @@ from .portes import NOM, Absent
 #: L'étiquette que le correcteur pose sur ce qu'il propose, et celle qui sert.
 CANDIDAT = "candidat"
 SERVICE = "production"
-#: Ce qu'on pose sur une candidate écartée : elle perd `candidat` du même geste,
-#: et la trace reste. Supprimer effacerait la raison de ne pas recommencer.
+#: Ce qu'on pose sur une candidate écartée. La trace reste : supprimer
+#: effacerait la raison de ne pas recommencer.
+#:
+#: MESURÉ, et contraire à ce que je croyais en l'écrivant : `newLabels` AJOUTE
+#: une étiquette, il ne remplace pas le jeu. Une version écartée garde donc
+#: `candidat` en plus d'`ecartee`. L'unicité annoncée par `invites.py` vaut par
+#: ÉTIQUETTE, entre versions : poser `production` sur la v2 la retire de la v1,
+#: mais poser `ecartee` ne chasse pas `candidat` de la même version.
+#:
+#: Aucune route de retrait n'est exposée par l'instance qui tourne. La décision
+#: est donc lue plutôt que forcée : une version qui porte `ecartee` a été jugée,
+#: elle n'est plus en attente. C'est vrai quelle que soit la sémantique des
+#: étiquettes, et ça garde la trace visible.
 ECARTEE = "ecartee"
 
 
@@ -91,15 +102,20 @@ def portes_de(agent: str) -> list[str]:
 
 
 def etat(agent: str) -> dict[str, Any]:
-    """Pour chaque porte : ce qui sert, et ce qui attend d'être jugé."""
+    """Pour chaque porte : ce qui sert, ce qui attend, ce qui a été écarté."""
     invites = []
     for nom in portes_de(agent):
         cle = f"{agent}/{nom}"
+        candidat = _version(cle, CANDIDAT)
+        # Une candidate déjà écartée n'attend plus rien. Elle reste montrée,
+        # mais comme une décision prise et non comme un choix à faire.
+        ecartee = candidat if candidat and ECARTEE in candidat["etiquettes"] else None
         invites.append(
             {
                 "nom": nom,
                 "service": _version(cle, SERVICE),
-                "candidat": _version(cle, CANDIDAT),
+                "candidat": None if ecartee else candidat,
+                "ecartee": ecartee,
             }
         )
     return {"agent": agent, "invites": invites}

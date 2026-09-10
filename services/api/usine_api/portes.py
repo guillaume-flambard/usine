@@ -120,6 +120,11 @@ def racine_lab() -> Path | None:
 def _jouer(mesure: Mesure, dossier_agent: Path, sortie: Path) -> None:
     env = dict(os.environ)
     env["LANGFUSE_INVITES_LABEL"] = mesure.invites
+    # `invites.py` construit la clé `{LANGFUSE_AGENT}/{nom}`. Sans cette
+    # variable elle vaudrait `agent/porte-…`, Langfuse rendrait 404, et le
+    # harnais retomberait sur le défaut du code EN CROYANT mesurer la
+    # candidate. Le service connaît l'agent : c'est à lui de la poser.
+    env["LANGFUSE_AGENT"] = mesure.agent
     env["EVAL_JSON"] = str(sortie)
     env["EVAL_VERDICT"] = str(sortie.with_suffix(".txt"))
     env["PYTHONPATH"] = str(dossier_agent.parent / "_partage")

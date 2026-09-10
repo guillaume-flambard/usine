@@ -12,7 +12,12 @@
         </span>
       </div>
 
-      <p v-if="!invite.candidat" class="text-dimmed">
+      <p v-if="invite.ecartee" class="text-dimmed" data-invite-ecartee>
+        Candidate en version {{ invite.ecartee.version }} écartée. Elle reste lisible : effacer une
+        proposition refusée effacerait la raison de ne pas la reproposer.
+      </p>
+
+      <p v-else-if="!invite.candidat" class="text-dimmed">
         Aucune candidate en attente. C'est l'état normal : le correcteur ne propose que lorsqu'il
         trouve une clause rompue.
       </p>

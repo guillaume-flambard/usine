@@ -94,7 +94,10 @@ export interface VersionInvite {
 export interface InvitePorte {
   nom: string
   service: VersionInvite | null
+  /** Ce qui attend d'être jugé. Absent dès que la décision est prise. */
   candidat: VersionInvite | null
+  /** Une candidate déjà écartée. Montrée comme décision, pas comme choix. */
+  ecartee: VersionInvite | null
 }
 
 export interface EtatInvites {
