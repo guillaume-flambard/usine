@@ -245,6 +245,18 @@ const turnContext = (
   ].join('\n')
 }
 
+/**
+ * La première phrase d'une instruction, bornée. C'est ce que l'écran montre
+ * pendant l'attente : de quoi savoir ce qu'on attend, pas de quoi lire le
+ * prompt.
+ */
+const firstSentence = (text: string): string => {
+  const line = text.trim().split(/\n/)[0] ?? ''
+  const stop = line.search(/[.:?]/)
+  const cut = stop === -1 ? line : line.slice(0, stop)
+  return cut.length > 90 ? `${cut.slice(0, 89)}…` : cut
+}
+
 /** One turn of reasoning, reduced to a readable shape whatever happens. */
 export async function think(
   context: ComponentContext,
@@ -254,22 +266,46 @@ export async function think(
 ): Promise<Turn | undefined> {
   if (worksite.tokens >= worksite.budget.maxTokens) return undefined
 
-  const reasoning: Reasoning = await worksite.reasoner
-    .reason({
-      role: 'agent',
-      instruction,
-      context: contextText,
-      fallback: '',
-      // Le vocabulaire, en outils. Le fournisseur émet le nom de l'action hors
-      // du corps JSON ; celui qui ne sait pas faire rend du texte, et la
-      // relecture ci-dessous s'en charge comme avant.
-      tools: TOOLS,
-    })
-    .catch((cause) => ({
-      text: '',
-      origin: 'deterministic' as const,
-      failure: cause instanceof Error ? cause.message : String(cause),
-    }))
+  // Le seul endroit du produit où un modèle est appelé : tout passe par ici,
+  // la boucle, le tour réactif et les réponses aux questions. Encadrer l'appel
+  // ici couvre donc l'application entière, et un seul endroit peut se
+  // désynchroniser plutôt que trois.
+  //
+  // La ligne d'attente prend la première phrase de l'instruction. Pas le
+  // contexte : il fait des milliers de caractères et ne se lit pas.
+  const settled = context.beginReasoning(firstSentence(instruction))
+  // Ni `.then` ni `.finally` sur cette chaine, et c'est mesure, pas une
+  // preference : chaque maillon ajoute un tour de microtache avant que la
+  // boucle ne reprenne. Deux tours de plus suffisaient a ce que la fibre du
+  // composant soit disposee quand `execute` appelait `provide`, et
+  // `replacement.spec.ts` levait un INACTIVE_EFFECT que `main` ne leve pas.
+  // Un `try`/`catch` autour d'un `await`, lui, ne coute aucun tour.
+  let reasoning: Reasoning
+  try {
+    reasoning = await worksite.reasoner
+      .reason({
+        role: 'agent',
+        instruction,
+        context: contextText,
+        fallback: '',
+        // Le vocabulaire, en outils. Le fournisseur émet le nom de l'action hors
+        // du corps JSON ; celui qui ne sait pas faire rend du texte, et la
+        // relecture ci-dessous s'en charge comme avant.
+        tools: TOOLS,
+      })
+      .catch((cause) => ({
+        text: '',
+        origin: 'deterministic' as const,
+        failure: cause instanceof Error ? cause.message : String(cause),
+      }))
+  } catch (cause) {
+    // Le `.catch` ci-dessus rend ce chemin injoignable en pratique. Il est la
+    // pour que l'attente se ferme quand meme : un ecran bloque sur
+    // « reflechit » pour toujours est pire que pas de suivi du tout.
+    settled(cause instanceof Error ? cause.message : String(cause))
+    throw cause
+  }
+  settled(reasoning.failure)
 
   if (reasoning.tokens !== undefined || reasoning.failure !== undefined) {
     worksite.tokens += (reasoning.tokens?.input ?? 0) + (reasoning.tokens?.output ?? 0)

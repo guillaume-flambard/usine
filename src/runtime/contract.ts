@@ -109,6 +109,19 @@ export interface ComponentContext {
    */
   countTokens(input: number, output: number, failure?: string): void
   /**
+   * Annonce qu'un appel de modele part, et rend la fonction qui dit qu'il est
+   * revenu. Une seule methode plutot que deux, pour que la paire soit
+   * impossible a defaire : on ne peut pas appeler la fin sans avoir appele le
+   * debut, et l'appelant n'a pas a retenir d'identifiant.
+   *
+   * A poser en `try/finally` autour de l'appel. Un debut sans fin laisserait
+   * l'ecran annoncer une reflexion qui ne se termine jamais.
+   *
+   * La duree est mesuree ici, pas fournie : personne d'autre n'a le droit de
+   * dire combien de temps un appel a pris.
+   */
+  beginReasoning(about: string): (failure?: string) => void
+  /**
    * Halts the run on a human decision. No delay crosses it: until someone
    * decides, nothing proceeds.
    */

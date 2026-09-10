@@ -82,6 +82,22 @@ export interface ExchangeView {
   sequence: number
 }
 
+/**
+ * Un agent en train d'attendre un modele, maintenant.
+ *
+ * C'est ce qui remplace le spinner. `since` est l'`at` de l'evenement de
+ * depart, donc une duree ecoulee depuis le debut du run, jamais une date
+ * absolue (AD-33) : un run rejoue affiche les memes chiffres qu'un run vivant.
+ */
+export interface ThinkingView {
+  id: ComponentId
+  author: string
+  /** Ce qu'on lui demande, en une phrase. */
+  about: string
+  /** L'`at` du depart : ecoule depuis le debut du run, en ms. */
+  since: number
+}
+
 export interface LogMessage {
   sequence: number
   id: ComponentId
@@ -119,6 +135,14 @@ export interface RunState {
   incidents: readonly LogIncident[]
   /** Present as soon as the run reaches the gate, and kept after the decision. */
   gate?: GateView
+  /**
+   * Qui attend un modele en ce moment. Vide la plupart du temps, plusieurs
+   * entrees quand plusieurs agents reflechissent en parallele.
+   *
+   * Derive du flux comme tout le reste : l'interface ne devine pas qui pense,
+   * et un run rejoue montre la meme attente qu'un run vivant.
+   */
+  thinking: readonly ThinkingView[]
   /** Tokens actually spent. Stays at zero with no model connected. */
   tokens: { input: number; output: number }
   /** Number of nodes neither released nor failed. */

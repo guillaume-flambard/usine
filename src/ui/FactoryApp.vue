@@ -530,6 +530,7 @@ onBeforeUnmount(() => {
         :incidents="state.incidents"
         :error="error"
         :last-sequence="state.lastSequence"
+        :thinking="state.thinking"
       />
 
       <!-- Le composeur, en bas, là où l'on écrit. -->
