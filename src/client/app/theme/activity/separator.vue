@@ -70,7 +70,8 @@ function handleDrop(event: DragEvent) {
     if (anchorR === -1) {
       delete override.order
     } else {
-      let order = list[anchorR].options.order
+      // `order` est optionnel sur une activité : l'absence vaut zéro.
+      let order = list[anchorR].options.order ?? 0
       for (let index = anchorR - 1; index >= 0; index--) {
         const override = (config.value.activities[list[index].id] ??= {})
         override.order = order += 100
@@ -78,14 +79,14 @@ function handleDrop(event: DragEvent) {
     }
   } else {
     if (anchorR === -1) {
-      let order = list[anchorL].options.order
+      let order = list[anchorL].options.order ?? 0
       for (let index = anchorL + 1; index < list.length; index++) {
         const override = (config.value.activities[list[index].id] ??= {})
         override.order = order -= 100
       }
     } else {
-      const orderL = list[anchorL].options.order
-      const orderR = list[anchorR].options.order
+      const orderL = list[anchorL].options.order ?? 0
+      const orderR = list[anchorR].options.order ?? 0
       for (let index = anchorL + 1; index < anchorR; index++) {
         const override = (config.value.activities[list[index].id] ??= {})
         override.order = orderL + ((orderR - orderL) * (index - anchorL)) / (anchorR - anchorL)

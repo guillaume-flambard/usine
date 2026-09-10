@@ -1,15 +1,18 @@
 {
   "extends": "@vue/tsconfig/tsconfig.dom.json",
   "include": ["env.d.ts", "src/**/*", "src/**/*.vue"],
-  // `src/client/**` is vendored from `@cordisjs/client` and is checked by
-  // `tsconfig.client.json` with its author's settings. Excluding it here is
-  // what keeps this project strict for the code we actually write.
-  "exclude": ["src/**/__tests__/*", "src/client/**"],
+  "exclude": ["src/**/__tests__/*"],
   "compilerOptions": {
     // Le moteur porté (src/usine/run.ts) indexe tableaux et maps partout (DOM impératif
     // d'origine). On garde `strict` mais on coupe ce flag opt-in (hors `strict`, "may have
     // false positives" d'après le scaffold) pour ne pas noyer le code sous les gardes d'index.
     "noUncheckedIndexedAccess": false,
+
+    // La coquille vendorisée vise es2024 chez son auteur, et sa barre
+    // d'activités appelle `Array.prototype.findLastIndex` (es2023). Le socle
+    // s'arrête plus tôt.
+    "target": "ES2024",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
 
     // Path mapping for cleaner imports.
     //

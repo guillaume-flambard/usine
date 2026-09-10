@@ -1,17 +1,14 @@
 import { Activity } from '@cordisjs/client'
 import type { Dict } from '@cordisjs/client'
 
-// Both members are optional here, where upstream wrote them required.
-// Upstream compiles `client/` and `app/` as two separate TypeScript projects,
-// so this augmentation is invisible from `client/` and its own code passes
-// `{}` freely (`ActionService.scope`, `createScope`). Vendored into one
-// project the augmentation becomes visible, and required members would reject
-// that code. Optional is also what the runtime says: an action scope opened
-// outside the activity bar genuinely has no activity, and a fresh config has
-// no overrides.
+// `'theme.activity'` reste OBLIGATOIRE ici, et c'est `Flatten` qui rend chaque
+// branche facultative. Le rendre optionnel à la source paraît plus juste et ne
+// l'est pas : `[K in keyof S]` conserve l'optionalité, donc `[keyof S]` fait
+// entrer `undefined` dans l'union, et `Intersect<X | undefined>` vaut `never`.
+// Tout le typage des scopes s'effondrait en silence.
 declare module '@cordisjs/client' {
   interface ActionContext {
-    'theme.activity'?: Activity
+    'theme.activity': Activity
   }
 
   interface Config {

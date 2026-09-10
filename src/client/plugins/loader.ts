@@ -184,7 +184,10 @@ export default class LoaderService {
               return
             }
 
-            const { files, entryId, data, cursor, methods } = body
+            // `files` est déclaré facultatif côté serveur ; une entrée sans
+          // fichier n'a rien à charger, et le tableau vide dit ça mieux qu'une
+          // garde à chaque usage.
+          const { files = [], entryId, data, cursor, methods } = body
             const state = new DeltaState()
             if (cursor) state.restore(cursor)
 

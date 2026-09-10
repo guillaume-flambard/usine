@@ -29,7 +29,9 @@ const isDragging = ref(false)
 
 function handleDragStart(event: DragEvent) {
   isDragging.value = true
-  event.dataTransfer.setData('text/plain', 'activity:' + props.data.id)
+  // `dataTransfer` est nul hors d'un vrai glisser-déposer : la garde évite de
+  // faire tomber le gestionnaire au lieu de ne rien faire.
+  event.dataTransfer?.setData('text/plain', 'activity:' + props.data.id)
 }
 
 function handleDragEnd(event: DragEvent) {

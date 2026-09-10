@@ -4,7 +4,9 @@
     <component v-if="matched" :is="matched.component" :key="matched.path"></component>
   </keep-alive>
   <not-found v-if="!matched && showNotFound"></not-found>
-  <loading v-if="!matched && !showNotFound"></loading>
+  <!-- Upstream span a disc here while it waited for a server to declare its
+       entries. Every view is local now, so that wait is an instant and there
+       is nothing to report: a blank frame is honest, a spinner claims work. -->
   <status-bar></status-bar>
   <menu-list></menu-list>
 </template>
@@ -16,25 +18,22 @@ import ActivityBar from './activity/index.vue'
 import StatusBar from './status.vue'
 import MenuList from './menu/index.vue'
 import NotFound from './not-found.vue'
-import Loading from './loading.vue'
 
 const route = useRoute()
 const ctx = useContext()
 
-// Three-state route view, gated separately so `<keep-alive>` only wraps the
-// matched component (Loading and NotFound have no state worth caching, and
-// keeping them outside avoids same-key/different-component aliasing in the
-// cache).
+// Two-state route view now, gated separately so `<keep-alive>` only wraps the
+// matched component (NotFound has no state worth caching, and keeping it
+// outside avoids same-key/different-component aliasing in the cache).
 //
-// `showNotFound` decides 404 vs Loading when the URL doesn't match a route:
-// 1. If `loader.initialStatus === 404`, the server already determined no
-//    entry's `routes` covers this URL — render 404 immediately, even if a
-//    sibling entry's module is still importing or has stalled.
-// 2. Otherwise wait for `loader.ready` (all known entries' modules done).
-//    Then 404 is decisive. While `ready` is false we render Loading.
+// Upstream had a third state: a spinner, for the window where the server had
+// not yet declared its entries. There is no server here, every view is local
+// and imported before the app mounts, so that window is an instant and it
+// renders nothing rather than claiming work.
 //
-// A stuck/never-resolving entry will leave `ready === false` forever; (1)
-// keeps unrelated bad URLs from being held hostage by it.
+// `showNotFound` still decides when a URL that matches nothing is decisively a
+// 404. `loader.initialStatus === 404` short-circuits it; otherwise it waits for
+// `loader.ready`, which the boot opens itself in `app/index.ts`.
 const matched = computed(() => route.matched[0])
 const showNotFound = computed(() => {
   const loader = ctx.client.loader
