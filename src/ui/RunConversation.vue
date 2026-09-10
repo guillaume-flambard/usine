@@ -52,8 +52,8 @@ watch(
     data-thread
   >
     <p v-if="log.length === 0" class="max-w-[46ch] text-muted">
-      Écrivez un besoin. Rien n’existe encore : les agents, leurs outils et l’application naîtront
-      de ce que vous taperez — puis se referont autour de ce que vous en ferez.
+      Écrivez un besoin. Les agents naissent de ce que vous taperez, se parlent, et chargent leurs
+      outils à chaud. C'est la mécanique que l'atelier met au service du jugement.
     </p>
     <p
       v-for="(message, index) in log"
@@ -71,7 +71,7 @@ watch(
     <ReasoningPulse :thinking="thinking" />
     <p v-if="error" class="text-sm text-error" data-incident role="alert">{{ error }}</p>
     <p v-else-if="incidents.length" class="text-sm text-error" data-incident role="status">
-      {{ count(incidents.length, 'incident', 'incidents') }} — {{ incidents.at(-1)?.error.message }}
+      {{ count(incidents.length, 'incident', 'incidents') }} : {{ incidents.at(-1)?.error.message }}
     </p>
   </div>
 </template>

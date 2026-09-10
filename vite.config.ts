@@ -14,8 +14,9 @@ import vueDevTools from 'vite-plugin-vue-devtools'
  * 2026-09-10, et la direction en cours se cachait derrière un chemin qu'il
  * fallait connaître. Une redirection vaut mieux qu'une consigne à retenir.
  *
- * Uniquement le serveur de développement : rien de ce qui est construit ne
- * change, et `usine.memolabs.dev` continue de servir `index.html`.
+ * Uniquement le serveur de développement, et uniquement la racine nue :
+ * `/index.html` reste atteignable pour relire la vitrine. Rien de ce qui est
+ * construit ne change, et `usine.memolabs.dev` continue de servir `index.html`.
  */
 function atelierALaRacine(): Plugin {
   return {
@@ -23,7 +24,10 @@ function atelierALaRacine(): Plugin {
     apply: 'serve',
     configureServer(serveur) {
       serveur.middlewares.use((requete, reponse, suivant) => {
-        if (requete.url === '/' || requete.url === '/index.html') {
+        // Seulement la racine nue. `/index.html` reste atteignable, sans quoi
+        // la vitrine deviendrait invisible en développement et on ne pourrait
+        // plus relire ce qu'elle raconte.
+        if (requete.url === '/') {
           reponse.statusCode = 302
           reponse.setHeader('location', '/console/')
           reponse.end()
