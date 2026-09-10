@@ -20,10 +20,25 @@
               </p>
             </header>
 
-            <section v-if="alertes.length > 0" class="flotte-alertes">
-              <article v-for="a in alertes" :key="a.cle" class="flotte-alerte">
-                <code class="flotte-nom">{{ a.agent }}</code>
-                <p>{{ a.texte }}</p>
+            <section v-if="groupes.length > 0" class="flotte-alertes">
+              <!-- Une ligne par PROBLEME, pas par victime. Le texte long de
+                   l'observateur porte la leçon et se déplie à la demande : en
+                   dix secondes on veut savoir quoi, pas encore pourquoi. -->
+              <article v-for="g in groupes" :key="g.cle" class="flotte-alerte">
+                <div class="flotte-ligne">
+                  <span class="flotte-resume">{{ g.resume }}</span>
+                  <code class="flotte-nom">{{ g.agents.join(', ') }}</code>
+                </div>
+                <button
+                  v-if="g.texte.length > g.resume.length"
+                  type="button"
+                  class="flotte-deplier"
+                  :aria-expanded="deplie.has(g.cle)"
+                  @click="basculer(g.cle)"
+                >
+                  {{ deplie.has(g.cle) ? 'Replier' : 'Pourquoi' }}
+                </button>
+                <p v-if="deplie.has(g.cle)" class="flotte-lecon text-muted">{{ g.texte }}</p>
               </article>
             </section>
 
@@ -67,6 +82,7 @@
 // rédigées, avec leur leçon dans le texte. Un écran qui refait le jugement
 // finirait par diverger de ce que le lab mesure.
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { grouper } from './alertes'
 import { lireFlotte, type Agent, type EtatFlotte } from './client'
 
 const etat = ref<EtatFlotte | undefined>()
@@ -91,7 +107,7 @@ const vaBien = computed(() => etat.value?.etat === 'vue' && etat.value.flotte.al
 
 const titre = computed(() => {
   if (etat.value?.etat !== 'vue') return ''
-  const n = etat.value.flotte.alertes
+  const n = groupes.value.length
   if (n === 0) return 'Tout va bien.'
   return n === 1 ? '1 chose ne va pas.' : `${n} choses ne vont pas.`
 })
@@ -110,12 +126,19 @@ const sousTitre = computed(() => {
   return `${etatFlotte}. Vu ${quand}.`
 })
 
-const alertes = computed(() => {
-  if (etat.value?.etat !== 'vue') return []
-  return etat.value.flotte.agents.flatMap((a) =>
-    a.alertes.map((texte, index) => ({ cle: `${a.nom}-${index}`, agent: a.nom, texte })),
-  )
-})
+// Une ligne par problème, pas par victime : trois agents qui partagent un
+// compte b.ai produisent trois fois la même alerte de quota.
+const groupes = computed(() =>
+  etat.value?.etat === 'vue' ? grouper(etat.value.flotte.agents) : [],
+)
+
+const deplie = ref(new Set<string>())
+
+function basculer(cle: string) {
+  const suite = new Set(deplie.value)
+  if (!suite.delete(cle)) suite.add(cle)
+  deplie.value = suite
+}
 
 function marque(agent: Agent): string {
   if (agent.statut === 'running') return agent.alertes.length > 0 ? '!' : '='
@@ -184,6 +207,27 @@ function fait(agent: Agent): string {
     margin-top: 1rem;
     padding-left: 0.75rem;
     border-left: 2px solid var(--error);
+  }
+
+  .flotte-resume {
+    font-weight: 500;
+  }
+
+  .flotte-deplier {
+    margin-top: 0.25rem;
+    padding: 0;
+    background: none;
+    border: 0;
+    font: inherit;
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
+  .flotte-lecon {
+    margin-top: 0.375rem;
+    font-size: 0.8125rem;
   }
 
   .flotte-agent {
