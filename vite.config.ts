@@ -14,6 +14,15 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // The console shell under `src/client` is vendored from
+      // `@cordisjs/client` (MIT, cordiverse/webui). Its own files import
+      // itself by package name. Keeping those specifiers intact, and
+      // resolving them here, is what makes a later re-sync with upstream a
+      // diff rather than a rewrite. Same reason for the component library.
+      '@cordisjs/components': fileURLToPath(
+        new URL('./src/client/vendor-components', import.meta.url),
+      ),
+      '@cordisjs/client': fileURLToPath(new URL('./src/client', import.meta.url)),
     },
   },
   build: {
@@ -24,6 +33,9 @@ export default defineConfig({
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
         sandbox: fileURLToPath(new URL('./sandbox.html', import.meta.url)),
+        // The vendored console shell, on its own page while it is being
+        // dressed, so the shipped product keeps booting from `index.html`.
+        console: fileURLToPath(new URL('./console.html', import.meta.url)),
       },
     },
   },

@@ -36,7 +36,14 @@ export default defineConfigWithVueTs(
     files: ['**/*.{vue,js,mjs,cjs,jsx,ts,mts,cts,tsx}'],
     // `spike/` is a proving ground outside the application: it is allowed to
     // talk to the engine directly — that is its whole purpose.
-    ignores: ['src/runtime/**', 'spike/**'],
+    //
+    // `src/client/` is the console shell vendored from `@cordisjs/client`
+    // (MIT, cordiverse/webui). It is cordis-aware by construction: its whole
+    // job is to bind fibers and services to Vue. Listing it here is honest
+    // about a second engine-facing layer; hiding it under `src/runtime/` to
+    // satisfy the linter would not be. The rule's intent still holds for the
+    // rest of the application, which keeps consuming the `RunEvent` stream.
+    ignores: ['src/runtime/**', 'src/client/**', 'spike/**'],
     rules: {
       'no-restricted-imports': [
         'error',

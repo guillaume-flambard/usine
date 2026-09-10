@@ -1,0 +1,154 @@
+<template>
+  <div
+    class="activity-item"
+    :class="{ 'active': isActive, 'drag-over': hasDragOver }"
+    @contextmenu.stop="trigger($event, children[0])"
+    @dragenter="handleDragEnter"
+    @dragleave="handleDragLeave"
+    @drop="handleDrop"
+    @dragover.prevent>
+    <UTooltip :content="{ side: 'right' }" :ui="{ content: 'activity-item-tooltip' }">
+      <template #content>
+        <div class="activity-info">
+          <div class="title">{{ children[hoverIndex].name }}</div>
+          <div class="desc" v-if="children[hoverIndex].desc">{{ children[hoverIndex].desc }}</div>
+        </div>
+        <div class="activity-group" v-if="children.length > 1">
+          <div class="activity-group-item" v-for="(child, index) in children.slice(1)" :key="child.id">
+            <activity-button
+              :data="child"
+              @mouseenter="hoverIndex = index + 1"
+              @mouseleave="hoverIndex = 0"
+            ></activity-button>
+          </div>
+        </div>
+      </template>
+      <activity-button :data="children[0]" :class="{ 'is-group': children.length > 1 }"></activity-button>
+    </UTooltip>
+  </div>
+</template>
+
+<script lang="ts" setup>
+
+import { computed, ref } from 'vue'
+import { useRoute, Activity, useConfig, useMenu } from '@cordisjs/client'
+import ActivityButton from './button.vue'
+import { watch } from 'vue'
+
+const route = useRoute()
+
+// Was `Placement` from Element Plus. Nuxt UI forwards a reka-ui side, which
+// has four values and carries alignment separately.
+const props = defineProps<{
+  children: Activity[]
+  placement: 'top' | 'right' | 'bottom' | 'left'
+}>()
+
+const isActive = computed(() => {
+  return Object.values(props.children).some(child => route.meta?.activity?.id === child.id)
+})
+
+const hasDragOver = ref(false)
+
+const trigger = useMenu('theme.activity')
+
+const hoverIndex = ref(0)
+
+watch(() => props.children, () => {
+  hoverIndex.value = 0
+})
+
+function handleDragEnter(event: DragEvent) {
+  hasDragOver.value = true
+}
+
+function handleDragLeave(event: DragEvent) {
+  hasDragOver.value = false
+}
+
+const config = useConfig()
+
+function handleDrop(event: DragEvent) {
+  hasDragOver.value = false
+  const text = event.dataTransfer.getData('text/plain')
+  if (!text.startsWith('activity:')) return
+  const id = text.slice(9)
+  const target = props.children[0].id
+  if (target === id) return
+  event.preventDefault()
+
+  const override = (config.value.activities ??= {})[id] ??= {}
+  if (override.parent === target) {
+    delete override.parent
+    ;(config.value.activities[target] ??= {}).parent = id
+    for (const key in config.value.activities) {
+      const override = config.value.activities[key]
+      if (override?.parent === target) {
+        override.parent = id
+      }
+    }
+  } else {
+    override.parent = target
+  }
+}
+
+</script>
+
+<style lang="scss">
+
+.activity-item {
+  position: relative;
+  box-sizing: border-box;
+  width: var(--nav-width);
+  padding: 0 var(--nav-icon-margin);
+
+  .layout-activity &::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: var(--nav-marker-width);
+    height: var(--nav-marker-height);
+    transform: translateX(-100%) translateY(-50%);
+    display: block;
+    border-radius: 0 var(--nav-marker-width) var(--nav-marker-width) 0;
+    background-color: var(--k-text-active);
+    transition: all 0.3s ease;
+  }
+
+  .layout-activity &.active::before,
+  .layout-activity &.drag-over::before {
+    transform: translateY(-50%);
+  }
+}
+
+.activity-item-tooltip {
+  padding: 0;
+
+  .activity-info {
+    padding: 6px 11px;
+    line-height: 1.6;
+
+    .title {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .desc {
+      font-size: 12px;
+    }
+  }
+
+  .activity-group {
+    display: flex;
+    padding: var(--nav-icon-margin);
+    gap: 0 var(--nav-icon-margin);
+    border-top: 1px solid var(--k-color-divider);
+
+    .activity-group-item {
+      width: calc(var(--nav-width) - 2 * var(--nav-icon-margin));
+    }
+  }
+}
+
+</style>

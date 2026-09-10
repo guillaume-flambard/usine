@@ -9,8 +9,16 @@
     "noUncheckedIndexedAccess": false,
 
     // Path mapping for cleaner imports.
+    //
+    // The last two mirror the Vite aliases for the vendored console shell.
+    // They are not a convenience: `<script setup>` resolves the types behind
+    // `defineProps<T>()` through tsconfig paths, never through Vite's
+    // resolver, so without them every macro that names an upstream type fails
+    // to compile with "Failed to resolve import source".
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@cordisjs/client": ["./src/client/index.ts"],
+      "@cordisjs/components": ["./src/client/vendor-components/index.ts"]
     },
 
     // `vue-tsc --build` produces a .tsbuildinfo file for incremental type-checking.
