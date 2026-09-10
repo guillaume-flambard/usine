@@ -33,14 +33,19 @@ export default defineConfig({
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
         sandbox: fileURLToPath(new URL('./sandbox.html', import.meta.url)),
-        // The vendored console shell, on its own page while it is being
-        // dressed, so the shipped product keeps booting from `index.html`.
-        // It lives in a directory, not a bare `.html`: their router derives the
-        // route by stripping `uiPath` off `location.pathname`, so serving it at
-        // `/console/` with `uiPath: '/console'` leaves exactly `/`, which is
-        // the home route. A bare `console.html` would leave an empty string and
-        // match nothing.
-        console: fileURLToPath(new URL('./console/index.html', import.meta.url)),
+        // The vendored console shell is served by the dev server, which picks
+        // up any HTML file, but it is deliberately NOT a production input.
+        //
+        // `usine.memolabs.dev` answers 200 to anyone: shipping the page would
+        // publish a half-dressed shell that still says "Cordis" and still
+        // announces, in Chinese, a connection to a server that does not exist.
+        // Unlinked is not unreachable, and this site is the showcase.
+        //
+        // Add it back the day the shell carries the product. It lives in a
+        // directory, not a bare `.html`: their router derives the route by
+        // stripping `uiPath` off `location.pathname`, so `/console/` with
+        // `uiPath: '/console'` leaves exactly `/`, the home route, where a bare
+        // `console.html` would leave an empty string and match nothing.
       },
     },
   },
