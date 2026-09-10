@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from usine_api.portes import Absent, lire
+from usine_api.portes import Absent, lancer, lire, suivre
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -61,3 +61,33 @@ def test_refuse_une_mesure_de_mauvaise_forme(tmp_path: Path) -> None:
     with pytest.raises(Absent) as absent:
         lire("acheteur", tmp_path)
     assert "forme inattendue" in absent.value.message
+
+
+def test_refuse_une_etiquette_hors_liste(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # L'étiquette part dans l'environnement d'un sous-processus lancé depuis une
+    # requête HTTP. Deux valeurs sont légitimes, et seulement deux.
+    monkeypatch.setenv("LAB_INFRA_DIR", str(tmp_path))
+    for mauvaise in ("PATH", "production; rm -rf /", "candidat ", "", "CANDIDAT"):
+        with pytest.raises(Absent) as absent:
+            lancer("acheteur", mauvaise, tmp_path / "sortie.json")
+        assert "étiquette" in absent.value.message
+
+
+def test_refuse_un_agent_sans_harnais(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LAB_INFRA_DIR", str(tmp_path))
+    with pytest.raises(Absent) as absent:
+        lancer("acheteur", "candidat", tmp_path / "sortie.json")
+    assert "aucun harnais" in absent.value.message
+
+
+def test_refuse_sans_depot_configure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("LAB_INFRA_DIR", raising=False)
+    with pytest.raises(Absent) as absent:
+        lancer("acheteur", "candidat", tmp_path / "sortie.json")
+    assert "LAB_INFRA_DIR" in absent.value.message
+
+
+def test_suivre_une_mesure_inconnue() -> None:
+    with pytest.raises(Absent) as absent:
+        suivre("pas-un-identifiant")
+    assert "inconnue" in absent.value.message

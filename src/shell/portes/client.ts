@@ -48,3 +48,37 @@ export async function lireVerdict(agent: string): Promise<Verdict> {
   }
   return { etat: 'mesure', mesure: (await reponse.json()) as Mesure }
 }
+
+/** Une mesure en cours ou finie, telle que le service la rend. */
+export interface Avancement {
+  id: string
+  agent: string
+  invites: string
+  /** Secondes écoulées depuis le lancement. Comptées par le service. */
+  secondes: number
+  /** Les lignes que le harnais a imprimées, une par cas joué. */
+  lignes: readonly string[]
+  fini: boolean
+  verdict: Mesure | null
+  echec: string | null
+}
+
+/** Lance une mesure sous une étiquette d'invites. Rend l'état initial. */
+export async function lancerMesure(agent: string, invites: string): Promise<Avancement> {
+  const reponse = await fetch(`/api/portes/${encodeURIComponent(agent)}/juger`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ invites }),
+  })
+  const corps = (await reponse.json()) as Avancement & { error?: string }
+  if (!reponse.ok) throw new Error(corps.error ?? `le service a répondu ${reponse.status}`)
+  return corps
+}
+
+/** Relit l'avancement d'une mesure lancée. */
+export async function suivreMesure(id: string): Promise<Avancement> {
+  const reponse = await fetch(`/api/portes/juger/${encodeURIComponent(id)}`)
+  const corps = (await reponse.json()) as Avancement & { error?: string }
+  if (!reponse.ok) throw new Error(corps.error ?? `le service a répondu ${reponse.status}`)
+  return corps
+}

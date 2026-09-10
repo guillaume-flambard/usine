@@ -17,6 +17,11 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
+import threading
+import time
+import uuid
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -57,4 +62,129 @@ def lire(agent: str, racine: Path | None = None) -> dict[str, Any]:
         raise Absent(f"mesure illisible pour « {agent} » : {cause}") from None
     if not isinstance(mesure, dict) or not isinstance(mesure.get("cas"), list):
         raise Absent(f"mesure de forme inattendue pour « {agent} »")
+    return mesure
+
+
+# --- Lancer le harnais, sans bloquer la requête ---------------------------
+#
+# Une mesure prend une minute et plus : la rendre au bout d'un POST bloquant
+# serait précisément ce que la règle « une IA qui réfléchit doit se voir
+# réfléchir » interdit. Le lancement rend un identifiant tout de suite, le
+# travail continue derrière, et l'écran lit l'avancement.
+#
+# Ce qui est diffusé n'est pas inventé : le harnais imprime déjà une ligne par
+# cas, au moment où il le joue. On les relaie telles quelles.
+
+#: Les seules étiquettes qu'on accepte de mesurer. `production` est ce qui sert,
+#: `candidat` est ce que le correcteur dépose avant de promouvoir. Toute autre
+#: valeur serait une variable d'environnement arbitraire passée à un
+#: sous-processus depuis une requête HTTP.
+ETIQUETTES = frozenset({"production", "candidat"})
+
+
+@dataclass
+class Mesure:
+    """Une mesure en cours, ou finie."""
+
+    id: str
+    agent: str
+    invites: str
+    debut: float
+    lignes: list[str] = field(default_factory=list)
+    fini: bool = False
+    verdict: dict[str, Any] | None = None
+    echec: str | None = None
+
+    def vue(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "agent": self.agent,
+            "invites": self.invites,
+            "secondes": round(time.monotonic() - self.debut),
+            "lignes": list(self.lignes),
+            "fini": self.fini,
+            "verdict": self.verdict,
+            "echec": self.echec,
+        }
+
+
+_mesures: dict[str, Mesure] = {}
+_verrou = threading.Lock()
+
+
+def racine_lab() -> Path | None:
+    valeur = os.environ.get("LAB_INFRA_DIR", "").strip()
+    return Path(valeur) if valeur else None
+
+
+def _jouer(mesure: Mesure, dossier_agent: Path, sortie: Path) -> None:
+    env = dict(os.environ)
+    env["LANGFUSE_INVITES_LABEL"] = mesure.invites
+    env["EVAL_JSON"] = str(sortie)
+    env["EVAL_VERDICT"] = str(sortie.with_suffix(".txt"))
+    env["PYTHONPATH"] = str(dossier_agent.parent / "_partage")
+    # Sans ça, rien n'arrive avant la fin. Python bloc-bufferise sa sortie dès
+    # qu'elle n'est plus un terminal : les lignes du harnais s'accumuleraient
+    # pour tomber d'un coup au dernier cas, et la trace « vivante » ne montrerait
+    # rien pendant la minute où il y a justement quelque chose à montrer.
+    env["PYTHONUNBUFFERED"] = "1"
+    try:
+        processus = subprocess.Popen(  # noqa: S603 — argv fixe, aucun shell
+            ["python3", "eval-portes.py"],
+            cwd=str(dossier_agent),
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+    except OSError as cause:
+        with _verrou:
+            mesure.echec, mesure.fini = f"harnais injouable : {cause}", True
+        return
+
+    assert processus.stdout is not None
+    for ligne in processus.stdout:
+        propre = ligne.rstrip()
+        if propre:
+            with _verrou:
+                mesure.lignes.append(propre)
+    processus.wait()
+
+    try:
+        verdict = json.loads(sortie.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as cause:
+        with _verrou:
+            mesure.echec = f"le harnais n'a rien rendu de lisible : {cause}"
+            mesure.fini = True
+        return
+    with _verrou:
+        mesure.verdict, mesure.fini = verdict, True
+
+
+def lancer(agent: str, invites: str, sortie: Path) -> Mesure:
+    """Démarre une mesure et rend son état initial. Lève `Absent` si impossible."""
+    if not NOM.match(agent):
+        raise Absent("nom d'agent invalide")
+    if invites not in ETIQUETTES:
+        raise Absent(f"étiquette d'invites refusée : {invites!r}")
+    racine = racine_lab()
+    if racine is None:
+        raise Absent("aucun dépôt d'agents configuré (LAB_INFRA_DIR)")
+    dossier_agent = racine / "stacks" / agent
+    if not (dossier_agent / "eval-portes.py").is_file():
+        raise Absent(f"aucun harnais pour « {agent} »")
+
+    mesure = Mesure(id=uuid.uuid4().hex[:12], agent=agent, invites=invites, debut=time.monotonic())
+    with _verrou:
+        _mesures[mesure.id] = mesure
+    threading.Thread(target=_jouer, args=(mesure, dossier_agent, sortie), daemon=True).start()
+    return mesure
+
+
+def suivre(identifiant: str) -> Mesure:
+    with _verrou:
+        mesure = _mesures.get(identifiant)
+    if mesure is None:
+        raise Absent("mesure inconnue")
     return mesure

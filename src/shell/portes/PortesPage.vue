@@ -19,6 +19,23 @@
                   C'est la version en service, pas une candidate.
                 </template>
               </p>
+              <div class="portes-actions">
+                <UButton :disabled="enCours" @click="rejouer">
+                  Rejouer sous l'étiquette candidat
+                </UButton>
+                <span v-if="enCours" class="text-muted">
+                  {{ avancement?.secondes ?? 0 }} s, {{ avancement?.lignes.length ?? 0 }} cas joués
+                </span>
+                <span v-if="erreur" class="portes-echec" data-portes-echec>{{ erreur }}</span>
+              </div>
+
+              <!-- Ce qui s'affiche ici est ce que le harnais IMPRIME, ligne à
+                   ligne, au moment où il joue chaque cas. Rien n'est fabriqué :
+                   une barre de progression inventée tiendrait jusqu'au premier
+                   échec, puis détruirait la confiance d'un coup. -->
+              <pre v-if="avancement && avancement.lignes.length > 0" class="portes-trace">{{
+                avancement.lignes.join('\n')
+              }}</pre>
             </header>
 
             <section v-for="(cas, porte) in parPorte" :key="porte" class="portes-groupe">
@@ -63,15 +80,62 @@
 // (« si ce cas vire au rouge, la porte est devenue trop sévère et l'agent ne
 // démarchera plus rien »). C'est ce qui permet de juger un écart au lieu de le
 // constater.
-import { computed, onMounted, ref } from 'vue'
-import { lireVerdict, type CasJoue, type Verdict } from './client'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import {
+  lancerMesure,
+  lireVerdict,
+  suivreMesure,
+  type Avancement,
+  type CasJoue,
+  type Verdict,
+} from './client'
 
 const agent = 'acheteur'
 const verdict = ref<Verdict | undefined>()
+const avancement = ref<Avancement | undefined>()
+const erreur = ref<string | undefined>()
+let horloge: ReturnType<typeof setInterval> | undefined
+
+const enCours = computed(() => avancement.value !== undefined && !avancement.value.fini)
 
 onMounted(async () => {
   verdict.value = await lireVerdict(agent)
 })
+
+function arreter() {
+  if (horloge === undefined) return
+  clearInterval(horloge)
+  horloge = undefined
+}
+
+onUnmounted(arreter)
+
+async function rejouer() {
+  erreur.value = undefined
+  try {
+    avancement.value = await lancerMesure(agent, 'candidat')
+  } catch (cause) {
+    erreur.value = cause instanceof Error ? cause.message : String(cause)
+    return
+  }
+  // Une seconde : c'est le rythme auquel le harnais rend un cas, pas un
+  // rafraîchissement décoratif. Plus vite ne montrerait rien de plus.
+  horloge = setInterval(async () => {
+    const id = avancement.value?.id
+    if (id === undefined) return arreter()
+    try {
+      avancement.value = await suivreMesure(id)
+    } catch (cause) {
+      erreur.value = cause instanceof Error ? cause.message : String(cause)
+      return arreter()
+    }
+    if (!avancement.value.fini) return
+    arreter()
+    if (avancement.value.echec) erreur.value = avancement.value.echec
+    else if (avancement.value.verdict)
+      verdict.value = { etat: 'mesure', mesure: avancement.value.verdict }
+  }, 1000)
+}
 
 const parPorte = computed<Record<string, CasJoue[]>>(() => {
   if (verdict.value?.etat !== 'mesure') return {}
@@ -116,6 +180,31 @@ function quand(iso: string): string {
 
   .portes-tete p {
     max-width: 44rem;
+  }
+
+  .portes-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+  }
+
+  .portes-echec {
+    color: var(--error);
+    font-size: 0.8125rem;
+  }
+
+  .portes-trace {
+    margin: 0.75rem 0 0;
+    padding: 0.75rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre;
   }
 
   .portes-cas {

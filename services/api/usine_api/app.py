@@ -42,7 +42,10 @@ from .limits import Limits, RateLimiter
 from .mcp import TIMEOUT_SECONDS, McpRefusal, Server, call_tool, list_tools
 from .memory import MAX_FACT, Fact, InMemoryMemory, Memory
 from .portes import Absent as PortesAbsent
+from .portes import dossier as portes_dir
+from .portes import lancer as lancer_portes
 from .portes import lire as read_portes
+from .portes import suivre as suivre_portes
 from .reasoning import (
     BAI_REASONING_OFF,
     DEFAULT_MODEL,
@@ -311,6 +314,32 @@ def create_app(
         # L'usine montre la mesure et fera décider un humain dessus.
         try:
             return no_store(read_portes(agent))
+        except PortesAbsent as absent:
+            return no_store({"error": absent.message}, 404)
+
+    @app.post("/portes/{agent}/juger")
+    async def juger_portes(agent: str, request: Request) -> JSONResponse:
+        # Rend la main tout de suite : une mesure dure plus d'une minute, et un
+        # POST qui bloque ce temps-là est ce que la règle du suivi vivant
+        # interdit. Le travail continue derrière, l'écran lit l'avancement.
+        try:
+            corps = await request.json()
+        except Exception:  # noqa: BLE001 — un corps absent vaut un corps vide
+            corps = {}
+        etiquette = str((corps or {}).get("invites") or "candidat")
+        dossier = portes_dir()
+        if dossier is None:
+            return no_store({"error": "aucun dossier de verdicts configuré (PORTES_DIR)"}, 404)
+        try:
+            lancee = lancer_portes(agent, etiquette, dossier / f"{agent}-{etiquette}.json")
+        except PortesAbsent as absent:
+            return no_store({"error": absent.message}, 404)
+        return no_store(lancee.vue(), 202)
+
+    @app.get("/portes/juger/{identifiant}")
+    async def suivi_portes(identifiant: str) -> JSONResponse:
+        try:
+            return no_store(suivre_portes(identifiant).vue())
         except PortesAbsent as absent:
             return no_store({"error": absent.message}, 404)
 
