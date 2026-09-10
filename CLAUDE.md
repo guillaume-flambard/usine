@@ -38,6 +38,68 @@ au second plan** : ses primitives (rejeu déterministe, hot-swap réversible, po
 humaine, graphe live, harnais d'éval) sont exactement ce sur quoi l'atelier est
 bâti. Rien n'est jeté ; le récit change.
 
+## Le premier utilisateur, décidé le 2026-09-10
+
+**Le lab, pas une équipe hypothétique.** Les primitives ne bougent pas — rejeu
+déterministe, fork, remplacement à chaud, porte humaine, harnais d'éval. C'est le
+destinataire qui se décide, et il existe déjà.
+
+Ce que ce paragraphe corrige : l'atelier décrit plus haut vise « les équipes qui
+ont des agents en prod et ont peur de les changer ». Personne de cette
+description n'a jamais été rencontré, et cette cible n'est jamais passée par la
+porte concurrence du `prospecteur` — celle qui tue 44 % des idées du lab, et dont
+l'absence a coûté A Table. Le garde-fou 2 ci-dessus dit lui-même que l'éval et
+l'observabilité sont un cimetière surcapitalisé. On ne construit donc pas pour
+cet acheteur-là avant de l'avoir mesuré.
+
+**Le trou réel, lui, est documenté, et il est chez nous.**
+`lab-infra/scripts/agent-depuis-une-phrase.py` fabrique déjà un agent complet
+depuis une phrase : `orchestrateur.py` traduit l'intention en `agent.yaml`,
+`agent-neuf.py` en dérive le compose, la sonde et les `group_vars`. Son en-tête
+écrit ce qu'il refuse de faire, et pourquoi :
+
+> Il n'écrit pas le jugement. Le squelette lève `NotImplementedError`, ce qui est
+> honnête : il refuse de tourner tant que personne n'a décidé ce qu'il pense.
+
+La raison donnée : un agent qui générerait le jugement d'un autre **sans mesure
+et sans éval** produirait le genre de code que ce dépôt a corrigé trois fois le
+même jour.
+
+**C'est exactement le trou que l'usine remplit, et aucun script ne le remplira :**
+écrire les portes d'un agent, les éprouver sur des cas figés, montrer le
+raisonnement pendant qu'il se fait, et rendre un verdict avant la livraison. Le
+harnais existe déjà en face (`eval-portes.py`, `cas-portes.json`,
+`dataset-portes.py`) ; la boucle se referme.
+
+Second trou, mesuré, dans `stacks/debouche/agent.yaml` : « le compose généré sera
+ensuite complété **à la main** avec les montages que le gabarit ne connaît pas ».
+Chaque nouvel agent demande une finition manuelle.
+
+### Le partage, à ne pas franchir
+
+Une seule source de vérité par domaine, comme partout ailleurs :
+
+| domaine | qui le détient |
+|---|---|
+| intention → `agent.yaml` → stack | `lab-infra` (`orchestrateur.py`, `agent-neuf.py`) |
+| déploiement et exécution 24/7 | `lab-infra` (autodeploy, systemd, compose) |
+| **écrire et prouver le jugement** | **l'usine** |
+
+L'usine **ne refait pas** le générateur : ce serait une seconde autorité sur la
+génération de stacks. L'usine **ne fait pas tourner** les agents du lab : ils sont
+en Python sur le VPS, elle est en TypeScript dans un navigateur, et deux familles
+d'agents qui vivent aux deux endroits est précisément le nœud qu'on évite.
+
+Ce qu'elle rend : une PR sur `lab-infra` qu'un humain approuve.
+
+### Ce que ça n'est pas
+
+Ce n'est pas un renoncement à vendre. C'est l'ordre : **un utilisateur réel
+d'abord, un acheteur ensuite, et la porte concurrence entre les deux.** Un
+atelier qui a fabriqué et prouvé les portes de dix agents en production a une
+démonstration que personne ne peut contester ; un atelier qui vise une peur
+supposée n'a qu'une thèse.
+
 ## Manifest
 
 `name · path · family · status · stack · Vault note`
