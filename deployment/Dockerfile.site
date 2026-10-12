@@ -3,7 +3,7 @@
 # Il ne porte plus le relais — celui-ci est devenu un service à part
 # (`services/api`), ce qui rend enfin possible ce que le conteneur unique
 # interdisait : joindre l'API par un nom stable au lieu de la boucle locale.
-FROM node:22-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /app
 RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
