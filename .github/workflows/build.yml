@@ -17,11 +17,15 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   build:
+    if: github.ref == 'refs/heads/main'
     runs-on: [self-hosted, Linux, X64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Construire
         run: |
@@ -43,6 +47,4 @@ jobs:
           docker tag 127.0.0.1:5000/usine:${{ github.sha }} 127.0.0.1:5000/usine:latest
           docker push 127.0.0.1:5000/usine:latest
 
-      - name: Menage des images intermediaires
-        if: always()
-        run: docker image prune -f --filter "until=168h" >/dev/null 2>&1 || true
+      # VPS handles image garbage collection.
