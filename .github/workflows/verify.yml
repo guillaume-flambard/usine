@@ -8,13 +8,15 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   verify:
-    # Runner auto-hébergé : les minutes GitHub sont bloquées (facturation), et un
-    # runner à nous fait tourner la même vérification sans dépendre d'elles. Le
-    # label « usine » vise le nôtre, pas un runner d'un autre dépôt de l'org.
-    # Voir scripts/ci-runner-setup.sh pour l'enrôler (hôte Linux, ex. le VPS).
-    runs-on: [self-hosted, linux, usine]
+    # PR and main checks run outside the VPS. The production image publisher
+    # remains in build.yml and is only triggered on main.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -41,13 +43,12 @@ jobs:
       - name: Node tests
         run: pnpm test
 
-      # Sans `--with-deps` : sur un runner auto-hébergé, les dépendances système
-      # de Chromium sont installées une fois par le wizard (scripts/ci-runner-setup.sh),
-      # ce qui évite un `sudo apt-get` non interactif à chaque CI.
+      # Hosted runners provision Chromium dependencies independently of the VPS.
       - name: Browsers
-        run: pnpm exec playwright install chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Browser tests
+        timeout-minutes: 8
         run: pnpm test:browser
 
       - name: Service tests
