@@ -24,8 +24,8 @@ importers:
         specifier: ^14.4.0
         version: 14.4.0(vue@3.5.41(typescript@6.0.3))
       cordis:
-        specifier: 4.0.0-rc.8
-        version: 4.0.0-rc.8
+        specifier: 4.0.0-rc.11
+        version: 4.0.0-rc.11
       cosmokit:
         specifier: ^1.8.1
         version: 1.8.1
@@ -1830,12 +1830,12 @@ packages:
   cookie-es@1.2.3:
     resolution: {integrity: sha512-lXVyvUvrNXblMqzIRrxHb57UUVmqsSWlxqt3XIjCkUP0wDAf6uicO6KMbEgYrMNtEvWgWHwe42CKxPu9MYAnWw==}
 
-  cordis@4.0.0-rc.8:
-    resolution: {integrity: sha512-vXaYK6XZJlIFTnODp4Rd973Qnd/gm3cwFzWsMTaeu6cQQheA7N+aA0GqHRNl0cFIrxMXWU8dst1ZXHlUQvfyRw==}
+  cordis@4.0.0-rc.11:
+    resolution: {integrity: sha512-03PHbcYJzp84XRKnW7jd17g26bPvG5UvSyhyjxGIu/1VQs3bweNMACo3t1W0ikzoZ7q+wytHyk8jJsaIQOkPkA==}
     hasBin: true
     peerDependencies:
-      '@cordisjs/plugin-include': ^1.0.4
-      '@cordisjs/plugin-loader': ^1.0.0-rc.5
+      '@cordisjs/plugin-include': ^1.1.1
+      '@cordisjs/plugin-loader': ^1.0.0-rc.8
     peerDependenciesMeta:
       '@cordisjs/plugin-include':
         optional: true
@@ -5430,7 +5430,7 @@ snapshots:
 
   cookie-es@1.2.3: {}
 
-  cordis@4.0.0-rc.8:
+  cordis@4.0.0-rc.11:
     dependencies:
       '@standard-schema/spec': 1.1.0
       cosmokit: 1.8.1

@@ -244,7 +244,13 @@ export function createKernel(options: KernelOptions = {}): Kernel {
   }
 
   function deactivationCause(needs: readonly string[]): DeactivationCause {
-    const missing = needs.filter((name) => !providers.has(name))
+    // A provider being released still holds its names here: the engine
+    // disposes dependents before their provider, so its `provides:` teardown
+    // has not run yet. Its entry is already marked released, though.
+    const missing = needs.filter((name) => {
+      const provider = providers.get(name)
+      return provider === undefined || entries.get(provider)?.state === 'released'
+    })
     return missing.length > 0 ? { kind: 'dependency-gone', names: missing } : { kind: 'release' }
   }
 
