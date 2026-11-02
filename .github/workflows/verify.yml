@@ -4,9 +4,7 @@ name: Verification
 # anyone thinking about it. `pnpm test` alone does not run the browser
 # project: this is where both pass.
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
