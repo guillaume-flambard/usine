@@ -54,5 +54,6 @@ files = [
     "services/api/usine_api/chat_stream.py",
     "services/api/usine_api/observability.py",
     "services/api/usine_api/prompt_seed.py",
+    "services/api/usine_api/threads.py",
     "services/api/usine_api/settings.py",
 ]

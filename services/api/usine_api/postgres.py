@@ -27,6 +27,7 @@ from .identity import (
     _hash,
 )
 from .runs import Archive, Owned, Stored
+from .threads import PostgresThreadIndex
 
 
 class PostgresIdentityStore:
@@ -333,6 +334,8 @@ class PostgresStores:
         self.sessions = PostgresSessionStore(self.pool)
         self.runs = PostgresRunStore(self.pool)
         self.audit = PostgresAuditLog(self.pool)
+        # L'index des runs v2 (MEM-18), table `threads` (migration 0005).
+        self.threads = PostgresThreadIndex(self.pool)
         # L'effacement traverse les cinq tables : il tient sa propre
         # transaction, sur le même pool.
         self.erasure = PostgresErasure(self.pool)

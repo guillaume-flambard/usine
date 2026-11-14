@@ -16,15 +16,28 @@ import { chatTransport } from '../chat/transport'
 import type { RunEventPayload } from '../contracts/ui-stream'
 import { replay } from '../run/readModel'
 import RunScene from './RunScene.vue'
+import RunsSheet from './RunsSheet.vue'
+import type { RunDetail } from '../chat/runs'
 
-const props = withDefaults(defineProps<{ transport?: ChatTransport<UIMessage> }>(), {
-  transport: () => chatTransport(),
-})
+const props = withDefaults(
+  defineProps<{
+    transport?: ChatTransport<UIMessage>
+    /** A reopened run: its thread id and its turns as messages (MEM-18). */
+    chatId?: string
+    initialMessages?: UIMessage[]
+  }>(),
+  { transport: () => chatTransport(), chatId: undefined, initialMessages: () => [] },
+)
+const emit = defineEmits<{ open: [run: RunDetail]; fresh: [] }>()
 
 const input = ref('')
 const stopped = ref(false)
 const { messages, status, error, sendMessage, regenerate, stop } = useChat({
   transport: props.transport,
+  // The chat id is the LangGraph thread: a new message on a reopened run
+  // continues the same thread.
+  ...(props.chatId ? { id: props.chatId } : {}),
+  messages: props.initialMessages,
 })
 
 /** The latest run: the events of the last assistant message, in stream order. */
@@ -78,9 +91,12 @@ function onReload() {
   <div class="flex h-full min-h-0 flex-col" data-chat :data-chat-state="state">
     <header class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3">
       <h1 class="text-lg font-semibold">L'usine agentique</h1>
-      <p class="text-sm text-muted" role="status" aria-live="polite" data-status>
-        {{ STATUS_LABELS[state] }}
-      </p>
+      <div class="flex items-center gap-2">
+        <p class="text-sm text-muted" role="status" aria-live="polite" data-status>
+          {{ STATUS_LABELS[state] }}
+        </p>
+        <RunsSheet @open="(run) => emit('open', run)" @fresh="emit('fresh')" />
+      </div>
     </header>
 
     <div class="flex min-h-0 flex-1 flex-col lg:flex-row">

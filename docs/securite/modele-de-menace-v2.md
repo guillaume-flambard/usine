@@ -55,3 +55,27 @@ valeur. En local, les valeurs sont dans `.env`, ignoré par git et par Docker.
 | `GH_TOKEN` (builder) | Lire le dépôt, publier `usine/verify` | sans objet | `/etc/github.env` sur le VPS, jamais transmis à `docker build` |
 
 Rotation d'un secret : procédure dans `docs/runbook.md` (MEM-63).
+
+## 4. Où vit un run, et ce que sa suppression efface
+
+Un run v2 est un thread LangGraph (MEM-18). `DELETE /api/runs/{thread_id}` efface :
+
+- ses checkpoints : tables `checkpoints`, `checkpoint_blobs` et `checkpoint_writes`, par `adelete_thread` du checkpointer ;
+- son index : la ligne de `threads` (titre, organisation, statut, et chaque tour avec son brief, sa réponse et ses événements).
+
+Un test vérifie dans Postgres qu'il ne reste rien du thread (`tests/test_runs_api.py`, avec `USINE_TEST_DATABASE_URL`).
+
+**Ce qui reste dans Langfuse** (projet « Agents du lab », MEM-16), et que la suppression d'un run ne touche pas :
+
+- la trace de l'usine (session = `thread_id`, utilisateur = id du compte, jamais l'email), avec les entrées et les sorties des nœuds et des appels de modèle, donc le brief et la réponse ;
+- les traces de LiteLLM des mêmes appels (même session), avec les jetons et le coût, mais sans le contenu des messages (`capture_message_content` reste à `no_content`).
+
+Langfuse OSS ne supprime rien de lui-même : la rétention automatique est réservée à l'édition Entreprise (https://langfuse.com/docs/administration/data-retention).
+
+**Effacement RGPD d'un run dans Langfuse**, à la main tant qu'il n'est pas automatisé (https://langfuse.com/docs/administration/data-deletion) :
+
+1. lister les traces de la session : `GET /api/public/v2/observations?sessionId=<thread_id>&fields=core`, puis relever les `traceId` distincts ;
+2. les supprimer par lots de 1 000 au plus : `DELETE /api/public/traces` avec `{"traceIds": [...]}`. La suppression emporte les observations et les scores de ces traces, et Langfuse annonce qu'elle prend en général moins de 15 minutes ;
+3. recommencer l'étape 1 pour vérifier qu'il ne reste rien.
+
+Pour effacer un compte entier, il faut le faire pour chacun de ses threads : il n'existe pas de suppression par utilisateur.
