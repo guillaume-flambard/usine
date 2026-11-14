@@ -14,3 +14,7 @@ _bmad-output
 .vscode
 spike
 docs
+
+# Local Python environments are built for the host, not the image.
+.venv
+services/api/.venv

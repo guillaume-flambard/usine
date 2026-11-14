@@ -3,5 +3,5 @@
   "plugins": ["eslint", "typescript", "unicorn", "oxc", "vue"],
   "env": { "browser": true },
   "categories": { "correctness": "error" },
-  "ignorePatterns": ["**/dist/**", "**/dist-*/**"]
+  "ignorePatterns": ["**/node_modules/**", "**/dist/**", "**/dist-*/**"]
 }
