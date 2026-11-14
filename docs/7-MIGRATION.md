@@ -1,5 +1,11 @@
 # 7 — La cible de migration : l'atelier de pré-prod qui forke la timeline
 
+> **Historique v1.** Ce document décrit l'usine avant la refonte v2. Il est
+> gardé pour la trace des décisions, mais ne fait plus autorité là où il parle
+> de Cordis, du Web Worker, du relais Node ou du refus des frameworks. La cible
+> est fixée par `docs/adr/0001-adopter-les-frameworks-agentiques-du-marche.md`
+> (14 novembre 2026), et le backlog est dans Linear (projet « Usine v2 »).
+
 > Écrit le 2026-08-24. Deep search dédiée à une question : dans quoi faire migrer
 > le projet pour croiser **effet wahou (vitrine) × besoin réel × forte
 > rentabilité**, en réutilisant ce qui est déjà bâti. Trois recherches menées en

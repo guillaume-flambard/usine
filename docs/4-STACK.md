@@ -1,5 +1,16 @@
 # Où l'usine se place dans la stack agents
 
+> **Historique v1, remplacé par l'ADR 0001 du 14 novembre 2026**
+> (`docs/adr/0001-adopter-les-frameworks-agentiques-du-marche.md`).
+>
+> Ce document défendait « aucun framework » et un runtime Cordis dans le
+> navigateur. La v2 adopte LangGraph, LangChain, CrewAI, OpenAI Agents SDK,
+> Pydantic AI, Claude Agent SDK, LlamaIndex, MCP, LiteLLM, Langfuse, Ragas et
+> DeepEval.
+>
+> Il reste utile pour comprendre d'où vient le projet, mais il ne décrit plus la
+> cible.
+
 Écrit le 2026-08-21, après lecture de deux cartes de l'écosystème : *The AI
 Agents Stack* de Letta (novembre 2024) et *The AI Agents Stack (2026 Edition)*
 d'O'Reilly Radar.

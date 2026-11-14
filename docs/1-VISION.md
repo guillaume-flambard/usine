@@ -1,5 +1,11 @@
 # Memo Labs — L'usine agentique · Vision
 
+> **Historique v1.** Ce document décrit l'usine avant la refonte v2. Il est
+> gardé pour la trace des décisions, mais ne fait plus autorité là où il parle
+> de Cordis, du Web Worker, du relais Node ou du refus des frameworks. La cible
+> est fixée par `docs/adr/0001-adopter-les-frameworks-agentiques-du-marche.md`
+> (14 novembre 2026), et le backlog est dans Linear (projet « Usine v2 »).
+
 > **Cible produit repositionnée le 2026-08-24 (voir `7-MIGRATION.md`, qui
 > supersede `5-ANGLE.md`).** Le produit n'est plus « l'application qui mue » posée
 > à un visiteur, mais **l'atelier de pré-production qui forke la timeline d'un

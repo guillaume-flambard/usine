@@ -1,5 +1,11 @@
 # L'usine agentique — Décisions figées (grounding PRD)
 
+> **Historique v1.** Ce document décrit l'usine avant la refonte v2. Il est
+> gardé pour la trace des décisions, mais ne fait plus autorité là où il parle
+> de Cordis, du Web Worker, du relais Node ou du refus des frameworks. La cible
+> est fixée par `docs/adr/0001-adopter-les-frameworks-agentiques-du-marche.md`
+> (14 novembre 2026), et le backlog est dans Linear (projet « Usine v2 »).
+
 Source de vérité pour le PRD BMAD. Décidé avec Guillaume le 2026-08-20. Prime sur les autres docs de `docs/` en cas de conflit.
 
 > **Cible produit changée le 2026-08-24 (`7-MIGRATION.md`).** Le produit devient
