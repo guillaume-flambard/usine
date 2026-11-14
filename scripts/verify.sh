@@ -9,6 +9,8 @@ step() { printf '\n==> %s\n' "$*"; }
 
 step "lint (oxlint, eslint, ruff)"
 pnpm run lint
+step "api types (mypy --strict on the v2 modules)"
+uv run mypy
 step "build (vue-tsc, vite)"
 pnpm run build
 step "web tests (node)"
