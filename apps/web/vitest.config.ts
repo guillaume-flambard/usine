@@ -22,6 +22,14 @@ export default mergeConfig(
         },
         {
           extends: true,
+          // Measured on a cold cache (2026-11-14): Vite discovers `vue` late,
+          // re-optimizes and reloads, and the test then runs against two Vue
+          // instances, so Nuxt UI's `useHead()` finds no provide context.
+          // Pre-bundling it up front is what Vite itself asks for in that
+          // case ("add mentioned dependencies to optimizeDeps.include").
+          optimizeDeps: {
+            include: ['vue'],
+          },
           test: {
             name: 'browser',
             include: ['src/**/*.browser.spec.ts'],

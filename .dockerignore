@@ -14,3 +14,12 @@ _bmad-output
 .vscode
 spike
 docs
+
+# Local Python environments are built for the host, not the image.
+.venv
+services/api/.venv
+
+# A local `docker build` must never copy the provider key into a layer.
+.env
+.env.*
+!.env.example

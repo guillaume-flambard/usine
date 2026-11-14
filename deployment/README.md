@@ -82,19 +82,20 @@ vérifié. Elle corrige le point de rupture.
    `main`, et le même autodeploy, avec sa sonde et son rollback.
 3. **Trois services au lieu d'un** : `web`, `api` et `db` (MEM-58). La stack de
    `lab-infra` passe du conteneur unique au compose du dépôt.
-4. **Le point de rupture à trancher dans MEM-6**, parce qu'il dépend de l'endroit
-   où tourne la CI :
-   - soit la CI tourne de nouveau sur chaque push de `main` et de `v2`, et le
-     builder garde sa règle actuelle ;
-   - soit le builder accepte un run réussi quel que soit l'événement, y compris
-     `workflow_dispatch` ;
-   - soit le builder fait passer lui-même la vérification avant la
-     construction, par une étape de test dans le Dockerfile. Dans ce cas, il ne
-     dépend plus de GitHub Actions.
-
-   La règle du lab veut une CI sur le runner du lab, jamais sur les machines
-   payantes de GitHub. Or les PR #45 et #47 ont retiré ce runner pour des raisons
-   de sécurité. Les deux sont à concilier dans MEM-6.
+4. **La CI tourne dans le builder du VPS** (décision du 14 novembre 2026, MEM-6).
+   Ça respecte la règle du lab (jamais les machines payantes de GitHub) sans
+   remettre de runner GitHub sur le VPS.
+   - La liste des contrôles est `scripts/verify.sh`. L'image
+     `Dockerfile.verify` la lance : construire l'image, c'est faire la
+     vérification.
+   - Le builder de `lab-infra` vérifie la tête de chaque PR du dépôt vers `v2`
+     ou `main`, puis les têtes des branches, et publie le statut de commit
+     `usine/verify`. La branche `v2` exige ce statut pour fusionner.
+   - Pour `main`, il exige `usine/verify` dès que le commit contient
+     `Dockerfile.verify`. Jusqu'à la bascule, `main` est la v1 et ne le contient
+     pas : il suffit alors d'un run `verify.yml` réussi, même lancé à la main.
+   - `.github/workflows/verify.yml` reste un secours manuel
+     (`workflow_dispatch`), qui lance le même `scripts/verify.sh`.
 
 Les changements côté `lab-infra` (rôle `usine-builder`, stack, README)
 passeront par des PR de `lab-infra`.

@@ -1,0 +1,35 @@
+# Verification image for the VPS builder (MEM-6, decided 2026-11-14: CI runs
+# in the trusted builder, not on GitHub-hosted machines).
+#
+# Building this image IS the check: the last RUN executes scripts/verify.sh and
+# a failing check fails the build. Nothing is pushed and no secret is needed:
+# the builder never passes its GitHub token to `docker build`.
+#
+# Base: the official Node image, then Chromium installed by the project's own
+# Playwright version. https://playwright.dev/docs/docker warns that a browser
+# image must match the npm version exactly, and the version used here is
+# whatever pnpm-lock.yaml resolved.
+FROM node:24-bookworm
+
+COPY --from=ghcr.io/astral-sh/uv:0.13.7 /uv /uvx /usr/local/bin/
+
+ENV CI=1 \
+    UV_LOCKED=1 \
+    UV_PYTHON_INSTALL_DIR=/opt/uv-python \
+    VITE_CONFIG_NATIVE_IGNORE_WARNING=true
+
+RUN corepack enable
+WORKDIR /src
+
+# Dependencies first, so a source-only change reuses these layers.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/web/package.json apps/web/
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @usine/web exec playwright install --with-deps chromium
+
+COPY pyproject.toml uv.lock .python-version ./
+COPY services/api/pyproject.toml services/api/
+RUN uv sync --no-install-workspace
+
+COPY . .
+RUN ./scripts/verify.sh

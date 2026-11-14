@@ -35,28 +35,12 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Lint
-        run: pnpm lint
-
-      - name: Types
-        run: pnpm type-check
-
-      - name: Node tests
-        run: pnpm test
-
       # Hosted runners provision Chromium dependencies independently of the VPS.
       - name: Browsers
         run: pnpm --filter @usine/web exec playwright install --with-deps chromium
 
-      - name: Browser tests
-        timeout-minutes: 8
-        run: pnpm test:browser
-
-      - name: Service tests
-        run: pnpm test:api
-
-      - name: Build
-        run: pnpm build
-
-      # Images are rebuilt for v2 in MEM-57; until then there is no root
-      # Dockerfile to build.
+      # The same list of checks the VPS builder runs in Dockerfile.verify
+      # (MEM-6). This workflow is only a manual fallback.
+      - name: Verify
+        timeout-minutes: 15
+        run: ./scripts/verify.sh
