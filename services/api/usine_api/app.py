@@ -22,6 +22,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from .audit import AuditLog, InMemoryAuditLog
+from .checkpoints import open_checkpointer
 from .erasure import Erasure, erasure_for
 from .evaluation import evaluate, measure
 from .flotte import lire as lire_flotte
@@ -218,10 +219,14 @@ def create_app(
         logger.warning("aucune clé fournisseur configurée : la page rejouera une démonstration")
 
     @asynccontextmanager
-    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-        # Rien à ouvrir (le pool l'est déjà) ; à l'arrêt, on le ferme proprement
-        # plutôt que de le laisser au ramasse-miettes.
-        yield
+    async def lifespan(app_: FastAPI) -> AsyncIterator[None]:
+        # Le checkpointer LangGraph (MEM-12) vit le temps du service : Postgres
+        # si une base est configurée, mémoire sinon. Le pool des stores est déjà
+        # ouvert ; à l'arrêt, on le ferme proprement plutôt que de le laisser au
+        # ramasse-miettes.
+        async with open_checkpointer(db_url if stores_needed else "") as saver:
+            app_.state.checkpointer = saver
+            yield
         if pg is not None:
             pg.pool.close()
 
