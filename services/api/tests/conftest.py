@@ -23,6 +23,7 @@ PROVIDER_ENV = (
     "LANGFUSE_SECRET_KEY",
     "LANGFUSE_HOST",
     "LANGFUSE_BASE_URL",
+    "USINE_SCRIPTED_MODELS",
     # Une base de dev lancée par le compose ne doit jamais être prise par les tests.
     "DATABASE_URL",
     "POSTGRES_HOST",

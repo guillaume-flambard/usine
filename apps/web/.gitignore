@@ -1,0 +1,4 @@
+
+# Playwright Test (MEM-19)
+test-results/
+playwright-report/
