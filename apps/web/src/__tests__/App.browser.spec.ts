@@ -6,15 +6,16 @@ import { createAppRouter } from '../router'
 import '../assets/main.css'
 
 describe('App shell', () => {
-  it('renders the brand, the status line and every stack layer', async () => {
+  it('renders the brand, the status line, the conversation and the composer', async () => {
     const screen = render(App, { global: { plugins: [createAppRouter(), ui] } })
 
     await expect
       .element(screen.getByRole('heading', { level: 1, name: "L'usine agentique" }))
       .toBeVisible()
-    await expect.element(screen.getByText('Version 2 en construction, branche v2.')).toBeVisible()
-
-    const layers = document.querySelectorAll('[data-stack] [data-layer]')
-    expect(layers.length).toBe(10)
+    await expect.element(screen.getByRole('status')).toHaveTextContent('Prêt')
+    await expect.element(screen.getByRole('region', { name: 'Conversation' })).toBeVisible()
+    expect(document.querySelector('[data-composer] textarea')).not.toBeNull()
+    // Four zones and not one more (CLAUDE.md); the scene arrives with MEM-17.
+    expect(document.querySelectorAll('[data-shell] > [data-chat] > *').length).toBe(3)
   })
 })

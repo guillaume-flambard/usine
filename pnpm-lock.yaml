@@ -17,6 +17,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@ai-sdk/vue':
+        specifier: 4.0.165
+        version: 4.0.165(@vue/test-utils@2.5.1(@vue/compiler-dom@3.5.45)(@vue/server-renderer@3.5.45)(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))(zod@4.6.7)
       '@nuxt/ui':
         specifier: ^4.11.0
         version: 4.12.0(3fc8c57c7935864a4ed701abac87513e)
@@ -111,6 +114,12 @@ packages:
   '@ai-sdk/provider@4.0.37':
     resolution: {integrity: sha512-4uPgZ3qiX/JaQFr0dQoibUzHImZit9u05ro2BxGUnJwU4fV28BOAbKUa2OjQvqtM1tMac3bTKkaXdyzGovQXqg==}
     engines: {node: '>=22'}
+
+  '@ai-sdk/vue@4.0.165':
+    resolution: {integrity: sha512-HOCvjLE90nm9mnJOFgLuVOSotUxRwD21Y8pDYVpT1GwD1YxT5M1U71wYH44xWnqeiXIq9qfwnJNpH2FuSZ6b0Q==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      vue: ^3.3.4
 
   '@alloc/quick-lru@5.3.0':
     resolution: {integrity: sha512-U4+70Pc5ZS9osnCBCE5Jha/ciHM+Yp+CNMNC/7HvYbNRk1Ldd+f7qO65W5qfhu/TCv+/ozljlXXe9Nj8419DMA==}
@@ -2585,6 +2594,15 @@ packages:
   strip-literal@4.0.0:
     resolution: {integrity: sha512-PaqAvfUZKBwc/SLmNZtHmzK+v19Z4O4eS3cKPeGvbIv/U3pnyEq4Tuw3/4v/FwfM8VQaEawsyCcOQ0P+kpwWWw==}
 
+  swrv@1.3.0:
+    resolution: {integrity: sha512-6uyQ79QemgpJzdwVNkxZdypTmKC80uHdjSZGAGo0HnizL2AzQJUZXQFR3KZq8yru32IC7HngiBA7o2FtL/Lozw==}
+    peerDependencies:
+      '@vue/test-utils': '>=2.0.0'
+      vue: ^3.2.0
+    peerDependenciesMeta:
+      '@vue/test-utils':
+        optional: true
+
   tailwind-merge@3.7.0:
     resolution: {integrity: sha512-XPPUyAc+cvspz3lHTcR/QgPfW2A0lv/xQNIjX3HGhLR+Nq2lHaLq5MtTesHn8GUr3W3DguT2KT5x3NVgRtYwmA==}
 
@@ -3103,6 +3121,16 @@ snapshots:
   '@ai-sdk/provider@4.0.37':
     dependencies:
       json-schema: 0.4.0
+
+  '@ai-sdk/vue@4.0.165(@vue/test-utils@2.5.1(@vue/compiler-dom@3.5.45)(@vue/server-renderer@3.5.45)(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))(zod@4.6.7)':
+    dependencies:
+      '@ai-sdk/provider-utils': 5.0.76(zod@4.6.7)
+      ai: 7.0.165(zod@4.6.7)
+      swrv: 1.3.0(@vue/test-utils@2.5.1(@vue/compiler-dom@3.5.45)(@vue/server-renderer@3.5.45)(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))
+      vue: 3.5.45(typescript@6.0.3)
+    transitivePeerDependencies:
+      - '@vue/test-utils'
+      - zod
 
   '@alloc/quick-lru@5.3.0': {}
 
@@ -5624,6 +5652,12 @@ snapshots:
   strip-literal@4.0.0:
     dependencies:
       js-tokens: 10.0.0
+
+  swrv@1.3.0(@vue/test-utils@2.5.1(@vue/compiler-dom@3.5.45)(@vue/server-renderer@3.5.45)(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3)):
+    dependencies:
+      vue: 3.5.45(typescript@6.0.3)
+    optionalDependencies:
+      '@vue/test-utils': 2.5.1(@vue/compiler-dom@3.5.45)(@vue/server-renderer@3.5.45)(vue@3.5.45(typescript@6.0.3))
 
   tailwind-merge@3.7.0: {}
 

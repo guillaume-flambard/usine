@@ -13,6 +13,8 @@ step "api types (mypy --strict on the v2 modules)"
 uv run mypy
 step "build (vue-tsc, vite)"
 pnpm run build
+step "served bundle carries no provider key or address"
+node apps/web/scripts/check-bundle.mjs
 step "web tests (node)"
 pnpm run test
 step "web tests (browser)"

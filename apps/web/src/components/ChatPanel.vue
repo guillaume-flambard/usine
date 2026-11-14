@@ -1,0 +1,108 @@
+<script setup lang="ts">
+/**
+ * The conversation and the composer (MEM-15), on `POST /api/chat` (MEM-14).
+ *
+ * Wiring as documented by Nuxt UI 4 for AI SDK v7 (https://ui.nuxt.com/docs/components/chat):
+ * `useChat` from @ai-sdk/vue@4.0.165 gives messages, status, error, stop and
+ * regenerate; UChatMessages, UChatPrompt and UChatPromptSubmit take them as is.
+ * Text parts are rendered by Nuxt UI as plain text (no `v-html`); the run
+ * events travel as `data-run-event` parts and belong to the scene (MEM-17).
+ */
+import { computed, ref } from 'vue'
+import { useChat } from '@ai-sdk/vue'
+import { DefaultChatTransport, type ChatTransport, type UIMessage } from 'ai'
+
+const props = withDefaults(defineProps<{ transport?: ChatTransport<UIMessage> }>(), {
+  transport: () => new DefaultChatTransport({ api: '/api/chat' }),
+})
+
+const input = ref('')
+const stopped = ref(false)
+const { messages, status, error, sendMessage, regenerate, stop } = useChat({
+  transport: props.transport,
+})
+
+/** One word for the whole panel, read by tests and assistive tech alike. */
+const state = computed(() => (stopped.value && status.value === 'ready' ? 'stopped' : status.value))
+
+const STATUS_LABELS: Record<string, string> = {
+  ready: 'Prêt',
+  submitted: 'Envoi au superviseur',
+  streaming: 'Le run est en cours',
+  error: 'Le run a échoué',
+  stopped: 'Arrêté à votre demande',
+}
+
+const SUBMIT_LABELS: Record<string, string> = {
+  ready: 'Envoyer',
+  stopped: 'Envoyer',
+  submitted: 'Arrêter',
+  streaming: 'Arrêter',
+  error: 'Relancer',
+}
+
+function onSubmit() {
+  const text = input.value.trim()
+  if (!text) return
+  stopped.value = false
+  sendMessage({ text })
+  input.value = ''
+}
+
+function onStop() {
+  stopped.value = true
+  stop()
+}
+
+function onReload() {
+  stopped.value = false
+  regenerate()
+}
+</script>
+
+<template>
+  <div class="flex h-full min-h-0 flex-col" data-chat :data-chat-state="state">
+    <header class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3">
+      <h1 class="text-lg font-semibold">L'usine agentique</h1>
+      <p class="text-sm text-muted" role="status" aria-live="polite" data-status>
+        {{ STATUS_LABELS[state] }}
+      </p>
+    </header>
+
+    <section
+      aria-label="Conversation"
+      class="flex min-h-0 flex-1 flex-col overflow-y-auto px-4"
+      data-conversation
+    >
+      <p v-if="messages.length === 0" class="m-auto max-w-md text-center text-muted" data-empty>
+        Décrivez une tâche. Le superviseur la découpe et confie chaque morceau à un spécialiste.
+      </p>
+      <UChatMessages v-else :messages="messages" :status="status" should-auto-scroll />
+    </section>
+
+    <footer class="flex flex-col gap-2 px-4 pt-2 pb-4" data-composer>
+      <p v-if="error" class="text-sm text-error" role="alert" data-chat-error>
+        {{ error.message }}
+      </p>
+      <UChatPrompt
+        v-model="input"
+        :status="status"
+        :error="error"
+        placeholder="Votre brief"
+        :ui="{ base: 'min-h-11 text-base' }"
+        data-prompt
+        @submit="onSubmit"
+      >
+        <UChatPromptSubmit
+          :status="status"
+          size="xl"
+          :ui="{ base: 'size-11 min-w-11 shrink-0 justify-center' }"
+          :aria-label="SUBMIT_LABELS[state]"
+          data-submit
+          @stop="onStop"
+          @reload="onReload"
+        />
+      </UChatPrompt>
+    </footer>
+  </div>
+</template>
