@@ -18,6 +18,11 @@ PROVIDER_ENV = (
     "USINE_MODEL_EXTRAS",
     "LITELLM_BASE_URL",
     "LITELLM_API_KEY",
+    # Tracing: a dev machine's Langfuse keys must never reach the tests.
+    "LANGFUSE_PUBLIC_KEY",
+    "LANGFUSE_SECRET_KEY",
+    "LANGFUSE_HOST",
+    "LANGFUSE_BASE_URL",
     # Une base de dev lancée par le compose ne doit jamais être prise par les tests.
     "DATABASE_URL",
     "POSTGRES_HOST",

@@ -325,7 +325,10 @@ def create_app(
         graph = getattr(request.app.state, "chat_graph", None)
         if graph is None:
             return StreamingResponse(no_model_stream(), headers=STREAM_HEADERS)
-        return StreamingResponse(run_stream(graph, body), headers=STREAM_HEADERS)
+        # L'id du compte, jamais l'email : c'est ce qui part vers Langfuse.
+        who = identity_of(request)
+        user_id = who.account.id if who is not None else None
+        return StreamingResponse(run_stream(graph, body, user_id=user_id), headers=STREAM_HEADERS)
 
     @app.get("/health")
     async def health(request: Request) -> JSONResponse:

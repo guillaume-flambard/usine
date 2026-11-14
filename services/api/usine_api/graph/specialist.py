@@ -11,28 +11,40 @@ from importlib.metadata import version
 from typing import Any
 
 import httpx
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage
 
 from usine_api.contracts import SpecialistIdentity, SpecialistInput, SpecialistOutput
-from usine_api.graph.prompts import SPECIALIST_TASK, default_prompt
-from usine_api.models import ModelSettings, chat_model, retry_kwargs
+from usine_api.graph.prompts import SPECIALIST_TASK
+from usine_api.models import ModelSettings, chat_model, current_session_id, retry_kwargs
+from usine_api.observability import Prompts, chat_template
 
 
 class ChatModelSpecialist:
     def __init__(
-        self, settings: ModelSettings, *, http_client: httpx.AsyncClient | None = None
+        self,
+        settings: ModelSettings,
+        *,
+        http_client: httpx.AsyncClient | None = None,
+        prompts: Prompts | None = None,
     ) -> None:
+        self._prompts = prompts or Prompts()
+        self._settings = settings
         self.identity = SpecialistIdentity(
             name=f"chat:{settings.model}",
             framework="langchain",
             framework_version=version("langchain-core"),
         )
-        model = chat_model(settings, http_client=http_client)
-        self._runnable: Any = model.with_retry(**retry_kwargs(settings))
+        self._client = http_client or httpx.AsyncClient()
 
     async def run(self, task: SpecialistInput) -> SpecialistOutput:
-        messages = [SystemMessage(default_prompt(SPECIALIST_TASK)), HumanMessage(task.task)]
-        reply: AIMessage = await self._runnable.ainvoke(messages, max_tokens=task.budget.max_tokens)
+        text, linked = self._prompts.get(SPECIALIST_TASK)
+        model = chat_model(
+            self._settings, http_client=self._client, session_id=current_session_id()
+        ).bind(max_tokens=task.budget.max_tokens)
+        chain: Any = (chat_template(text, linked) | model).with_retry(
+            **retry_kwargs(self._settings)
+        )
+        reply: AIMessage = await chain.ainvoke({"input": task.task})
         tokens = reply.usage_metadata["total_tokens"] if reply.usage_metadata else 0
         return SpecialistOutput(
             answer=reply.text.strip(),
