@@ -13,7 +13,9 @@
     "test": "pnpm --filter @usine/web run test",
     "test:browser": "pnpm --filter @usine/web run test:browser",
     "test:api": "uv run pytest",
-    "test:all": "pnpm test && pnpm test:browser && pnpm test:api"
+    "test:all": "pnpm test && pnpm test:browser && pnpm test:api",
+    "e2e": "pnpm --filter @usine/web run e2e",
+    "e2e:real": "pnpm --filter @usine/web run e2e:real"
   },
   "devDependencies": {
     "lefthook": "^2.2.2",

@@ -153,6 +153,8 @@ pnpm test                 # tests node du front
 pnpm test:browser         # tests navigateur du front (Playwright)
 pnpm test:api             # tests Python (uv run pytest)
 pnpm test:all             # les trois
+pnpm e2e                  # bout en bout M1 : vraie page, vraie API, modèles scriptés
+pnpm e2e:real             # le même avec LiteLLM et Langfuse (.env, tunnel vers le lab)
 pnpm lint                 # oxlint + eslint (web) + ruff (api)
 pnpm type-check           # vue-tsc
 pnpm build                # type-check puis vite build -> apps/web/dist

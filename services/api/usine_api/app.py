@@ -231,6 +231,14 @@ def create_app(
     # un modèle par LiteLLM, sinon aucun (le chat le dit, il ne tombe pas).
     chat_planner: Planner | None = planner
     chat_specialist: SpecialistRunner | None = specialist
+    if os.environ.get("USINE_SCRIPTED_MODELS") == "1":
+        # Modèles scriptés, déterministes : le test de bout en bout de la CI
+        # (MEM-19), qui n'a ni modèle ni réseau. Jamais par défaut.
+        from .graph.scripted import ScriptedPlanner, ScriptedSpecialist
+
+        logger.warning("USINE_SCRIPTED_MODELS=1 : modèles scriptés, réservés aux tests")
+        chat_planner = chat_planner or ScriptedPlanner()
+        chat_specialist = chat_specialist or ScriptedSpecialist()
     if gateway is not None:
         chat_planner = chat_planner or ChatModelPlanner(gateway)
         chat_specialist = chat_specialist or ChatModelSpecialist(gateway)

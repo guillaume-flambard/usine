@@ -19,6 +19,8 @@ step "web tests (node)"
 pnpm run test
 step "web tests (browser)"
 pnpm run test:browser
+step "end to end, M1 (real page and API, scripted models)"
+pnpm --filter @usine/web run e2e
 if [[ "${USINE_VERIFY_PG:-}" == 1 ]]; then
   # Inside Dockerfile.verify only: a throwaway Postgres, so the integration
   # tests run in CI instead of being skipped. The password is random and lives

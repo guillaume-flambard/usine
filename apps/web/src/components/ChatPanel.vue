@@ -49,6 +49,13 @@ const run = computed(() => {
   return replay(events)
 })
 
+/** The LangGraph thread of this chat, as the service announced it (MEM-14). */
+const threadId = computed(() => {
+  const last = [...messages.value].reverse().find((m) => m.role === 'assistant')
+  const meta = last?.metadata as { threadId?: string } | undefined
+  return meta?.threadId ?? props.chatId
+})
+
 /** One word for the whole panel, read by tests and assistive tech alike. */
 const state = computed(() => (stopped.value && status.value === 'ready' ? 'stopped' : status.value))
 
@@ -88,7 +95,12 @@ function onReload() {
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 flex-col" data-chat :data-chat-state="state">
+  <div
+    class="flex h-full min-h-0 flex-col"
+    data-chat
+    :data-chat-state="state"
+    :data-thread-id="threadId"
+  >
     <header class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3">
       <h1 class="text-lg font-semibold">L'usine agentique</h1>
       <div class="flex items-center gap-2">
