@@ -66,8 +66,16 @@ def test_la_liste_ignore_un_fichier_illisible(tmp_path: Path) -> None:
     assert [r["agent"] for r in lister(tmp_path)] == ["acheteur"]
 
 
-def test_la_liste_est_vide_sans_dossier(tmp_path: Path) -> None:
+def test_la_liste_est_vide_quand_le_dossier_ne_porte_rien(tmp_path: Path) -> None:
+    # Dossier configuré mais vide : là, la liste vide est la vérité.
     assert lister(tmp_path) == []
+
+
+def test_la_liste_leve_sans_dossier_configure(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("PORTES_DIR", raising=False)
+    with pytest.raises(Absent) as absent:
+        lister()
+    assert "PORTES_DIR" in absent.value.message
 
 
 def test_la_route_rend_la_liste(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -80,14 +88,17 @@ def test_la_route_rend_la_liste(monkeypatch: pytest.MonkeyPatch) -> None:
     assert [p["agent"] for p in reponse.json()["portes"]] == ["acheteur"]
 
 
-def test_la_route_sans_dossier_rend_une_liste_vide(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Pas de 404 ici : la fonction est éteinte, ce qui n'est pas la même chose
-    # qu'un agent introuvable. L'écran distingue les deux par le code.
+def test_la_route_sans_dossier_refuse_de_rendre_une_liste_vide(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # C'est le cas de la production, où `PORTES_DIR` n'est pas posé. Une liste
+    # vide s'y lirait « aucune décision ne t'attend », alors que la fonction est
+    # éteinte. L'écran doit pouvoir dire « je ne sais pas ».
     monkeypatch.delenv("PORTES_DIR", raising=False)
     client = TestClient(create_app(key=None, call=None))
     reponse = client.get("/portes")
-    assert reponse.status_code == 200
-    assert reponse.json() == {"portes": []}
+    assert reponse.status_code == 404
+    assert "PORTES_DIR" in reponse.json()["error"]
 
 
 def test_agent_inconnu(tmp_path: Path) -> None:

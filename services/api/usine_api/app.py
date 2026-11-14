@@ -317,7 +317,13 @@ def create_app(
         # Quels agents portent une décision, et à quel score. L'écran unique
         # l'appelle une fois : interroger les huit agents de la flotte au cas
         # où ferait huit requêtes pour au plus une réponse utile.
-        return no_store({"portes": list_portes()})
+        #
+        # 404 quand la fonction est éteinte, jamais une liste vide : l'écran
+        # doit pouvoir dire « je ne sais pas » au lieu de « rien ne t'attend ».
+        try:
+            return no_store({"portes": list_portes()})
+        except PortesAbsent as absent:
+            return no_store({"error": absent.message}, 404)
 
     @app.get("/portes/{agent}")
     async def portes(agent: str) -> JSONResponse:

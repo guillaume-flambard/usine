@@ -20,7 +20,12 @@ export interface ClientConfig {
 }
 
 export const global: ClientConfig = {
-  uiPath: '/console',
+  // Vide, et pas `'/'`. Le routeur dérive la route en retirant `uiPath` du
+  // début de `location.pathname` (`plugins/router.ts:88`) : une base vide laisse
+  // `/` intact, la route d'accueil, là où `'/'` laisserait la chaîne vide, qui
+  // ne correspond à aucune route. La coquille est la racine de son hôte depuis
+  // qu'elle a quitté `/console/`.
+  uiPath: '',
   static: true,
 }
 

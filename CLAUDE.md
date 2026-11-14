@@ -104,12 +104,10 @@ supposée n'a qu'une thèse.
 
 `name · path · family · status · stack · Vault note`
 
-`usine · ~/projects/active/ai/usine · Memo Labs · active · Vue 3 / TS / Vite / Cordis + services/{api,relay} · memory usine-project`
+`usine · ~/projects/usine · Memo Labs · active · Vue 3 / TS / Vite / Cordis + services/{api,relay} · memory usine-project`
 
-> Moved under `~/projects/active/ai/` by the 2026-08-22 home-map reorg; it used to
-> live at `~/usine`, and stale absolute paths from before that date still bite (a
-> venv's console scripts, for one). Own repo, cross-listed in
-> `~/projects/PROJECTS.md`.
+> Le chemin canonique est `~/projects/usine`; il ne dépend plus du statut ou de
+> la catégorie. Le dépôt est répertorié dans `~/projects/PROJECTS.md`.
 
 ## Commandes
 
@@ -121,7 +119,7 @@ pnpm test:api           # la suite Python
 pnpm test:all           # les trois
 pnpm lint               # eslint + oxlint + ruff
 pnpm type-check         # vue-tsc
-pnpm build              # deux entrées : index.html et sandbox.html
+pnpm build              # trois entrées : index.html, atelier.html, sandbox.html
 
 # le service compagnon, en local, sur le port que le proxy Vite attend
 cd services/api && set -a && . ../../.env && set +a \
@@ -233,18 +231,28 @@ Ils sont écrits ici parce qu'aucun n'était devinable, et qu'ils reviendront.
   jeton `read:packages`. Ensuite `autodeploy.timer` (toutes les 2 minutes) tire
   `:latest`, sonde, et restaure la version précédente si la sonde échoue. Il n'y
   a rien à faire à la main, et surtout aucune interface à cliquer.
-  L'infrastructure vit dans `~/projects/active/infra/lab-infra` : `make status`,
+  L'infrastructure vit dans `~/projects/lab-infra` : `make status`,
   `make why app=usine` pour comprendre un déploiement, `make rollback app=usine
   sha=…`, `make logs`.
-- **L'image ne contient que la SPA et le relais Node.** `services/api` (FastAPI)
-  **n'est déployé nulle part** : nginx proxifie `/api/*` vers le relais, qui ne
-  sert que `/health` et `POST /reason`. Conséquence à connaître avant d'annoncer
-  qu'une fonctionnalité est « en production » : la connexion est impossible en
-  ligne, donc comptes, persistance des runs, partage, corbeille, export,
-  évaluation et RGPD sont **éteints**. Ça ne se voit pas, les clients du front
-  rendant `null` sur erreur réseau. Vérification en une commande :
-  `curl -o /dev/null -w "%{http_code}" https://usine.memolabs.dev/api/runs`
-  (404 = toujours pas déployé).
+- **Deux hôtes, une image, et `services/api` n'est servi que sur l'un des deux.**
+  `usine.memolabs.dev` est la vitrine publique : nginx y proxifie `/api/*` vers
+  le relais Node, qui ne sert que `/health` et `POST /reason`. Donc comptes,
+  persistance des runs, partage, corbeille, export, évaluation et RGPD restent
+  **éteints sur la vitrine**, et ça ne se voit pas, les clients du front rendant
+  `null` sur erreur réseau. Vérification : `curl -o /dev/null -w "%{http_code}"
+  https://usine.memolabs.dev/api/runs` (404 = toujours le relais).
+  `atelier.memolabs.dev` sert l'écran du produit (`atelier.html`) et **lui seul
+  atteint `services/api`**, sur le port 3111 du même conteneur.
+- **L'atelier est derrière un mot de passe, et c'est structurel.** Ses routes
+  (`/flotte`, `/portes`) n'ont aucune authentification à elles, et son bouton
+  « Mettre en service » réécrit dans Langfuse l'invite que les agents utilisent
+  en production. La basic auth se pose sur un **routeur** Traefik
+  (`usine-auth@file`), d'où l'hôte séparé : un chemin sur le routeur `usine`
+  aurait été servi sans le middleware. Secret absent, routeur refusé, écran
+  inaccessible — on échoue fermé. Le bloc `server_name _` porte
+  `default_server` explicitement : sans le mot-clé, l'hôte par défaut serait le
+  premier bloc du fichier, et le jour où l'atelier passerait devant il
+  répondrait à tout `Host` inconnu, hors du mot de passe.
 - **Ne rien ajouter à `services/relay`** (Node). Il est gelé et sert la
   production actuelle ; toute fonctionnalité va dans `services/api` (FastAPI),
   au contrat HTTP identique. Le gel a **une exception, payée le 2026-09-07** :

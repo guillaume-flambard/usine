@@ -72,10 +72,15 @@ def lister(racine: Path | None = None) -> list[dict[str, Any]]:
     agents portent une décision. Il ne rend que ce que le fichier contient
     déjà : rien n'est rejoué ici, et un agent sans mesure n'apparaît pas plutôt
     que d'apparaître à zéro sur zéro, ce qui se lirait comme un échec.
+
+    Sans dossier configuré, lève plutôt que de rendre une liste vide. Les deux
+    se ressemblent et ne disent pas la même chose : une liste vide se lit
+    « aucune décision ne t'attend », alors que la fonction est simplement
+    éteinte. C'est le cas de la production, où `PORTES_DIR` n'est pas posé.
     """
     base = racine if racine is not None else dossier()
     if base is None:
-        return []
+        raise Absent("aucun dossier de verdicts configuré (PORTES_DIR)")
     resumes: list[dict[str, Any]] = []
     try:
         fichiers = sorted(base.glob("*.json"))

@@ -25,7 +25,7 @@ chaîne réelle, vérifiée le 2026-09-04.
 Compter environ trois minutes entre le merge et le conteneur neuf.
 
 Pour comprendre ou reprendre la main, l'infrastructure est décrite en IaC dans
-`~/projects/active/infra/lab-infra` :
+`~/projects/lab-infra` :
 
 ```sh
 make status                      # l'état des stacks

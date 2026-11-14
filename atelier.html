@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>L'usine — mes agents</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23ad4c16'/%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <!--
+      L'atelier : la coquille vendue de `@cordisjs/client`, greffée sur Nuxt UI,
+      et la seule page du produit.
+
+      Elle vit dans un fichier à part de `index.html`, qui reste la vitrine
+      publique de `usine.memolabs.dev`. Les deux sont servies par le même nginx,
+      qui choisit selon l'hôte : cette page est la racine d'`atelier.memolabs.dev`,
+      derrière mot de passe, parce qu'elle montre l'état du lab et qu'un de ses
+      boutons réécrit les invites que les agents utilisent en production.
+    -->
+    <div id="app" class="isolate"></div>
+    <script type="module" src="/src/shell/main.ts"></script>
+  </body>
+</html>

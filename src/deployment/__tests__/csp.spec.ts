@@ -10,12 +10,20 @@ const nginx = readFileSync(
 )
 const index = readFileSync(fileURLToPath(new URL('../../../index.html', import.meta.url)), 'utf-8')
 
-const policy = nginx.match(/set \$policy "([^"]+)"/)?.[1] ?? ''
-const directive = (name: string) =>
-  policy
+// Two hosts share this file: the public showcase, and the workshop behind a
+// password. They carry different policies on purpose, so a test that reads
+// "the" policy would only ever guard the first one it found.
+const [vitrine, atelier] = nginx.split(/\nserver \{\n/).slice(1)
+
+const policyOf = (section: string) => section.match(/set \$policy "([^"]+)"/)?.[1] ?? ''
+const directiveOf = (section: string, name: string) =>
+  policyOf(section)
     .split(';')
     .map((part) => part.trim())
     .find((part) => part.startsWith(`${name} `)) ?? ''
+
+const policy = policyOf(vitrine)
+const directive = (name: string) => directiveOf(vitrine, name)
 
 describe('the served security policy', () => {
   it('exists and covers everything by default', () => {
@@ -69,13 +77,14 @@ describe('the served security policy', () => {
   it('redeclares the headers in every block, for lack of inheritance', () => {
     // nginx does not inherit `add_header` as soon as a block declares one:
     // forgetting them would serve the assets with no policy.
-    const blocks = nginx
-      .split('location ')
-      .slice(1)
+    const blocks = [vitrine, atelier]
+      .flatMap((section) => section.split('location ').slice(1))
       // The frame serves its own policy, stricter than the host's; it is the
-      // one block that must *not* carry `$policy`.
+      // one block that must *not* carry `$policy`. The workshop's 404 answers
+      // before any body exists, so it carries no header either.
       .filter((block) => !block.startsWith('= /sandbox.html'))
-    expect(blocks).toHaveLength(3)
+      .filter((block) => !block.startsWith('= /atelier.html'))
+    expect(blocks).toHaveLength(6)
     for (const block of blocks) {
       expect(block).toContain('add_header Content-Security-Policy $policy')
       expect(block).toContain('X-Content-Type-Options')
@@ -87,7 +96,7 @@ describe('the served security policy', () => {
     // A third-party origin would force opening `connect-src` and handling
     // CORS; above all, the relay's key must never travel client-side. The
     // relay lives in the same container, so nginx never leaves the machine.
-    const block = nginx.split('location ~ ^/api/')[1]?.split('location ')[0] ?? ''
+    const block = vitrine.split('location ~ ^/api/')[1]?.split('location ')[0] ?? ''
     expect(block).toContain('proxy_pass http://127.0.0.1:3000/')
     expect(block).not.toMatch(/proxy_pass https?:\/\/(?!127\.0\.0\.1)/)
     // The visitor's address is forwarded: without it the relay would see one
@@ -97,7 +106,7 @@ describe('the served security policy', () => {
   })
 
   it('does not let the index become immutable', () => {
-    const root = nginx.split('location /assets/')[1]?.split('location /')[1] ?? ''
+    const root = vitrine.split('location /assets/')[1]?.split('location /')[1] ?? ''
     expect(root).toContain('no-cache')
   })
 })
@@ -146,5 +155,52 @@ describe("the isolated frame's own policy", () => {
     const assets =
       nginx.match(/location \/assets\/ \{([\s\S]*?)\n  \}/)?.[1] ?? ''
     expect(assets).toMatch(/add_header Access-Control-Allow-Origin "\*" always;/)
+  })
+})
+
+
+describe("the workshop's own host", () => {
+  it('is served under its own name, not under a path', () => {
+    // The password Traefik puts on this host only holds if the page has no
+    // other way in. A path on the showcase would have been served by the
+    // showcase's router, without the middleware.
+    expect(atelier).toContain('server_name atelier.memolabs.dev')
+    expect(vitrine).toContain('server_name _')
+    // And the showcase is the default host, explicitly. Without the keyword,
+    // nginx makes the FIRST block the default: the day the workshop moved up
+    // the file it would answer every unknown `Host`, outside the password
+    // Traefik only puts on the `atelier` router.
+    expect(vitrine).toContain('listen 80 default_server')
+    expect(atelier).not.toContain('default_server')
+  })
+
+  it('is refused by the public showcase', () => {
+    const refusal = vitrine.split('location = /atelier.html')[1]?.split('location ')[0] ?? ''
+    expect(refusal).toContain('return 404')
+  })
+
+  it('carries a stricter policy than the showcase, never a laxer one', () => {
+    // It runs no model-written code, mounts no sandboxed frame, and talks to
+    // no provider. Every loosening the showcase pays for would be unpaid here.
+    expect(directiveOf(atelier, 'script-src')).toBe("script-src 'self'")
+    expect(policyOf(atelier)).not.toContain('unsafe-eval')
+    expect(directiveOf(atelier, 'connect-src')).toBe("connect-src 'self'")
+    expect(directiveOf(atelier, 'frame-src')).toBe("frame-src 'none'")
+  })
+
+  it('is the only host that reaches the service', () => {
+    // `/flotte` and `/portes` carry no authentication of their own, and one of
+    // them rewrites the prompts the agents run in production. The password on
+    // this host is the whole gate.
+    const block = atelier.split('location ~ ^/api/')[1]?.split('location ')[0] ?? ''
+    expect(block).toContain('proxy_pass http://127.0.0.1:3111/')
+    expect(vitrine).not.toContain('127.0.0.1:3111')
+  })
+
+  it('falls back to its own page, not to the showcase', () => {
+    // Both files live in the same root: without a named fallback, `/portes`
+    // would serve the showcase and the router would find no route.
+    const root = atelier.split('location /assets/')[1]?.split('location /')[1] ?? ''
+    expect(root).toContain('try_files $uri $uri/ /atelier.html')
   })
 })

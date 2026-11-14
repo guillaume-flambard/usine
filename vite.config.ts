@@ -8,15 +8,14 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 /**
  * En développement, `/` mène à l'atelier.
  *
- * Les deux pages coexistent le temps que la coquille s'habille : `index.html`
- * sert le produit livré, `console/` sert l'écran des portes. Tant que la racine
- * servait le premier, ouvrir l'adresse évidente montrait l'angle abandonné le
- * 2026-09-10, et la direction en cours se cachait derrière un chemin qu'il
- * fallait connaître. Une redirection vaut mieux qu'une consigne à retenir.
+ * En production c'est l'hôte qui décide : `atelier.memolabs.dev` sert
+ * `atelier.html` à sa racine, `usine.memolabs.dev` garde sa vitrine. Le serveur
+ * de développement n'a qu'un hôte, donc la racine y redirige — sans quoi
+ * ouvrir l'adresse évidente montrerait la vitrine et l'écran du produit se
+ * cacherait derrière un chemin à retenir.
  *
- * Uniquement le serveur de développement, et uniquement la racine nue :
- * `/index.html` reste atteignable pour relire la vitrine. Rien de ce qui est
- * construit ne change, et `usine.memolabs.dev` continue de servir `index.html`.
+ * Uniquement la racine nue : `/index.html` reste atteignable pour relire la
+ * vitrine. Rien de ce qui est construit ne change.
  */
 function atelierALaRacine(): Plugin {
   return {
@@ -29,7 +28,7 @@ function atelierALaRacine(): Plugin {
         // plus relire ce qu'elle raconte.
         if (requete.url === '/') {
           reponse.statusCode = 302
-          reponse.setHeader('location', '/console/')
+          reponse.setHeader('location', '/atelier.html')
           reponse.end()
           return
         }
@@ -65,25 +64,19 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      // Two pages, not one. The sandboxed frame is served by us, under its own
-      // security policy, and must not share a document with the host — that
-      // separation is the reason no policy needs loosening.
+      // Trois pages. Le cadre sablé est servi par nous, sous sa propre politique
+      // de sécurité, et ne doit pas partager un document avec l'hôte — c'est
+      // cette séparation qui évite d'assouplir la moindre politique.
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
         sandbox: fileURLToPath(new URL('./sandbox.html', import.meta.url)),
-        // The vendored console shell is served by the dev server, which picks
-        // up any HTML file, but it is deliberately NOT a production input.
+        // L'atelier, entrée de production depuis qu'il porte le produit.
         //
-        // `usine.memolabs.dev` answers 200 to anyone: shipping the page would
-        // publish a half-dressed shell that still says "Cordis" and still
-        // announces, in Chinese, a connection to a server that does not exist.
-        // Unlinked is not unreachable, and this site is the showcase.
-        //
-        // Add it back the day the shell carries the product. It lives in a
-        // directory, not a bare `.html`: their router derives the route by
-        // stripping `uiPath` off `location.pathname`, so `/console/` with
-        // `uiPath: '/console'` leaves exactly `/`, the home route, where a bare
-        // `console.html` would leave an empty string and match nothing.
+        // Il n'a pas d'hôte à lui dans cette image : le même nginx sert les
+        // deux, et choisit le fichier de repli selon l'en-tête `Host`. Sur
+        // `usine.memolabs.dev`, `/atelier.html` rend 404 — la vitrine est
+        // publique, l'atelier ne l'est pas.
+        atelier: fileURLToPath(new URL('./atelier.html', import.meta.url)),
       },
     },
   },
