@@ -38,6 +38,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from usine_api.contracts import RunEvent, RunEventKind, SpecialistOutput
 from usine_api.graph.supervisor import SPECIALIST, SUPERVISOR, SYNTHESIZE
 from usine_api.observability import run_config
+from usine_api.threads import RunStatus, RunTurn, ThreadIndex
 
 logger = logging.getLogger(__name__)
 
@@ -127,14 +128,29 @@ async def run_stream(
     new_id: Callable[[], str] = lambda: uuid.uuid4().hex,
     clock: Callable[[], float] = time.monotonic,
     user_id: str | None = None,
+    index: ThreadIndex | None = None,
+    owner: str | None = None,
+    resume: bool = False,
 ) -> AsyncIterator[str]:
-    """The SSE body of one chat turn. `new_id` and `clock` are injected by tests."""
+    """The SSE body of one chat turn. `new_id` and `clock` are injected by tests.
+
+    `index` records the turn (MEM-18). `resume` continues the thread from its
+    last checkpoint instead of starting a new brief: the graph is given no input,
+    which is how LangGraph resumes (https://docs.langchain.com/oss/python/langgraph/persistence).
+    """
     thread_id = request.id or new_id()
     started = clock()
+    recorded: list[dict[str, Any]] = []
 
     def event(kind: RunEventKind, *, node: str | None = None, **data: Any) -> str:
         run_event = RunEvent(kind=kind, at=round(clock() - started, 3), node=node, data=data)
-        return sse({"type": RUN_EVENT_PART, "data": run_event.model_dump(mode="json")})
+        payload = run_event.model_dump(mode="json")
+        recorded.append(payload)
+        return sse({"type": RUN_EVENT_PART, "data": payload})
+
+    def close_turn(answer: str, status: RunStatus) -> None:
+        if index is not None:
+            index.finish(thread_id, RunTurn(brief=brief, answer=answer, events=recorded), status)
 
     yield sse({"type": "start", "messageId": new_id(), "messageMetadata": {"threadId": thread_id}})
     brief = request.brief()
@@ -144,6 +160,11 @@ async def run_stream(
         yield sse("[DONE]")
         return
 
+    if index is not None and not index.start(thread_id, owner, brief):
+        yield sse({"type": "error", "errorText": "Ce fil appartient à une autre organisation."})
+        yield sse({"type": "finish", "finishReason": "error"})
+        yield sse("[DONE]")
+        return
     yield event(RunEventKind.RUN_STARTED, threadId=thread_id)
     # One short id per node run, in order of start. Parallel specialists share
     # the node name, so the scene (MEM-17) needs this to pair a finish with its
@@ -157,7 +178,8 @@ async def run_stream(
         # `yield` (ASGI 2.4) or cancelled (older servers). Either way the graph
         # stream must be closed with it, which cancels the nodes still running;
         # a bare `async for` would leave them to the garbage collector.
-        stream = graph.astream({"brief": brief}, config, stream_mode=["tasks"], version="v2")
+        graph_input = None if resume else {"brief": brief}
+        stream = graph.astream(graph_input, config, stream_mode=["tasks"], version="v2")
         async with aclosing(stream):
             async for chunk in stream:
                 task = chunk["data"]
@@ -188,6 +210,7 @@ async def run_stream(
         # The scene marks the nodes still running as failed from this event:
         # a failure on screen is paid for by an event, like everything else.
         yield event(RunEventKind.RUN_FINISHED, outcome="error")
+        close_turn("", "error")
         yield sse({"type": "error", "errorText": readable_error(error)})
         yield sse({"type": "finish", "finishReason": "error"})
         yield sse("[DONE]")
@@ -198,6 +221,7 @@ async def run_stream(
     yield sse({"type": "text-delta", "id": text_id, "delta": answer})
     yield sse({"type": "text-end", "id": text_id})
     yield event(RunEventKind.RUN_FINISHED, outcome="ok")
+    close_turn(answer, "done")
     yield sse({"type": "finish", "finishReason": "stop"})
     yield sse("[DONE]")
 

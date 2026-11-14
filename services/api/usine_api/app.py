@@ -18,11 +18,12 @@ from contextlib import asynccontextmanager, suppress
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
+from pydantic import BaseModel
 
 from .audit import AuditLog, InMemoryAuditLog
-from .chat_stream import STREAM_HEADERS, ChatRequest, no_model_stream, run_stream
+from .chat_stream import STREAM_HEADERS, ChatMessage, ChatRequest, no_model_stream, run_stream
 from .checkpoints import open_checkpointer
 from .erasure import Erasure, erasure_for
 from .evaluation import evaluate, measure
@@ -67,6 +68,7 @@ from .reasoning import (
 from .runs import InMemoryRunStore, RunStore, Stored, new_id, read_archive
 from .settings import database_url
 from .sources import SourceRefusal, catalogue, fetch_source
+from .threads import InMemoryThreadIndex, RunDetail, RunSummary, ThreadIndex
 from .tracing import trace_of
 
 logger = logging.getLogger("usine.service")
@@ -141,6 +143,13 @@ def _default_email_sender() -> EmailSender:
     )
 
 
+class RunPage(BaseModel):
+    """Une page de runs, et le curseur de la suivante (absent à la fin)."""
+
+    items: list[RunSummary]
+    next_cursor: str | None = None
+
+
 def create_app(
     *,
     key: str | None = None,
@@ -163,6 +172,7 @@ def create_app(
     secure_cookies: bool = True,
     planner: Planner | None = None,
     specialist: SpecialistRunner | None = None,
+    threads: ThreadIndex | None = None,
 ) -> FastAPI:
     """Construit le service. Tout ce qui touche l'extérieur est injectable."""
     bounds = limits or Limits()
@@ -180,6 +190,8 @@ def create_app(
         pg = PostgresStores(db_url)
 
     store: RunStore = runs or (pg.runs if pg is not None else InMemoryRunStore())
+    # L'index des runs v2 (MEM-18) : un run est un thread LangGraph.
+    index: ThreadIndex = threads or (pg.threads if pg is not None else InMemoryThreadIndex())
     # L'identité, derrière ses ports.
     people: IdentityStore = identities or (
         pg.identities if pg is not None else InMemoryIdentityStore()
@@ -250,6 +262,9 @@ def create_app(
         title="Usine agentique — service",
         docs_url=None,
         redoc_url=None,
+        # Le contrat de l'API v2, servi et versionné (services/api/openapi.json,
+        # comparé en CI par tests/test_runs_api.py).
+        openapi_url="/api/openapi.json",
         lifespan=lifespan,
     )
 
@@ -328,7 +343,74 @@ def create_app(
         # L'id du compte, jamais l'email : c'est ce qui part vers Langfuse.
         who = identity_of(request)
         user_id = who.account.id if who is not None else None
-        return StreamingResponse(run_stream(graph, body, user_id=user_id), headers=STREAM_HEADERS)
+        return StreamingResponse(
+            run_stream(graph, body, user_id=user_id, index=index, owner=viewer_org(request)),
+            headers=STREAM_HEADERS,
+        )
+
+    @app.get("/api/runs", response_model=RunPage, tags=["runs"])
+    def list_threads(
+        request: Request,
+        cursor: str | None = None,
+        limit: int = Query(20, ge=1, le=100),
+    ) -> RunPage:
+        """Les runs de l'organisation (ou du visiteur anonyme), du plus récent au plus ancien."""
+        try:
+            items, next_cursor = index.page(viewer_org(request), cursor, limit)
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail="Curseur illisible.") from error
+        return RunPage(items=items, next_cursor=next_cursor)
+
+    @app.get("/api/runs/{thread_id}", response_model=RunDetail, tags=["runs"])
+    def open_thread(thread_id: str, request: Request) -> RunDetail:
+        """Un run et ses tours : brief, réponse et événements, pour rejouer la scène."""
+        detail = index.get(thread_id, viewer_org(request))
+        if detail is None:
+            raise HTTPException(status_code=404, detail="Run introuvable.")
+        return detail
+
+    @app.post("/api/runs/{thread_id}/resume", tags=["runs"])
+    async def resume_thread(thread_id: str, request: Request) -> Response:
+        """Reprend un run interrompu depuis son dernier checkpoint, en flux."""
+        if index.get(thread_id, viewer_org(request)) is None:
+            raise HTTPException(status_code=404, detail="Run introuvable.")
+        graph = getattr(request.app.state, "chat_graph", None)
+        if graph is None:
+            return StreamingResponse(no_model_stream(), headers=STREAM_HEADERS)
+        state = await graph.aget_state({"configurable": {"thread_id": thread_id}})
+        if not state.next:
+            raise HTTPException(status_code=409, detail="Ce run n'a rien à reprendre.")
+        brief = str(state.values.get("brief", ""))
+        body = ChatRequest(
+            id=thread_id,
+            messages=[ChatMessage(role="user", parts=[{"type": "text", "text": brief}])],
+        )
+        who = identity_of(request)
+        return StreamingResponse(
+            run_stream(
+                graph,
+                body,
+                user_id=who.account.id if who is not None else None,
+                index=index,
+                owner=viewer_org(request),
+                resume=True,
+            ),
+            headers=STREAM_HEADERS,
+        )
+
+    @app.delete("/api/runs/{thread_id}", status_code=204, tags=["runs"])
+    async def delete_thread(thread_id: str, request: Request) -> Response:
+        """Efface le run : ses checkpoints LangGraph, puis son index.
+
+        Les traces envoyées à Langfuse n'en font pas partie : voir
+        docs/securite/modele-de-menace-v2.md (registre des données).
+        """
+        owner = viewer_org(request)
+        if index.get(thread_id, owner) is None:
+            raise HTTPException(status_code=404, detail="Run introuvable.")
+        await request.app.state.checkpointer.adelete_thread(thread_id)
+        index.delete(thread_id, owner)
+        return Response(status_code=204)
 
     @app.get("/health")
     async def health(request: Request) -> JSONResponse:
