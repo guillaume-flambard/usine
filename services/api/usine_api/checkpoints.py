@@ -19,18 +19,24 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-from psycopg.rows import dict_row
+from psycopg import AsyncConnection
+from psycopg.rows import DictRow, dict_row
 from psycopg_pool import AsyncConnectionPool
 
-SAVER_CONNECTION_KWARGS = {"autocommit": True, "prepare_threshold": 0, "row_factory": dict_row}
+SAVER_CONNECTION_KWARGS: dict[str, Any] = {
+    "autocommit": True,
+    "prepare_threshold": 0,
+    "row_factory": dict_row,
+}
 
 
 @asynccontextmanager
-async def open_checkpointer(dsn: str) -> AsyncIterator[BaseCheckpointSaver]:
+async def open_checkpointer(dsn: str) -> AsyncIterator[BaseCheckpointSaver[Any]]:
     """Rend le checkpointer, ouvert pour toute la durée du bloc.
 
     `dsn` vide : un saver en mémoire, perdu à l'arrêt, et c'est voulu.
@@ -38,8 +44,15 @@ async def open_checkpointer(dsn: str) -> AsyncIterator[BaseCheckpointSaver]:
     if not dsn:
         yield InMemorySaver()
         return
+    # Typed as a pool of dict_row connections, the shape the saver requires
+    # (psycopg_pool's generic `connection_class`).
     async with AsyncConnectionPool(
-        dsn, min_size=1, max_size=4, kwargs=SAVER_CONNECTION_KWARGS, open=False
+        dsn,
+        min_size=1,
+        max_size=4,
+        kwargs=SAVER_CONNECTION_KWARGS,
+        connection_class=AsyncConnection[DictRow],
+        open=False,
     ) as pool:
         saver = AsyncPostgresSaver(pool)
         await saver.setup()

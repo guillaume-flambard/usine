@@ -12,6 +12,7 @@ dev = [
     "pytest>=8.4",
     "pytest-asyncio>=1.2",
     "ruff>=0.14",
+    "mypy>=2.4,<3",
 ]
 
 [tool.uv]
@@ -36,3 +37,17 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 [tool.ruff.lint.isort]
 # One ruff config for the workspace: name the member packages first-party.
 known-first-party = ["usine_api", "tests"]
+
+[tool.mypy]
+# Typed strictly, module by module, as the v2 code lands (MEM-11). The v1 code
+# of services/api is not in the list yet.
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = "services/api"
+explicit_package_bases = true
+files = [
+    "services/api/usine_api/contracts",
+    "services/api/usine_api/graph",
+    "services/api/usine_api/checkpoints.py",
+    "services/api/usine_api/settings.py",
+]
