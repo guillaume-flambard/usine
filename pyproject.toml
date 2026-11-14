@@ -50,5 +50,6 @@ files = [
     "services/api/usine_api/graph",
     "services/api/usine_api/checkpoints.py",
     "services/api/usine_api/models.py",
+    "services/api/usine_api/chat_stream.py",
     "services/api/usine_api/settings.py",
 ]

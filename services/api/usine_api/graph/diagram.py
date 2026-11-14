@@ -17,12 +17,12 @@ TARGET = Path(__file__).resolve().parents[4] / "docs/architecture/supervisor-gra
 
 
 class _NoPlanner:
-    def plan(self, brief: str) -> list[str]:
+    async def plan(self, brief: str) -> list[str]:
         return []
 
 
 class _NoSpecialist:
-    def run(self, task: SpecialistInput) -> SpecialistOutput:
+    async def run(self, task: SpecialistInput) -> SpecialistOutput:
         raise NotImplementedError
 
 

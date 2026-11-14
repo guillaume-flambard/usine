@@ -18,7 +18,7 @@ class FakePlanner:
         self.subtasks = subtasks
         self.calls: list[str] = []
 
-    def plan(self, brief: str) -> list[str]:
+    async def plan(self, brief: str) -> list[str]:
         self.calls.append(brief)
         return self.subtasks
 
@@ -29,52 +29,65 @@ class FakeSpecialist:
     def __init__(self) -> None:
         self.tasks: list[str] = []
 
-    def run(self, task: SpecialistInput) -> SpecialistOutput:
+    async def run(self, task: SpecialistInput) -> SpecialistOutput:
         self.tasks.append(task.task)
         return SpecialistOutput(
             answer=f"fait : {task.task}", identity=self.identity, tokens=1, tool_calls=0
         )
 
 
-def test_simple_brief_calls_one_specialist():
+async def test_simple_brief_calls_one_specialist():
     planner, specialist = FakePlanner(["relire les portes"]), FakeSpecialist()
-    result = build_graph(planner, specialist).invoke({"brief": "relire les portes"})
+    result = await build_graph(planner, specialist).ainvoke({"brief": "relire les portes"})
     assert planner.calls == ["relire les portes"]
     assert specialist.tasks == ["relire les portes"]
     assert result["answer"] == "fait : relire les portes"
 
 
-def test_three_subtasks_fan_out_to_three_specialists():
+async def test_three_subtasks_fan_out_to_three_specialists():
     planner, specialist = FakePlanner(["a", "b", "c"]), FakeSpecialist()
-    result = build_graph(planner, specialist).invoke({"brief": "trois choses"})
+    result = await build_graph(planner, specialist).ainvoke({"brief": "trois choses"})
     assert sorted(specialist.tasks) == ["a", "b", "c"]
     assert len(result["results"]) == 3
     assert sorted(result["answer"].split("\n\n")) == ["fait : a", "fait : b", "fait : c"]
 
 
-def test_empty_plan_falls_back_to_the_brief():
+async def test_empty_plan_falls_back_to_the_brief():
     planner, specialist = FakePlanner(["  ", ""]), FakeSpecialist()
-    build_graph(planner, specialist).invoke({"brief": "un brief"})
+    await build_graph(planner, specialist).ainvoke({"brief": "un brief"})
     assert specialist.tasks == ["un brief"]
 
 
-def test_run_is_checkpointed_and_specialist_outputs_survive_serialization():
+async def test_run_is_checkpointed_and_specialist_outputs_survive_serialization():
     saver = InMemorySaver()
     app = build_graph(FakePlanner(["a", "b"]), FakeSpecialist(), checkpointer=saver)
     config = {"configurable": {"thread_id": "t-1"}}
-    app.invoke({"brief": "deux choses"}, config)
-    state = app.get_state(config)
+    await app.ainvoke({"brief": "deux choses"}, config)
+    state = await app.aget_state(config)
     assert state.next == ()
     assert {output.answer for output in state.values["results"]} == {"fait : a", "fait : b"}
     assert len(list(app.get_state_history(config))) >= 4
 
 
-def test_prompts_are_named_and_have_a_french_default():
+async def test_a_second_run_on_the_same_thread_answers_only_its_own_brief():
+    # A chat sends every message on one thread: results must not pile up.
+    saver = InMemorySaver()
+    planner = FakePlanner(["a"])
+    app = build_graph(planner, FakeSpecialist(), checkpointer=saver)
+    config = {"configurable": {"thread_id": "t-2"}}
+    await app.ainvoke({"brief": "premier"}, config)
+    planner.subtasks = ["b"]
+    second = await app.ainvoke({"brief": "second"}, config)
+    assert second["answer"] == "fait : b"
+    assert [output.answer for output in second["results"]] == ["fait : b"]
+
+
+async def test_prompts_are_named_and_have_a_french_default():
     assert default_prompt(SUPERVISOR_PLAN).startswith("Tu es le superviseur")
     assert set(DEFAULTS) == {SUPERVISOR_PLAN, SPECIALIST_TASK}
 
 
-def test_versioned_diagram_matches_the_graph():
+async def test_versioned_diagram_matches_the_graph():
     # The diagram in docs/ is generated from the graph; this fails if they drift.
     # Regenerate: uv run python -m usine_api.graph.diagram
     drawn = build_graph(FakePlanner([]), FakeSpecialist()).get_graph().draw_mermaid()

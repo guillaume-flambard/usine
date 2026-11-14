@@ -11,11 +11,14 @@ behind two small protocols:
 - in tests, deterministic fakes (no network);
 - in the product, a chat model through LiteLLM (MEM-13) for the planner, and the
   `Specialist` contract (MEM-27) for the specialists.
+
+Both protocols are async, and so are the nodes: a run streamed to a browser
+must stop when the browser goes away (MEM-14). Cancelling an async node cancels
+the model call in flight; a sync node would keep its thread running to the end.
 """
 
 from __future__ import annotations
 
-import operator
 from typing import Annotated, Any, Protocol, TypedDict
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -31,21 +34,36 @@ SYNTHESIZE = "synthesize"
 
 
 class Planner(Protocol):
-    def plan(self, brief: str) -> list[str]:
+    async def plan(self, brief: str) -> list[str]:
         """Split the brief into independent sub-tasks (at least one)."""
         ...
 
 
 class SpecialistRunner(Protocol):
-    def run(self, task: SpecialistInput) -> SpecialistOutput:
+    async def run(self, task: SpecialistInput) -> SpecialistOutput:
         """Answer one sub-task."""
         ...
+
+
+def collect_results(
+    left: list[SpecialistOutput] | None, right: list[SpecialistOutput] | None
+) -> list[SpecialistOutput]:
+    """Gather specialist outputs; an empty update starts a new run.
+
+    A thread is checkpointed (MEM-12) and a chat sends every new message on the
+    same thread. With a plain `operator.add`, the second run would synthesize
+    the first run's results too. The supervisor resets with `[]`; specialists
+    always add one output, never an empty list.
+    """
+    if not right:
+        return []
+    return [*(left or []), *right]
 
 
 class RunState(TypedDict, total=False):
     brief: str
     subtasks: list[str]
-    results: Annotated[list[SpecialistOutput], operator.add]
+    results: Annotated[list[SpecialistOutput], collect_results]
     answer: str
 
 
@@ -65,17 +83,17 @@ def build_graph(
     checkpointer: BaseCheckpointSaver[Any] | None = None,
     budget: Budget = DEFAULT_BUDGET,
 ) -> CompiledStateGraph[RunState, None, RunState, RunState]:
-    def supervise(state: RunState) -> RunState:
-        subtasks = [task.strip() for task in planner.plan(state["brief"]) if task.strip()]
+    async def supervise(state: RunState) -> RunState:
+        subtasks = [task.strip() for task in await planner.plan(state["brief"]) if task.strip()]
         # A planner that returns nothing must not end the run silently: the
         # brief itself becomes the single sub-task.
-        return {"subtasks": subtasks or [state["brief"]]}
+        return {"subtasks": subtasks or [state["brief"]], "results": []}
 
     def dispatch(state: RunState) -> list[Send]:
         return [Send(SPECIALIST, {"task": task}) for task in state["subtasks"]]
 
-    def run_specialist(state: SubtaskState) -> RunState:
-        output = specialist.run(SpecialistInput(task=state["task"], budget=budget))
+    async def run_specialist(state: SubtaskState) -> RunState:
+        output = await specialist.run(SpecialistInput(task=state["task"], budget=budget))
         return {"results": [output]}
 
     def synthesize(state: RunState) -> RunState:

@@ -86,11 +86,17 @@ def _extras(raw: str | None) -> dict[str, Any]:
     return value
 
 
-def chat_model(settings: ModelSettings, *, http_client: httpx.Client | None = None) -> ChatOpenAI:
-    """The bare chat model: no retries of its own (see the module docstring)."""
+def chat_model(
+    settings: ModelSettings, *, http_client: httpx.AsyncClient | None = None
+) -> ChatOpenAI:
+    """The bare chat model: no retries of its own (see the module docstring).
+
+    The product calls models asynchronously (`ainvoke`), so the client a test
+    injects is the async one.
+    """
     kwargs: dict[str, Any] = {}
     if http_client is not None:
-        kwargs["http_client"] = http_client
+        kwargs["http_async_client"] = http_client
     return ChatOpenAI(
         model=settings.model,
         base_url=settings.base_url,
