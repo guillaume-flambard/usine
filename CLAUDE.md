@@ -308,9 +308,20 @@ Ils sont écrits ici parce qu'aucun n'était devinable, et qu'ils reviendront.
 - **Les tests d'abord quand le comportement est en jeu.** Chaque piège de la
   liste ci-dessus a son test ; c'est ce qui les empêche de revenir.
 
-## Suivi
+## Suivi : quelle source pour quoi
 
-Le travail est suivi par BMad dans `_bmad-output/` : PRD, spine d'architecture,
-epics, et `implementation-artifacts/sprint-status.yaml`. Les décisions et leurs
-raisons sont dans les `.memlog.md` — c'est là qu'on regarde avant de défaire
+Une seule autorité par domaine (MEM-72, ADR 0001) :
+
+| Question | Source |
+|---|---|
+| Que reste-t-il à faire, dans quel ordre, et qui s'en charge ? | Linear, projet « Usine v2 : refonte agentique » (issues `MEM-n`, jalons M0 à M8) |
+| Quand est-ce fini ? | La Definition of Done, un document du projet Linear |
+| Pourquoi ce choix ? | `docs/adr/` |
+| Comment les pièces tiennent ensemble | `docs/architecture/` (MEM-8) |
+| Qu'est-ce qui est vérifié ? | `scripts/verify.sh`, et le statut `usine/verify` publié par le builder du VPS |
+| Comment ça se déploie | `deployment/README.md` |
+
+`_bmad-output/` et `openspec/` sont l'historique de la v1 (voir leur README).
+Ils restent lisibles, mais ne sont plus tenus à jour. Les `.memlog.md`
+gardent les raisons des choix de la v1 : c'est là qu'on regarde avant de défaire
 quelque chose qui a l'air arbitraire.

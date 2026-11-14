@@ -1,4 +1,6 @@
 ---
+
+> **Historique v1, figé le 2026-11-14 (MEM-72).** Ces epics ne sont plus suivis ; le backlog v2 est dans Linear.
 stepsCompleted: ['step-01', 'step-02', 'step-03', 'step-04']
 inputDocuments:
   - _bmad-output/planning-artifacts/prds/prd-usine-2026-08-20/prd.md
