@@ -37,6 +37,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from usine_api.contracts import RunEvent, RunEventKind, SpecialistOutput
 from usine_api.graph.supervisor import SPECIALIST, SUPERVISOR, SYNTHESIZE
+from usine_api.observability import run_config
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,7 @@ async def run_stream(
     *,
     new_id: Callable[[], str] = lambda: uuid.uuid4().hex,
     clock: Callable[[], float] = time.monotonic,
+    user_id: str | None = None,
 ) -> AsyncIterator[str]:
     """The SSE body of one chat turn. `new_id` and `clock` are injected by tests."""
     thread_id = request.id or new_id()
@@ -150,7 +152,7 @@ async def run_stream(
     task_ids: dict[str, str] = {}
     answer = ""
     try:
-        config = {"configurable": {"thread_id": thread_id}}
+        config = run_config(thread_id, user_id=user_id)
         # `aclosing`: when the client goes away, this generator is closed at a
         # `yield` (ASGI 2.4) or cancelled (older servers). Either way the graph
         # stream must be closed with it, which cancels the nodes still running;

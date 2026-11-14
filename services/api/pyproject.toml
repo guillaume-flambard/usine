@@ -12,6 +12,7 @@ dependencies = [
     "langgraph>=1.2.22,<2",
     "langgraph-checkpoint-postgres>=3.2.1,<4",
     "langchain-openai>=1.8,<2",
+    "langfuse>=5.2,<6",
 ]
 
 [build-system]

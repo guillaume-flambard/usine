@@ -35,6 +35,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
+from langchain_core.runnables.config import ensure_config
 from langchain_core.runnables.retry import ExponentialJitterParams
 from langchain_openai import ChatOpenAI
 from openai import APIConnectionError, InternalServerError, RateLimitError
@@ -86,24 +87,45 @@ def _extras(raw: str | None) -> dict[str, Any]:
     return value
 
 
+def current_session_id() -> str | None:
+    """The thread of the graph run this call belongs to, if any.
+
+    LangGraph hands its config to every runnable a node calls, through a context
+    variable; the chat thread is its `thread_id`.
+    """
+    thread = ensure_config().get("configurable", {}).get("thread_id")
+    return thread if isinstance(thread, str) else None
+
+
 def chat_model(
-    settings: ModelSettings, *, http_client: httpx.AsyncClient | None = None
+    settings: ModelSettings,
+    *,
+    http_client: httpx.AsyncClient | None = None,
+    session_id: str | None = None,
 ) -> ChatOpenAI:
     """The bare chat model: no retries of its own (see the module docstring).
 
     The product calls models asynchronously (`ainvoke`), so the client a test
     injects is the async one.
+
+    `session_id` goes to LiteLLM as `litellm_session_id`, which its Langfuse
+    exporter turns into the trace session (litellm/integrations/otel/model/
+    metadata.py, `caller_session_id`). The run traced by the usine and the
+    model calls traced by LiteLLM, cost included, then share one session.
     """
     kwargs: dict[str, Any] = {}
     if http_client is not None:
         kwargs["http_async_client"] = http_client
+    extra_body = dict(settings.extras)
+    if session_id:
+        extra_body["litellm_session_id"] = session_id
     return ChatOpenAI(
         model=settings.model,
         base_url=settings.base_url,
         api_key=settings.api_key,
         timeout=settings.timeout_s,
         max_retries=0,
-        extra_body=dict(settings.extras) or None,
+        extra_body=extra_body or None,
         **kwargs,
     )
 
