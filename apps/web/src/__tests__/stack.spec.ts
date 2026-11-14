@@ -34,6 +34,10 @@ describe('stack', () => {
     expect(tools.some((tool) => /cordis/i.test(tool))).toBe(false)
   })
 
+  it('fails on purpose to prove v2 refuses a red PR (MEM-6 demo)', () => {
+    expect(STACK.length).toBe(0)
+  })
+
   it('names each layer once', () => {
     const layers = STACK.map((entry) => entry.layer)
     expect(new Set(layers).size).toBe(layers.length)
