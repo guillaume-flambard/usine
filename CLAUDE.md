@@ -257,18 +257,20 @@ Ils sont écrits ici parce qu'aucun n'était devinable, et qu'ils reviendront.
 
 ## Ce qui se fait, et ce qui ne se fait pas
 
-- **Le déploiement est automatique, et Coolify n'existe plus** (supprimé le
-  2026-09-03). La chaîne, vérifiée le 2026-09-04 : un push sur `main` déclenche
-  `.github/workflows/build.yml` sur le runner auto-hébergé du VPS, qui construit
-  l'image **sur place** et la pousse dans le registre local
-  (`127.0.0.1:5000/usine:{sha,latest}`). C'est délibéré : le dépôt est privé,
-  donc son paquet GHCR le serait aussi, et le VPS ne pourrait pas le tirer sans
-  jeton `read:packages`. Ensuite `autodeploy.timer` (toutes les 2 minutes) tire
-  `:latest`, sonde, et restaure la version précédente si la sonde échoue. Il n'y
-  a rien à faire à la main, et surtout aucune interface à cliquer.
-  L'infrastructure vit dans `~/projects/active/infra/lab-infra` : `make status`,
-  `make why app=usine` pour comprendre un déploiement, `make rollback app=usine
-  sha=…`, `make logs`.
+- **Le déploiement est décrit dans `deployment/README.md`, observé le
+  14 novembre 2026.** Il n'y a plus de runner GitHub sur le VPS, ni de
+  `build.yml` (PR #45 et #47).
+  - Le timer `usine-build-controller` de `lab-infra` construit `main` dans le
+    registre local, et seulement après un run `verify.yml` réussi sur ce SHA
+    avec l'événement `push`.
+  - `autodeploy` tire ensuite `:latest`, sonde, et revient en arrière si besoin.
+  - **Cette chaîne est arrêtée depuis le 2 novembre 2026** : `verify.yml` ne se
+    lance plus qu'à la main, donc le builder attend. La production sert
+    `0439b39`.
+  - La cible v2 (staging depuis `v2`, puis bascule) et le choix à trancher dans
+    MEM-6 sont dans le même fichier.
+  - L'infrastructure vit dans `lab-infra` (`proj path lab-infra`) :
+    `make why app=usine`, `make rollback app=usine sha=…`.
 - **L'image ne contient que la SPA et le relais Node.** `services/api` (FastAPI)
   **n'est déployé nulle part** : nginx proxifie `/api/*` vers le relais, qui ne
   sert que `/health` et `POST /reason`. Conséquence à connaître avant d'annoncer
