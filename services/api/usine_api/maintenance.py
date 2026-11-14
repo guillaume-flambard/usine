@@ -27,9 +27,11 @@ def run_purge(stores: Any, trash_retention_seconds: float) -> dict[str, int]:
 
 
 def main() -> None:
-    dsn = os.environ.get("DATABASE_URL", "")
+    from .settings import database_url
+
+    dsn = database_url()
     if not dsn:
-        raise SystemExit("DATABASE_URL requis pour la purge de rétention")
+        raise SystemExit("DATABASE_URL ou POSTGRES_HOST requis pour la purge de rétention")
     days = float(os.environ.get("RUN_TRASH_RETENTION_DAYS", "30"))
 
     from .postgres import PostgresStores

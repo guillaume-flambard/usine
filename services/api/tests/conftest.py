@@ -16,6 +16,9 @@ PROVIDER_ENV = (
     "BAI_MODEL",
     "OPENROUTER_API_KEY",
     "USINE_MODEL",
+    # Une base de dev lancée par le compose ne doit jamais être prise par les tests.
+    "DATABASE_URL",
+    "POSTGRES_HOST",
 )
 
 

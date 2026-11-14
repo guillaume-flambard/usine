@@ -158,9 +158,15 @@ pnpm type-check           # vue-tsc
 pnpm build                # type-check puis vite build -> apps/web/dist
 ./scripts/verify.sh       # la liste complète des contrôles (celle du builder du VPS)
 
-# le service API en local, sur le port que le proxy Vite attend
-set -a && . ./.env && set +a \
-  && uv run uvicorn usine_api.app:create_app --factory --host 127.0.0.1 --port 8000
+# l'API et Postgres (pgvector) en local, sur le port que le proxy Vite attend
+cp .env.example .env          # une fois, puis renseigner POSTGRES_PASSWORD
+docker compose up -d --wait   # api sur 127.0.0.1:8000, db sur 127.0.0.1:5432
+curl http://127.0.0.1:8000/health
+
+# les tests Postgres (ignorés sans base), contre la base du compose : poser
+# USINE_TEST_DATABASE_URL vers 127.0.0.1:5432 (utilisateur et base « usine »,
+# mot de passe celui de .env), puis :
+pnpm test:api
 ```
 
 Hooks git (lefthook, MEM-5), installés par `pnpm install` :

@@ -1,84 +1,71 @@
-# La topologie du produit, dans le dépôt.
+# Compose de développement (MEM-7) : l'API et Postgres avec pgvector.
 #
-# C'est l'invariant : ce fichier se rejoue sous l'orchestrateur actuel, sous
-# `docker compose` nu, ou sous un autre demain. Tant qu'il n'existait pas,
-# changer d'orchestrateur était une migration ; maintenant c'est un après-midi.
+#   cp .env.example .env    # puis renseigner le mot de passe de la base
+#   docker compose up -d --wait
+#   curl http://127.0.0.1:8000/health
 #
-# Trois services, et la raison de chacun :
-#   site  — nginx sert le paquet statique et le cadre isolé, et il est le seul
-#           joignable de l'extérieur.
-#   api   — le service compagnon : il porte la clé du fournisseur, les quotas,
-#           et ce qui viendra ensuite (persistance, mémoire, outils, MCP).
-#   db    — Postgres avec pgvector, pour les runs stockés et la mémoire.
+# Le front tourne hors conteneur (`pnpm dev`), et Vite proxifie /api vers
+# 127.0.0.1:8000. Langfuse et LiteLLM restent les services partagés du lab,
+# joints par les variables de .env : rien de tout cela ne tourne ici. La
+# production aura son propre compose (MEM-58).
+#
+# Les ports ne sont publiés que sur 127.0.0.1 : rien n'est exposé sur le réseau
+# local du poste.
+#
+# Le mot de passe de la base passe par un secret Compose, monté en fichier dans
+# /run/secrets/ (https://docs.docker.com/reference/compose-file/secrets/), et
+# jamais par une variable écrite ici. L'image Postgres lit `*_FILE`, et le
+# service API aussi (usine_api/settings.py).
 
 services:
-  site:
-    build:
-      context: .
-      dockerfile: deployment/Dockerfile.site
-    depends_on:
-      api:
-        condition: service_healthy
-    environment:
-      # nginx résout `api` par le DNS du réseau compose. C'est exactement ce
-      # qui manquait à l'orchestrateur précédent et qui avait produit une
-      # architecture absurde : exposer un relais publiquement pour que le
-      # nginx de la même machine puisse l'atteindre.
-      API_HOST: api
-      API_PORT: 8000
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.usine.rule=Host(`usine.memolabs.dev`)
-      - traefik.http.routers.usine.entrypoints=https
-      - traefik.http.routers.usine.tls.certresolver=letsencrypt
-      - traefik.http.services.usine.loadbalancer.server.port=80
-    restart: unless-stopped
-
-  api:
-    build:
-      context: ./services/api
-    environment:
-      # La clé ne vit que là, et n'entre jamais dans le paquet servi.
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:?la clé du fournisseur est requise}
-      USINE_MODEL: ${USINE_MODEL:-deepseek/deepseek-v4-flash}
-      USINE_ORIGIN: ${USINE_ORIGIN:-https://usine.memolabs.dev}
-      # Les morceaux, jamais la chaîne de connexion assemblée.
-      #
-      # Une chaîne de connexion assemblée porte un identifiant et un mot de
-      # passe côte à côte : elle a la forme d'un secret même quand la valeur
-      # est une variable, les scanners la signalent à raison, et un dépôt qui
-      # crie au loup sur lui-même apprend à ignorer ses propres alertes.
-      #
-      # Le service assemblera la chaîne à un seul endroit, le jour où la
-      # mémoire s'adossera vraiment à Postgres. Aujourd'hui ces valeurs sont
-      # passées et pas encore lues.
-      POSTGRES_HOST: db
-      POSTGRES_PORT: '5432'
-      POSTGRES_USER: usine
-      POSTGRES_DB: usine
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
-    depends_on:
-      db:
-        condition: service_healthy
-    # Aucun port publié : le service n'est joignable que par `site`.
-    expose:
-      - '8000'
-    restart: unless-stopped
-
   db:
     image: pgvector/pgvector:pg17
     environment:
-      POSTGRES_USER: usine
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
-      POSTGRES_DB: usine
+      POSTGRES_USER: ${POSTGRES_USER:-usine}
+      POSTGRES_DB: ${POSTGRES_DB:-usine}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    ports:
+      - '127.0.0.1:${POSTGRES_PUBLISHED_PORT:-5432}:5432'
     volumes:
-      - usine-db:/var/lib/postgresql/data
+      - usine-dev-db:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U usine -d usine']
-      interval: 10s
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
       timeout: 3s
-      retries: 5
-    restart: unless-stopped
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile.dev
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Les morceaux, jamais la chaîne de connexion assemblée : le service
+      # l'assemble à un seul endroit (usine_api/settings.py).
+      POSTGRES_HOST: db
+      POSTGRES_PORT: '5432'
+      POSTGRES_USER: ${POSTGRES_USER:-usine}
+      POSTGRES_DB: ${POSTGRES_DB:-usine}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      USINE_ORIGIN: ${USINE_ORIGIN:-http://127.0.0.1:5173}
+    secrets:
+      - postgres_password
+    ports:
+      - '127.0.0.1:${USINE_API_PORT:-8000}:8000'
+    volumes:
+      # Rechargement à chaud du code de l'API.
+      - ./services/api/usine_api:/src/services/api/usine_api:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+secrets:
+  postgres_password:
+    environment: POSTGRES_PASSWORD
 
 volumes:
-  usine-db:
+  usine-dev-db:
