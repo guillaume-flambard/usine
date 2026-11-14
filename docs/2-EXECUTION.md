@@ -1,5 +1,11 @@
 # Memo Labs — L'usine agentique · Exécution (étapes, stack, user flow)
 
+> **Historique v1.** Ce document décrit l'usine avant la refonte v2. Il est
+> gardé pour la trace des décisions, mais ne fait plus autorité là où il parle
+> de Cordis, du Web Worker, du relais Node ou du refus des frameworks. La cible
+> est fixée par `docs/adr/0001-adopter-les-frameworks-agentiques-du-marche.md`
+> (14 novembre 2026), et le backlog est dans Linear (projet « Usine v2 »).
+
 > **Mis à jour le 2026-08-20.** Ce document a été corrigé après le PRD et le spike Cordis. La version précédente prescrivait Next.js / React / Tailwind et un back Node/FastAPI : **c'était périmé**, `0-DECISIONS.md` prime et impose Vue 3 + Vite en client-only. Source de vérité désormais : `_bmad-output/planning-artifacts/prds/prd-usine-2026-08-20/prd.md`.
 
 ## Architecture en deux couches

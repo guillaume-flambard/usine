@@ -10,13 +10,33 @@ de l'**état** (pas des logs) ; le graphe live rend la divergence regardable.
 C'est la pièce phare de Memo Labs, sur `usine.memolabs.dev`. **Cible produit
 courante : `docs/7-MIGRATION.md`.**
 
+> **Refonte v2 en cours (décidée le 14 novembre 2026, ADR 0001).** L'usine est
+> reconstruite sur les frameworks agentiques les plus demandés :
+> - orchestration : LangGraph et LangChain v1 ;
+> - spécialistes interchangeables : CrewAI, OpenAI Agents SDK, Pydantic AI et
+>   Claude Agent SDK ;
+> - RAG et outils : LlamaIndex sur pgvector, MCP avec FastMCP ;
+> - modèles, traces, éval : LiteLLM, Langfuse, Ragas et DeepEval ;
+> - front : Vue 3, Nuxt UI 4 et le Vercel AI SDK.
+>
+> **Cordis est retiré.** Le time travel passe sur les checkpoints de LangGraph.
+> Décision et raisons : `docs/adr/0001-adopter-les-frameworks-agentiques-du-marche.md`.
+>
+> Le travail vit sur la branche `v2`, et `main` sert la v1 jusqu'à la bascule.
+> Le backlog est dans Linear (projet « Usine v2 : refonte agentique », issues
+> `MEM-n`). Une issue donne une branche au nom Linear, puis une PR vers `v2`.
+> Les sections de ce fichier qui parlent de Cordis, du Web Worker ou du relais
+> Node décrivent la v1.
+
 Le produit ne démontre pas « une IA qui écrit du code ». Il répond à une peur qui
 se paie cher (Gartner : >40 % des projets d'agents annulés d'ici 2027 pour
 coût/risque) : **tester le correctif d'un agent sur la vraie trajectoire qui a
 planté, en dix secondes, avant de le déployer.** La prouesse — forker, remplacer
 à chaud, revenir en arrière proprement sous une porte humaine — est la thèse de
 *A Programming Paradigm for Spatiotemporal Composability* (Shi, Zhang, Cui —
-PKU / DeepSeek-AI), dont Cordis est l'implémentation. Toute décision se juge à
+PKU / DeepSeek-AI), dont Cordis était l'implémentation en v1. En v2, la même
+primitive est portée par les checkpoints, le fork et `interrupt()` de LangGraph
+(ADR 0001). Toute décision se juge à
 l'aune de ça : si un changement rend cette démonstration moins visible ou moins
 regardable, il coûte plus qu'il ne rapporte.
 
@@ -86,9 +106,16 @@ Une seule source de vérité par domaine, comme partout ailleurs :
 | **écrire et prouver le jugement** | **l'usine** |
 
 L'usine **ne refait pas** le générateur : ce serait une seconde autorité sur la
-génération de stacks. L'usine **ne fait pas tourner** les agents du lab : ils sont
-en Python sur le VPS, elle est en TypeScript dans un navigateur, et deux familles
-d'agents qui vivent aux deux endroits est précisément le nœud qu'on évite.
+génération de stacks.
+
+En v1, l'usine ne faisait pas non plus tourner les agents du lab : ils étaient en
+Python sur le VPS, elle était en TypeScript dans un navigateur, et deux familles
+d'agents à deux endroits était précisément le nœud à éviter.
+
+**La v2 dénoue ce nœud par le haut** (ADR 0001, jalon M8). L'usine et les agents
+du lab partagent la même stack Python (LangGraph) et un socle commun.
+`lab-infra` garde la génération et l'exécution 24/7, et l'usine garde l'écriture
+et la preuve du jugement. Il n'y a plus qu'une seule famille d'agents.
 
 Ce qu'elle rend : une PR sur `lab-infra` qu'un humain approuve.
 
@@ -104,12 +131,11 @@ supposée n'a qu'une thèse.
 
 `name · path · family · status · stack · Vault note`
 
-`usine · ~/projects/active/ai/usine · Memo Labs · active · Vue 3 / TS / Vite / Cordis + services/{api,relay} · memory usine-project`
+`usine · proj:usine (~/memolabs/lab/services/usine) · Memo Labs · active · v1 : Vue 3 / TS / Vite / Cordis + services/{api,relay} ; v2 : voir ADR 0001 · Vault 1-Projects/usine.md`
 
-> Moved under `~/projects/active/ai/` by the 2026-08-22 home-map reorg; it used to
-> live at `~/usine`, and stale absolute paths from before that date still bite (a
-> venv's console scripts, for one). Own repo, cross-listed in
-> `~/projects/PROJECTS.md`.
+> Le chemin se résout avec `proj path usine`. Le registre est `~/memolabs/PROJECTS.md`.
+> `~/projects` n'existe plus depuis le 2026-10-14, et les anciens chemins absolus
+> d'avant cette date cassent encore, par exemple les scripts console d'un venv.
 
 ## Commandes
 
@@ -143,6 +169,13 @@ documentation de `services/api` (elle a été écrite en français, gardez-la
 cohérente plutôt que de la mélanger).
 
 ## Architecture, en cinq règles
+
+> **Statut v2.** Les règles 2, 4 et 5 restent valables : le flux est le format
+> d'archive, l'état du visiteur est hors du remplaçable, et un remplacement prend
+> la main ou la rend. Les règles 1 (Cordis) et 3 (Web Worker) décrivent la v1 et
+> tombent avec elle. Leurs remplaçantes, entre autres la frontière du contrat
+> `Specialist` et le bac à sable serveur du code généré, seront écrites dans
+> `docs/architecture/v2.md` (MEM-8).
 
 1. **Seul `src/runtime/` importe cordis.** Une règle ESLint le tient, et un
    test exécute le linter pour s'en assurer. Tout le reste consomme un flux

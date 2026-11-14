@@ -1,5 +1,11 @@
 # L'angle — la prouesse et son application
 
+> **Historique v1.** Ce document décrit l'usine avant la refonte v2. Il est
+> gardé pour la trace des décisions, mais ne fait plus autorité là où il parle
+> de Cordis, du Web Worker, du relais Node ou du refus des frameworks. La cible
+> est fixée par `docs/adr/0001-adopter-les-frameworks-agentiques-du-marche.md`
+> (14 novembre 2026), et le backlog est dans Linear (projet « Usine v2 »).
+
 > **Superseded le 2026-08-24 par `docs/7-MIGRATION.md`.** L'angle « l'application
 > qui mue » a servi à identifier la prouesse (hot-swap réversible + continuité
 > d'état). La cible produit est désormais **l'atelier de pré-prod qui forke la
