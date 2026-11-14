@@ -143,6 +143,11 @@ async def run_stream(
         return
 
     yield event(RunEventKind.RUN_STARTED, threadId=thread_id)
+    # One short id per node run, in order of start. Parallel specialists share
+    # the node name, so the scene (MEM-17) needs this to pair a finish with its
+    # start. LangGraph's own task ids hold a time-based checkpoint id: a
+    # recorded run must replay to the same read model, so they stay inside.
+    task_ids: dict[str, str] = {}
     answer = ""
     try:
         config = {"configurable": {"thread_id": thread_id}}
@@ -155,11 +160,13 @@ async def run_stream(
             async for chunk in stream:
                 task = chunk["data"]
                 node = task["name"]
+                task_id = task_ids.setdefault(task["id"], f"t{len(task_ids) + 1}")
                 if "input" in task:
                     payload = task["input"] if isinstance(task["input"], dict) else {}
                     yield event(
                         RunEventKind.NODE_STARTED,
                         node=node,
+                        taskId=task_id,
                         **_summary(node, payload, finished=False),
                     )
                     continue
@@ -167,12 +174,18 @@ async def run_stream(
                     raise task["error"]
                 result = task.get("result") or {}
                 yield event(
-                    RunEventKind.NODE_FINISHED, node=node, **_summary(node, result, finished=True)
+                    RunEventKind.NODE_FINISHED,
+                    node=node,
+                    taskId=task_id,
+                    **_summary(node, result, finished=True),
                 )
                 if node == SYNTHESIZE:
                     answer = str(result.get("answer", ""))
     except Exception as error:  # noqa: BLE001 - every failure becomes a readable chunk
         logger.exception("chat run failed (thread %s)", thread_id)
+        # The scene marks the nodes still running as failed from this event:
+        # a failure on screen is paid for by an event, like everything else.
+        yield event(RunEventKind.RUN_FINISHED, outcome="error")
         yield sse({"type": "error", "errorText": readable_error(error)})
         yield sse({"type": "finish", "finishReason": "error"})
         yield sse("[DONE]")
@@ -182,7 +195,7 @@ async def run_stream(
     yield sse({"type": "text-start", "id": text_id})
     yield sse({"type": "text-delta", "id": text_id, "delta": answer})
     yield sse({"type": "text-end", "id": text_id})
-    yield event(RunEventKind.RUN_FINISHED)
+    yield event(RunEventKind.RUN_FINISHED, outcome="ok")
     yield sse({"type": "finish", "finishReason": "stop"})
     yield sse("[DONE]")
 

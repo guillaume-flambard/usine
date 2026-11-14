@@ -24,3 +24,46 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* The scene's graph (MEM-17). SVG takes no utility class for fill and stroke
+   here, so its few rules live in this file, on the library's own tokens. The
+   state is also written in each node: colour is never the only signal. */
+.scene-graph {
+  flex-shrink: 0;
+}
+
+.scene-link {
+  fill: none;
+  stroke: var(--ui-border-accented);
+  stroke-width: 1.5;
+}
+
+.scene-node rect {
+  fill: var(--ui-bg-elevated);
+  stroke: var(--ui-border-accented);
+  stroke-width: 1.5;
+}
+
+.scene-node[data-node-state='running'] rect {
+  stroke: var(--ui-primary);
+  stroke-width: 2;
+}
+
+.scene-node[data-node-state='failed'] rect {
+  stroke: var(--ui-error);
+  stroke-width: 2;
+}
+
+.scene-title {
+  fill: var(--ui-text-highlighted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Toned, not muted: muted measured 4.35:1 on the elevated node in light mode,
+   under AA for 12 px text (2026-11-14). */
+.scene-state,
+.scene-detail {
+  fill: var(--ui-text-toned);
+  font-size: 12px;
+}

@@ -134,7 +134,9 @@ async def test_a_run_streams_in_protocol_order() -> None:
         ("node-finished", "synthesize"),
         ("run-finished", None),
     ]
-    assert events[2].data == {"subtasks": ["relire les portes"]}
+    assert events[2].data == {"taskId": "t1", "subtasks": ["relire les portes"]}
+    assert events[3].data["taskId"] == events[4].data["taskId"] == "t2"
+    assert events[-1].data == {"outcome": "ok"}
     assert events[4].data["specialists"] == [{"name": "fake", "framework": "test", "tokens": 5}]
     # `at` is elapsed time only, never an absolute date (CLAUDE.md, rule 2).
     assert [e.at for e in events] == sorted(e.at for e in events)
