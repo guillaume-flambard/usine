@@ -5,27 +5,104 @@ relais de raisonnement — qui existe pour garder une clé hors du navigateur.
 Sans lui, l'application tourne entièrement dans l'onglet du visiteur, en mode
 déterministe.
 
-## Comment l'usine est déployée aujourd'hui
+## Comment l'usine est déployée aujourd'hui (observé le 14 novembre 2026)
 
-En ligne sur **https://usine.memolabs.dev**, derrière Traefik, certificat
-Let's Encrypt. **Coolify a été supprimé le 2026-09-03** ; ce qui suit est la
-chaîne réelle, vérifiée le 2026-09-04.
+En ligne sur **https://usine.memolabs.dev**, derrière Traefik, avec un
+certificat Let's Encrypt. Coolify a été supprimé le 2026-09-03. Le runner GitHub
+auto-hébergé du VPS (`lab-usine`) et le workflow `build.yml` ont été retirés le
+2026-10-13, dans les PR #45 et #47, pour des raisons de sécurité : il n'y a plus
+de runner GitHub sur le VPS.
 
-**Il n'y a rien à faire à la main. Un `git push` sur `main` suffit.**
+### La chaîne réelle
 
-1. Le push déclenche `.github/workflows/build.yml` sur le runner GitHub
-   auto-hébergé du VPS (`lab-usine`).
-2. Le runner construit l'image **sur place** et la pousse dans le registre
-   local, en `127.0.0.1:5000/usine:<sha>` puis `:latest`. Construire sur la
-   machine qui sert évite un jeton : le dépôt est privé, donc son paquet GHCR
-   le serait aussi, et le VPS ne pourrait pas le tirer sans `read:packages`.
-3. `autodeploy.timer`, toutes les deux minutes, tire `:latest`, sonde le
-   conteneur, et **restaure la version précédente si la sonde échoue**.
+1. **Vérification sur GitHub.** Le workflow `.github/workflows/verify.yml`
+   tourne sur une machine hébergée par GitHub (`ubuntu-24.04`).
+2. **Construction sur le VPS par un builder de confiance.** Le timer
+   `usine-build-controller.timer` (rôle `ansible/roles/usine-builder` de
+   `lab-infra`) passe toutes les deux minutes. Il lit le SHA de `main` par l'API
+   GitHub, puis exige un run `verify.yml` **réussi, sur ce SHA exact, avec
+   l'événement `push` sur `main`**. Si c'est le cas, il clone, construit et
+   pousse `127.0.0.1:5000/usine:<sha>` puis `:latest`, avec le label
+   `org.opencontainers.image.revision`. Le dernier SHA publié est dans
+   `/var/lib/usine-builder/published.sha`.
+3. **Déploiement.** `autodeploy.timer` tire `:latest`, sonde le conteneur et
+   restaure la version précédente si la sonde échoue. La stack vit dans
+   `/opt/stacks/usine`. Son compose (`lab-infra/stacks/usine/compose.yml`) ne
+   route que `usine.memolabs.dev`.
 
-Compter environ trois minutes entre le merge et le conteneur neuf.
+### La chaîne est arrêtée depuis le 2 novembre 2026
+
+Le commit `f52872e` (« push straight to main, no PR gate ») a passé
+`verify.yml` en déclenchement manuel seul (`workflow_dispatch`). Aucun run
+`push` n'existe plus pour un SHA de `main`, donc le builder attend sans fin :
+
+```text
+usine-build-controller: WAIT: CI main not successful for f52872efad639cc4f66f00cca92b8f770a1e5504
+```
+
+Ce que la production sert vraiment le 14 novembre 2026 :
+
+| Fait | Valeur |
+|---|---|
+| Image du conteneur `usine-usine-1` | `sha256:2299d930…`, révision `0439b39` (PR #48), construite le 2026-10-20 |
+| `published.sha` du builder | `0439b39c8fc1e4ed822ea6b12a1d1e6919d6d3fb` |
+| `https://usine.memolabs.dev/` | 200 |
+| `https://usine.memolabs.dev/api/health` | 200 (relais Node) |
+| `https://usine.memolabs.dev/api/runs` | 404 : `services/api` n'est pas servi |
+| `https://atelier.memolabs.dev/` | aucune réponse TLS : l'hôte n'est pas configuré |
+
+Le seul commit de `main` non déployé ne touche que `verify.yml`, donc la
+production ne manque d'aucune fonctionnalité. Mais tout correctif poussé sur
+`main` resterait bloqué au même endroit.
+
+Les modifications locales du 12 octobre décrivaient un hôte
+`atelier.memolabs.dev` et une API sur le port 3111. Elles n'ont jamais été
+commitées ni déployées, et sont gardées sur la branche
+`sauvegarde-2026-10-12`.
+
+### Comment le vérifier soi-même
+
+```sh
+ssh lab 'journalctl -u usine-build-controller.service -n 3 --no-pager'
+ssh lab "docker inspect usine-usine-1 --format '{{index .Config.Labels \"org.opencontainers.image.revision\"}}'"
+curl -o /dev/null -w "%{http_code}\n" https://usine.memolabs.dev/api/runs
+```
+
+## La chaîne cible de la v2
+
+La v2 se construit sur la branche `v2` et ne touche pas la production avant la
+bascule (MEM-65). La cible garde ce qui a été payé en sécurité, c'est-à-dire
+aucun runner GitHub sur le VPS et un builder qui ne construit que du code
+vérifié. Elle corrige le point de rupture.
+
+1. **Staging depuis `v2`.** Le builder accepte une seconde branche, `v2`, et
+   publie `127.0.0.1:5000/usine:staging-<sha>`. Une stack `usine-staging` sert
+   `usine-staging.memolabs.dev`, derrière une authentification (MEM-59, MEM-60).
+2. **Production depuis `main`, après la bascule.** C'est le même builder, sur
+   `main`, et le même autodeploy, avec sa sonde et son rollback.
+3. **Trois services au lieu d'un** : `web`, `api` et `db` (MEM-58). La stack de
+   `lab-infra` passe du conteneur unique au compose du dépôt.
+4. **Le point de rupture à trancher dans MEM-6**, parce qu'il dépend de l'endroit
+   où tourne la CI :
+   - soit la CI tourne de nouveau sur chaque push de `main` et de `v2`, et le
+     builder garde sa règle actuelle ;
+   - soit le builder accepte un run réussi quel que soit l'événement, y compris
+     `workflow_dispatch` ;
+   - soit le builder fait passer lui-même la vérification avant la
+     construction, par une étape de test dans le Dockerfile. Dans ce cas, il ne
+     dépend plus de GitHub Actions.
+
+   La règle du lab veut une CI sur le runner du lab, jamais sur les machines
+   payantes de GitHub. Or les PR #45 et #47 ont retiré ce runner pour des raisons
+   de sécurité. Les deux sont à concilier dans MEM-6.
+
+Les changements côté `lab-infra` (rôle `usine-builder`, stack, README)
+passeront par des PR de `lab-infra`.
+
+## Outils de `lab-infra`
 
 Pour comprendre ou reprendre la main, l'infrastructure est décrite en IaC dans
-`~/projects/active/infra/lab-infra` :
+`lab-infra` (`proj path lab-infra`, soit `~/memolabs/lab/infrastructure`) :
 
 ```sh
 make status                      # l'état des stacks
