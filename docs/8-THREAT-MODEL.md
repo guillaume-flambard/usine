@@ -5,6 +5,9 @@
 > de Cordis, du Web Worker, du relais Node ou du refus des frameworks. La cible
 > est fixée par `docs/adr/0001-adopter-les-frameworks-agentiques-du-marche.md`
 > (14 novembre 2026), et le backlog est dans Linear (projet « Usine v2 »).
+>
+> **Le modèle de menace de la v2 est `docs/securite/modele-de-menace-v2.md`**
+> (OWASP Top 10 for LLM Applications 2026).
 
 Une carte de la surface d'attaque de l'atelier et de ce qui la défend. Sans
 elle, chaque durcissement est une intuition. Tenue à jour avec le code.

@@ -26,6 +26,8 @@ export default defineConfigWithVueTs(
       'no-eval': 'error',
       'no-implied-eval': 'error',
       'no-new-func': 'error',
+      // Model output is text, never markup (OWASP LLM10:2026, threat model).
+      'vue/no-v-html': 'error',
     },
   },
 
