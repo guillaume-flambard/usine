@@ -13,3 +13,5 @@ allowBuilds:
   # indécis il fait sortir `pnpm install --frozen-lockfile` en code 1 et la CI
   # tombe avant même le type-check.
   '@parcel/watcher': true
+  # Its postinstall installs the git hooks (https://lefthook.dev/installation/node/).
+  lefthook: true

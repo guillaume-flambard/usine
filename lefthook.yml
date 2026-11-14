@@ -1,0 +1,24 @@
+# Local gates (MEM-5). Same rule as the CI: one list of checks.
+# - pre-commit: fast, staged files only (format, Python lint, secrets).
+# - pre-push: the full scripts/verify.sh, the very list the VPS builder runs
+#   in Dockerfile.verify.
+# Skip in an emergency with LEFTHOOK=0, and say why in the commit.
+# Docs: https://lefthook.dev/configuration/
+pre-commit:
+  parallel: true
+  jobs:
+    - name: prettier (web)
+      glob: 'apps/web/**/*.{ts,vue,css,json}'
+      run: pnpm exec prettier --check {staged_files}
+    - name: ruff (api)
+      glob: 'services/api/**/*.py'
+      run: uv run ruff check {staged_files} && uv run ruff format --check {staged_files}
+    - name: secrets (gitleaks)
+      run: |
+        command -v gitleaks >/dev/null || { echo "gitleaks is required: brew install gitleaks"; exit 1; }
+        gitleaks git --pre-commit --staged --redact --no-banner .
+
+pre-push:
+  jobs:
+    - name: verify
+      run: ./scripts/verify.sh
