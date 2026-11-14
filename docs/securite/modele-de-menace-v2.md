@@ -48,8 +48,8 @@ valeur. En local, les valeurs sont dans `.env`, ignoré par git et par Docker.
 | Variable | Rôle | Source en dev | Source en prod |
 |---|---|---|---|
 | `POSTGRES_PASSWORD` | Mot de passe de la base | `.env`, monté en secret Compose dans `/run/secrets/postgres_password` | injecté par `lab-infra` (MEM-58) |
-| `LITELLM_API_KEY` | Clé de service vers la passerelle LiteLLM du lab | `.env` | `lab-infra` |
-| `OPENROUTER_API_KEY`, `BAI_API_KEY` | Clés de fournisseur de la v1, remplacées par LiteLLM en M1 (MEM-13) | `.env` | `lab-infra`, à retirer après MEM-13 |
+| `LITELLM_API_KEY` | Clé virtuelle `usine-lab` vers la passerelle LiteLLM du lab, limitée à `lab-fast`, `lab-agent`, `lab-code` et `code-gemini` | `.env` | `/opt/stacks/usine/.env` (mode 600) |
+| `OPENROUTER_API_KEY`, `BAI_API_KEY` | Clés de fournisseur de la v1. `services/api` ne les lit plus depuis MEM-13 ; seul le relais v1 de `main` lit encore `OPENROUTER_API_KEY` | `.env` (à retirer) | stack v1 de `lab-infra`, jusqu'à la bascule |
 | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | Traces et invites | `.env` | `lab-infra` |
 | `SMTP_PASSWORD` | Envoi du lien de connexion | `.env` (vide en dev : le lien est seulement journalisé) | `lab-infra` |
 | `GH_TOKEN` (builder) | Lire le dépôt, publier `usine/verify` | sans objet | `/etc/github.env` sur le VPS, jamais transmis à `docker build` |
