@@ -45,6 +45,7 @@ from .invites import etiqueter as etiqueter_invite_langfuse
 from .limits import Limits, RateLimiter
 from .mcp import TIMEOUT_SECONDS, McpRefusal, Server, call_tool, list_tools
 from .memory import MAX_FACT, Fact, InMemoryMemory, Memory
+from .models import model_settings
 from .portes import Absent as PortesAbsent
 from .portes import dossier as portes_dir
 from .portes import lancer as lancer_portes
@@ -52,7 +53,6 @@ from .portes import lire as read_portes
 from .portes import lister as list_portes
 from .portes import suivre as suivre_portes
 from .reasoning import (
-    BAI_REASONING_OFF,
     DEFAULT_MODEL,
     ENDPOINT,
     OPENROUTER_REASONING_OFF,
@@ -193,25 +193,21 @@ def create_app(
     tool_servers: dict[str, Server] = servers or {}
     recollection: Memory = memory if memory is not None else InMemoryMemory()
     rpc = transport if transport is not None else http_rpc
-    # Deux fournisseurs, tous deux compatibles OpenAI, et `BAI_API_KEY` décide.
-    # Ce n'est pas un réglage de plus : b.ai sert des modèles Qwen, dont
-    # l'extension qui coupe le raisonnement ne porte pas le même nom que celle
-    # d'OpenRouter. Choisir l'un sans l'autre rendrait des réponses vides.
-    #
-    # Les noms de variables sont ceux du reste du lab (`stacks/_partage/modele.py`,
-    # `stacks/llm-shim/shim.py`) plutôt que de nouveaux : une seule clé à poser,
-    # au même nom, quel que soit le service qui la lit.
-    bai_key = os.environ.get("BAI_API_KEY", "")
-    if bai_key:
-        api_key = key if key is not None else bai_key
-        base = os.environ.get("BAI_BASE_URL", "https://api.b.ai/v1").rstrip("/")
-        provider_endpoint = f"{base}/chat/completions"
-        chosen_model = model or os.environ.get("BAI_MODEL", "qwen3.8-flash")
-        reasoning_off = BAI_REASONING_OFF
+    # Le modèle passe par le LiteLLM du lab (MEM-13) : le service ne lit plus
+    # aucune clé de fournisseur, seulement la sienne auprès de LiteLLM. Le choix
+    # du modèle, le repli et le paramètre qui coupe le raisonnement suivent
+    # `usine_api.models`. Sans passerelle configurée, seule une clé injectée
+    # (tests) parle encore au point d'accès par défaut.
+    gateway = model_settings()
+    if gateway is not None:
+        api_key = key if key is not None else gateway.api_key
+        provider_endpoint = f"{gateway.base_url}/chat/completions"
+        chosen_model = model or gateway.model
+        reasoning_off = dict(gateway.extras)
     else:
-        api_key = key if key is not None else os.environ.get("OPENROUTER_API_KEY", "")
+        api_key = key or ""
         provider_endpoint = ENDPOINT
-        chosen_model = model or os.environ.get("USINE_MODEL", DEFAULT_MODEL)
+        chosen_model = model or DEFAULT_MODEL
         reasoning_off = OPENROUTER_REASONING_OFF
     site_origin = origin or os.environ.get("USINE_ORIGIN", "https://usine.memolabs.dev")
     if not api_key:

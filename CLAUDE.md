@@ -182,8 +182,11 @@ Le code v1 (front Cordis, relais Node, cadre sablé) n'est plus sur `v2`. Il
 reste lisible sur `main` (`git show main:src/...`), en attendant d'en reprendre
 des morceaux.
 
-`.env` (non versionné) porte `OPENROUTER_API_KEY`. Sans lui, le service
-s'annonce sans clé et la page rejoue un run enregistré.
+`.env` (non versionné) porte `LITELLM_BASE_URL` et `LITELLM_API_KEY`, la clé
+propre à l'usine auprès du LiteLLM du lab (MEM-13). Le service ne lit aucune clé
+de fournisseur. Sans passerelle, il s'annonce sans clé et la page rejoue un run
+enregistré. En local, la passerelle passe par un tunnel :
+`ssh -N -L 4000:127.0.0.1:4000 lab`.
 
 ## Langue
 

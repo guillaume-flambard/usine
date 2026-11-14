@@ -29,9 +29,8 @@ ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 #: ne change pas.
 #:
 #: - OpenRouter expose `reasoning.enabled`.
-#: - b.ai sert des modeles Qwen, dont l'extension est `enable_thinking`.
+#: - Par le LiteLLM du lab, c'est `enable_thinking` (voir `usine_api.models`).
 OPENROUTER_REASONING_OFF: dict[str, Any] = {"reasoning": {"enabled": False}}
-BAI_REASONING_OFF: dict[str, Any] = {"enable_thinking": False}
 
 #: Un vocabulaire plus gros que ça n'est pas un vocabulaire, c'est une charge
 #: utile déguisée.
@@ -124,7 +123,7 @@ async def reason(
         # JSON de forme fixe, pas une délibération.
         #
         # Le nom du paramètre appartient au fournisseur, pas à cette fonction :
-        # voir `OPENROUTER_REASONING_OFF` et `BAI_REASONING_OFF`.
+        # voir `OPENROUTER_REASONING_OFF` et `usine_api.models`.
         **(reasoning_off if reasoning_off is not None else OPENROUTER_REASONING_OFF),
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
