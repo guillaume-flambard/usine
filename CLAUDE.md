@@ -157,9 +157,13 @@ pnpm lint                 # oxlint + eslint (web) + ruff (api)
 pnpm type-check           # vue-tsc
 pnpm build                # type-check puis vite build -> apps/web/dist
 
-# le service API en local, sur le port que le proxy Vite attend
-set -a && . ./.env && set +a \
-  && uv run uvicorn usine_api.app:create_app --factory --host 127.0.0.1 --port 8000
+# l'API et Postgres (pgvector) en local, sur le port que le proxy Vite attend
+cp .env.example .env          # une fois, puis renseigner POSTGRES_PASSWORD
+docker compose up -d --wait   # api sur 127.0.0.1:8000, db sur 127.0.0.1:5432
+curl http://127.0.0.1:8000/health
+
+# les tests Postgres (ignorés sans base), contre la base du compose
+USINE_TEST_DATABASE_URL=postgresql://usine:<mot de passe>@127.0.0.1:5432/usine pnpm test:api
 ```
 
 Le code v1 (front Cordis, relais Node, cadre sablé) n'est plus sur `v2`. Il

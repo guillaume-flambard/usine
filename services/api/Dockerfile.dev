@@ -1,0 +1,27 @@
+# Image de développement du service API (MEM-7). L'image de production est
+# l'objet de MEM-57. Le contexte est la racine du dépôt, parce que le lock
+# Python (uv.lock) est celui de l'espace de travail.
+FROM python:3.13-slim
+
+COPY --from=ghcr.io/astral-sh/uv:0.13.7 /uv /usr/local/bin/uv
+
+ENV UV_LOCKED=1 \
+    UV_LINK_MODE=copy \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    PATH=/opt/venv/bin:$PATH
+
+WORKDIR /src
+COPY pyproject.toml uv.lock .python-version ./
+COPY services/api/pyproject.toml services/api/
+RUN uv sync --no-dev --no-install-workspace
+COPY services/api services/api
+RUN uv sync --no-dev
+
+EXPOSE 8000
+# La sonde vise 127.0.0.1, jamais localhost : un localhost résolu en IPv6 face à
+# un serveur en IPv4 a déjà produit un 404 inexplicable en production.
+HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=6 \
+  CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).status == 200 else 1)"
+
+CMD ["uvicorn", "usine_api.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", \
+     "--reload", "--reload-dir", "/src/services/api/usine_api"]

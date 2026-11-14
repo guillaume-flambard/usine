@@ -60,6 +60,7 @@ from .reasoning import (
     reason,
 )
 from .runs import InMemoryRunStore, RunStore, Stored, new_id, read_archive
+from .settings import database_url
 from .sources import SourceRefusal, catalogue, fetch_source
 from .tracing import trace_of
 
@@ -163,7 +164,7 @@ def create_app(
     # Postgres si une base est fournie et qu'aucun store n'a été injecté (les
     # tests injectent leurs impls en mémoire). Sinon on reste en mémoire, et la
     # CI n'a besoin ni de base ni d'SMTP.
-    db_url = os.environ.get("DATABASE_URL", "")
+    db_url = database_url()
     stores_needed = any(dep is None for dep in (runs, identities, tokens, sessions))
     pg = None
     if db_url and stores_needed:
