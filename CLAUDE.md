@@ -291,8 +291,9 @@ Ils sont écrits ici parce qu'aucun n'était devinable, et qu'ils reviendront.
   rendant `null` sur erreur réseau. Vérification en une commande :
   `curl -o /dev/null -w "%{http_code}" https://usine.memolabs.dev/api/runs`
   (404 = toujours pas déployé).
-- **Ne rien ajouter à `services/relay`** (Node). Il est gelé et sert la
-  production actuelle ; toute fonctionnalité va dans `services/api` (FastAPI),
+- **v1 seulement, sur `main` : ne rien ajouter à `services/relay`** (Node). Sur
+  `v2`, le relais est retiré (MEM-4) et `services/api` le remplace. Sur `main`,
+  il est gelé et sert la production ; toute fonctionnalité va dans `services/api` (FastAPI),
   au contrat HTTP identique. Le gel a **une exception, payée le 2026-09-07** :
   tant qu'il sert la production, il tient le contrat. Les deux relais avaient
   divergé — la page envoyait un vocabulaire d'outils et attendait des appels,
