@@ -93,12 +93,12 @@ def measure(archive: Archive) -> RunMeasure:
             replacements += 1
         elif kind == "tokens-spent":
             tokens += int(event.get("input") or 0) + int(event.get("output") or 0)
-        elif kind == "message-emitted":
-            # Sur le champ `kind`, jamais sur la prose. Une mesure qui
-            # chercherait un mot casserait le jour où quelqu'un reformule un
-            # message, et casserait en silence.
-            if event.get("kind") == "malformed":
-                malformed += 1
+        # Sur le champ `kind`, jamais sur la prose. Une mesure qui chercherait
+        # un mot casserait le jour où quelqu'un reformule un message, et
+        # casserait en silence. C'est la dernière branche : la fusionner en une
+        # seule condition ne change rien pour les autres genres d'événement.
+        elif kind == "message-emitted" and event.get("kind") == "malformed":
+            malformed += 1
 
     served = screen_at is not None and behaviour_at is not None
     first_usable = max(screen_at, behaviour_at) if served else None

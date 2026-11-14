@@ -1,0 +1,38 @@
+# uv workspace root. One lockfile for every Python member
+# (https://docs.astral.sh/uv/concepts/projects/workspaces/). The root itself is
+# not a package: it only gathers the members and the shared dev tools.
+[project]
+name = "usine-workspace"
+version = "0.0.0"
+requires-python = ">=3.12"
+dependencies = ["usine-api"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4",
+    "pytest-asyncio>=1.2",
+    "ruff>=0.14",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+usine-api = { workspace = true }
+
+[tool.uv.workspace]
+members = ["services/api"]
+
+[tool.pytest.ini_options]
+testpaths = ["services/api/tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+# One ruff config for the workspace: name the member packages first-party.
+known-first-party = ["usine_api", "tests"]

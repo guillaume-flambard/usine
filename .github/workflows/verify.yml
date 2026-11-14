@@ -15,6 +15,9 @@ jobs:
     # remains in build.yml and is only triggered on main.
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    # A stale uv.lock must fail the run, never be re-locked quietly.
+    env:
+      UV_LOCKED: '1'
     steps:
       - uses: actions/checkout@v4
 
@@ -43,7 +46,7 @@ jobs:
 
       # Hosted runners provision Chromium dependencies independently of the VPS.
       - name: Browsers
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm --filter @usine/web exec playwright install --with-deps chromium
 
       - name: Browser tests
         timeout-minutes: 8
@@ -55,5 +58,5 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Image
-        run: docker build -t usine-agentique .
+      # Images are rebuilt for v2 in MEM-57; until then there is no root
+      # Dockerfile to build.

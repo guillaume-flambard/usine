@@ -58,3 +58,4 @@ services/api/**/__pycache__/
 services/api/.pytest_cache/
 services/api/.ruff_cache/
 .claude/launch.json
+.venv/

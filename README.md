@@ -39,7 +39,8 @@ See [Vite Configuration Reference](https://vite.dev/config/).
 ## Project Setup
 
 ```sh
-pnpm install
+pnpm install   # Node (apps/web)
+uv sync        # Python (services/api, espace de travail uv)
 ```
 
 ### Compile and Hot-Reload for Development
@@ -63,11 +64,12 @@ pnpm lint
 ### Tests
 
 ```sh
-pnpm exec playwright install chromium   # une fois, sur un dépôt fraîchement cloné
+pnpm --filter @usine/web exec playwright install chromium   # une fois, après un clone
 
-pnpm test          # le noyau, le réducteur, les agents — sans navigateur
-pnpm test:browser  # les promesses d'interface, dans un vrai Chromium
-pnpm test:all      # les deux
+pnpm test          # tests node du front
+pnpm test:browser  # tests navigateur du front, dans un vrai Chromium
+pnpm test:api      # tests Python de services/api (uv run pytest)
+pnpm test:all      # les trois
 ```
 
 Les promesses d'interface — la page qui ne défile jamais, le parcours critique
@@ -76,10 +78,9 @@ vérifient que dans un navigateur réel. Elles ont leur propre projet de tests.
 
 ### Déploiement
 
-```sh
-docker build -t usine-agentique .
-docker run --rm -p 8080:80 usine-agentique
-```
+Les images v2 (`web`, `api`) sont reconstruites dans MEM-57 : il n'y a plus
+d'image racine sur la branche `v2`. La chaîne réelle et la cible sont dans
+`deployment/README.md`.
 
 Voir `deployment/README.md`. La politique de sécurité servie autorise
 `unsafe-eval` — et rien d'autre : les agents écrivent le code de leurs outils,

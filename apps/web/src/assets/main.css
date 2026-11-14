@@ -1,0 +1,26 @@
+/* Nuxt UI defaults, no theme yet. The product declares no colour, font or
+   radius of its own; customisation is decided later on a clean base. */
+@import 'tailwindcss';
+@import '@nuxt/ui';
+
+/* Accessibility, not taste: the library's default primary (green-500) gives
+   2.22:1 under white text. One shade per theme keeps 4.5:1 (measured in v1:
+   green-700 on white 4.94, green-400 on slate-900 10.05). */
+:root {
+  --ui-primary: var(--ui-color-primary-700);
+}
+
+.dark {
+  --ui-primary: var(--ui-color-primary-400);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

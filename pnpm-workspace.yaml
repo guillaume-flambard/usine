@@ -1,3 +1,6 @@
+packages:
+  - apps/*
+
 # Pulled in by @nuxt/ui, and both need their install script: esbuild fetches its
 # platform binary, vue-demi picks the Vue 3 entry point. Left undecided, pnpm
 # exits non-zero and every script that starts with an install check fails.
@@ -10,7 +13,3 @@ allowBuilds:
   # indécis il fait sortir `pnpm install --frozen-lockfile` en code 1 et la CI
   # tombe avant même le type-check.
   '@parcel/watcher': true
-
-minimumReleaseAgeExclude:
-  - '@rolldown/binding-darwin-x64@1.2.5'
-  - '@rolldown/binding-linux-arm64-gnu@1.2.5'
