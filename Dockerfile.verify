@@ -16,7 +16,15 @@ COPY --from=ghcr.io/astral-sh/uv:0.13.7 /uv /uvx /usr/local/bin/
 ENV CI=1 \
     UV_LOCKED=1 \
     UV_PYTHON_INSTALL_DIR=/opt/uv-python \
-    VITE_CONFIG_NATIVE_IGNORE_WARNING=true
+    VITE_CONFIG_NATIVE_IGNORE_WARNING=true \
+    USINE_VERIFY_PG=1
+
+# A throwaway Postgres for the integration tests (checkpointer, stores). It is
+# started by scripts/verify.sh inside this build and dies with it. The tests need
+# plain Postgres, not pgvector.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends postgresql \
+ && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable
 WORKDIR /src
