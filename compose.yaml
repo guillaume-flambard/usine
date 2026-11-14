@@ -1,6 +1,6 @@
 # Compose de développement (MEM-7) : l'API et Postgres avec pgvector.
 #
-#   cp .env.example .env    # puis renseigner POSTGRES_PASSWORD
+#   cp .env.example .env    # puis renseigner le mot de passe de la base
 #   docker compose up -d --wait
 #   curl http://127.0.0.1:8000/health
 #
@@ -11,6 +11,11 @@
 #
 # Les ports ne sont publiés que sur 127.0.0.1 : rien n'est exposé sur le réseau
 # local du poste.
+#
+# Le mot de passe de la base passe par un secret Compose, monté en fichier dans
+# /run/secrets/ (https://docs.docker.com/reference/compose-file/secrets/), et
+# jamais par une variable écrite ici. L'image Postgres lit `*_FILE`, et le
+# service API aussi (usine_api/settings.py).
 
 services:
   db:
@@ -18,7 +23,9 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-usine}
       POSTGRES_DB: ${POSTGRES_DB:-usine}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?renseigner POSTGRES_PASSWORD dans .env}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
     ports:
       - '127.0.0.1:${POSTGRES_PUBLISHED_PORT:-5432}:5432'
     volumes:
@@ -43,8 +50,10 @@ services:
       POSTGRES_PORT: '5432'
       POSTGRES_USER: ${POSTGRES_USER:-usine}
       POSTGRES_DB: ${POSTGRES_DB:-usine}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?renseigner POSTGRES_PASSWORD dans .env}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       USINE_ORIGIN: ${USINE_ORIGIN:-http://127.0.0.1:5173}
+    secrets:
+      - postgres_password
     ports:
       - '127.0.0.1:${USINE_API_PORT:-8000}:8000'
     volumes:
@@ -53,6 +62,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+secrets:
+  postgres_password:
+    environment: POSTGRES_PASSWORD
 
 volumes:
   usine-dev-db:

@@ -162,8 +162,10 @@ cp .env.example .env          # une fois, puis renseigner POSTGRES_PASSWORD
 docker compose up -d --wait   # api sur 127.0.0.1:8000, db sur 127.0.0.1:5432
 curl http://127.0.0.1:8000/health
 
-# les tests Postgres (ignorés sans base), contre la base du compose
-USINE_TEST_DATABASE_URL=postgresql://usine:<mot de passe>@127.0.0.1:5432/usine pnpm test:api
+# les tests Postgres (ignorés sans base), contre la base du compose : poser
+# USINE_TEST_DATABASE_URL vers 127.0.0.1:5432 (utilisateur et base « usine »,
+# mot de passe celui de .env), puis :
+pnpm test:api
 ```
 
 Le code v1 (front Cordis, relais Node, cadre sablé) n'est plus sur `v2`. Il
