@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.app.json",
+  "include": ["env.d.ts", "src/**/*", "src/**/*.vue", "src/**/*.spec.ts"],
+  "exclude": [],
+  "compilerOptions": {
+    "types": ["node", "vitest/globals", "@vitest/browser-playwright"],
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.vitest.tsbuildinfo"
+  }
+}

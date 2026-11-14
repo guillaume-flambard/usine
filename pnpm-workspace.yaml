@@ -1,3 +1,6 @@
+packages:
+  - apps/*
+
 # Pulled in by @nuxt/ui, and both need their install script: esbuild fetches its
 # platform binary, vue-demi picks the Vue 3 entry point. Left undecided, pnpm
 # exits non-zero and every script that starts with an install check fails.

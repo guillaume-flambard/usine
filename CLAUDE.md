@@ -139,21 +139,32 @@ supposée n'a qu'une thèse.
 
 ## Commandes
 
-```sh
-pnpm dev                # le front, port 5173 (ou le suivant libre)
-pnpm test               # la suite node
-pnpm test:browser       # la suite navigateur (Playwright, lente : ~90 s)
-pnpm test:api           # la suite Python
-pnpm test:all           # les trois
-pnpm lint               # eslint + oxlint + ruff
-pnpm type-check         # vue-tsc
-pnpm build              # deux entrées : index.html et sandbox.html
+Structure v2 (MEM-4) :
 
-# le service compagnon, en local, sur le port que le proxy Vite attend
-cd services/api && set -a && . ../../.env && set +a \
-  && uv run --extra dev uvicorn usine_api.app:create_app --factory \
-     --host 127.0.0.1 --port 3111
+- `apps/web` est le front (Vue 3, Vite, Nuxt UI 4), un paquet pnpm.
+- `services/api` est le service FastAPI, membre d'un espace de travail uv.
+- `pyproject.toml` et `uv.lock` sont à la racine, et les outils Python de
+  développement (pytest, ruff) y sont dans le groupe `dev`.
+
+```sh
+pnpm install && uv sync   # dépendances Node et Python
+pnpm dev                  # le front, port 5173 ; /api proxifié vers 127.0.0.1:8000
+pnpm test                 # tests node du front
+pnpm test:browser         # tests navigateur du front (Playwright)
+pnpm test:api             # tests Python (uv run pytest)
+pnpm test:all             # les trois
+pnpm lint                 # oxlint + eslint (web) + ruff (api)
+pnpm type-check           # vue-tsc
+pnpm build                # type-check puis vite build -> apps/web/dist
+
+# le service API en local, sur le port que le proxy Vite attend
+set -a && . ./.env && set +a \
+  && uv run uvicorn usine_api.app:create_app --factory --host 127.0.0.1 --port 8000
 ```
+
+Le code v1 (front Cordis, relais Node, cadre sablé) n'est plus sur `v2`. Il
+reste lisible sur `main` (`git show main:src/...`), en attendant d'en reprendre
+des morceaux.
 
 `.env` (non versionné) porte `OPENROUTER_API_KEY`. Sans lui, le service
 s'annonce sans clé et la page rejoue un run enregistré.
