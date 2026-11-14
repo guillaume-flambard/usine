@@ -156,11 +156,21 @@ pnpm test:all             # les trois
 pnpm lint                 # oxlint + eslint (web) + ruff (api)
 pnpm type-check           # vue-tsc
 pnpm build                # type-check puis vite build -> apps/web/dist
+./scripts/verify.sh       # la liste complète des contrôles (celle du builder du VPS)
 
 # le service API en local, sur le port que le proxy Vite attend
 set -a && . ./.env && set +a \
   && uv run uvicorn usine_api.app:create_app --factory --host 127.0.0.1 --port 8000
 ```
+
+Hooks git (lefthook, MEM-5), installés par `pnpm install` :
+
+- **pre-commit**, sur les fichiers indexés : prettier pour le front, ruff pour
+  l'API, et gitleaks contre les secrets. gitleaks doit être installé :
+  `brew install gitleaks`.
+- **pre-push** : `./scripts/verify.sh` en entier.
+
+`LEFTHOOK=0` les saute, en cas d'urgence seulement, et le commit dit pourquoi.
 
 Le code v1 (front Cordis, relais Node, cadre sablé) n'est plus sur `v2`. Il
 reste lisible sur `main` (`git show main:src/...`), en attendant d'en reprendre
