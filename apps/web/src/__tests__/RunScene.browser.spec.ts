@@ -24,8 +24,8 @@ const finished = (name: string, id: string, at: number, data = {}): RunEventPayl
   data: { taskId: id, ...data },
 })
 
-function mount(model: RunReadModel) {
-  return render(RunScene, { props: { model }, global: { plugins: [ui] } })
+async function mount(model: RunReadModel) {
+  return await render(RunScene, { props: { model }, global: { plugins: [ui] } })
 }
 
 const nodeText = (state: string) =>
@@ -33,7 +33,7 @@ const nodeText = (state: string) =>
 
 describe('RunScene', () => {
   it('says every state in words, never by colour alone', async () => {
-    mount(
+    await mount(
       replay([
         { kind: 'run-started', at: 0, data: {} },
         started('supervisor', 't1', 0.1),
@@ -56,7 +56,10 @@ describe('RunScene', () => {
 
   it('draws 200 events as they arrive without a long frame', async () => {
     const model = ref<RunReadModel>(EMPTY_RUN)
-    const screen = render(RunScene, { props: { model: model.value }, global: { plugins: [ui] } })
+    const screen = await render(RunScene, {
+      props: { model: model.value },
+      global: { plugins: [ui] },
+    })
     const events: RunEventPayload[] = [{ kind: 'run-started', at: 0, data: {} }]
     let at = 0
     events.push(started('supervisor', 't1', (at += 0.01)))

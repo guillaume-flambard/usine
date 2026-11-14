@@ -19,7 +19,11 @@
 
 services:
   db:
-    image: pgvector/pgvector:pg17
+    # Postgres 18: its image moved the volume from /var/lib/postgresql/data to
+    # /var/lib/postgresql (PGDATA is now /var/lib/postgresql/18/docker), and a
+    # 17 data directory does not start under 18. Hence a new volume name: the
+    # old `usine-dev-db` is left as it was, to delete by hand once unneeded.
+    image: pgvector/pgvector:pg18
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-usine}
       POSTGRES_DB: ${POSTGRES_DB:-usine}
@@ -29,7 +33,7 @@ services:
     ports:
       - '127.0.0.1:${POSTGRES_PUBLISHED_PORT:-5432}:5432'
     volumes:
-      - usine-dev-db:/var/lib/postgresql/data
+      - usine-dev-db-18:/var/lib/postgresql
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
       interval: 5s
@@ -68,4 +72,4 @@ secrets:
     environment: POSTGRES_PASSWORD
 
 volumes:
-  usine-dev-db:
+  usine-dev-db-18:

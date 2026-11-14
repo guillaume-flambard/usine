@@ -1,6 +1,6 @@
 # Le service compagnon. Une seule étape : il n'y a rien à compiler, et une
 # image de build séparée coûterait plus qu'elle ne gagne.
-FROM python:3.13-slim
+FROM python:3.15-slim
 
 # `uv` plutôt que pip : le verrou est le même que celui utilisé en local, donc
 # l'image installe exactement ce que les tests ont vu.

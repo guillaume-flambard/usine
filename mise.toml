@@ -1,0 +1,3 @@
+# Toolchain of the repo: the latest stable releases (Node LTS, Python), read by mise.
+[tools]
+node = "26.13.1"

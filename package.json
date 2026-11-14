@@ -17,10 +17,10 @@
   },
   "devDependencies": {
     "lefthook": "^2.2.2",
-    "prettier": "3.9.5"
+    "prettier": "3.10.1"
   },
   "engines": {
-    "node": "^22.18.0 || >=24.12.0"
+    "node": ">=26.13.0"
   },
-  "packageManager": "pnpm@11.22.0"
+  "packageManager": "pnpm@12.18.0"
 }

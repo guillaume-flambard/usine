@@ -29,7 +29,7 @@ function controlledStream() {
   }
 }
 
-function setup() {
+async function setup() {
   const stream = controlledStream()
   const requests: unknown[] = []
   let respond!: () => void
@@ -47,7 +47,7 @@ function setup() {
       })
     },
   })
-  const screen = render(ChatPanel, {
+  const screen = await render(ChatPanel, {
     props: { transport },
     global: { plugins: [createAppRouter(), ui] },
   })
@@ -65,7 +65,7 @@ async function send(text: string) {
 
 describe('ChatPanel states', () => {
   it('starts empty and ready, with a 16 px field', async () => {
-    setup()
+    await setup()
     await expect.poll(state).toBe('ready')
     expect(document.querySelector('[data-empty]')).not.toBeNull()
     // No run, no scene: nothing is drawn ahead of an event (MEM-17).
@@ -82,7 +82,7 @@ describe('ChatPanel states', () => {
   })
 
   it('goes submitted, streaming, then ready, and shows the answer', async () => {
-    const { stream, requests, respond } = setup()
+    const { stream, requests, respond } = await setup()
     await send('relire les portes')
 
     await expect.poll(state).toBe('submitted')
@@ -125,7 +125,7 @@ describe('ChatPanel states', () => {
   })
 
   it('shows a model error as a readable alert', async () => {
-    const { stream, respond } = setup()
+    const { stream, respond } = await setup()
     await send('une tâche')
     respond()
     stream.send({ type: 'start', messageId: 'a1' })
@@ -145,7 +145,7 @@ describe('ChatPanel states', () => {
   })
 
   it('stops a run on demand', async () => {
-    const { stream, respond } = setup()
+    const { stream, respond } = await setup()
     await send('attendre')
     respond()
     stream.send({ type: 'start', messageId: 'a1' })
@@ -165,15 +165,15 @@ describe('ChatPanel states', () => {
 })
 
 describe('ChatPanel when the service itself fails', () => {
-  function mountWith(fetchImpl: typeof fetch) {
-    return render(ChatPanel, {
+  async function mountWith(fetchImpl: typeof fetch) {
+    return await render(ChatPanel, {
       props: { transport: chatTransport(fetchImpl) },
       global: { plugins: [createAppRouter(), ui] },
     })
   }
 
   it('says in French that the service is unreachable', async () => {
-    mountWith(async () => {
+    await mountWith(async () => {
       throw new TypeError('Failed to fetch')
     })
     await send('une tâche')
@@ -184,7 +184,7 @@ describe('ChatPanel when the service itself fails', () => {
   })
 
   it('says in French that the service answered an HTTP error', async () => {
-    mountWith(async () => new Response('Bad Gateway', { status: 502 }))
+    await mountWith(async () => new Response('Bad Gateway', { status: 502 }))
     await send('une tâche')
     await expect.poll(state).toBe('error')
     expect(document.querySelector('[data-chat-error]')?.textContent).toContain('erreur 502')
