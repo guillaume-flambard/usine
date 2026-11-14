@@ -58,6 +58,20 @@ describe('run read model', () => {
     expect(model.nodes.find((n) => n.name === 'supervisor')?.state).toBe('finished')
   })
 
+  it('a run stopped on a human gate waits, with its actions and the reminder', async () => {
+    const model = replay(await recordedEvents('gate.sse'))
+    expect(model.status).toBe('waiting')
+    expect(model.nodes.find((n) => n.name === 'human_gate')?.state).toBe('waiting')
+    expect(model.gate?.actions).toEqual([
+      expect.objectContaining({ kind: 'send', target: '#annonces' }),
+    ])
+    expect(model.gate?.notice).toMatch(/pas le monde/)
+    expect(model.edges).toContainEqual({
+      from: model.nodes.find((n) => n.name === 'synthesize')!.id,
+      to: model.nodes.find((n) => n.name === 'human_gate')!.id,
+    })
+  })
+
   it('nothing exists before an event says so', () => {
     const model = replay([])
     expect(model).toMatchObject({ status: 'idle', nodes: [], edges: [] })

@@ -15,16 +15,20 @@ import logging
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
+from langgraph.types import Command
 from pydantic import BaseModel
 
 from .audit import AuditLog, InMemoryAuditLog
 from .chat_stream import STREAM_HEADERS, ChatMessage, ChatRequest, no_model_stream, run_stream
 from .checkpoints import open_checkpointer
+from .contracts import GateDecision
+from .contracts import action as action_contract
 from .erasure import Erasure, erasure_for
 from .evaluation import evaluate, measure
 from .flotte import lire as lire_flotte
@@ -369,13 +373,61 @@ def create_app(
             raise HTTPException(status_code=422, detail="Curseur illisible.") from error
         return RunPage(items=items, next_cursor=next_cursor)
 
+    async def pending_gate(request: Request, thread_id: str) -> Any:
+        """L'état du thread s'il attend une décision humaine (MEM-20), sinon None."""
+        graph = getattr(request.app.state, "chat_graph", None)
+        if graph is None:
+            return None
+        state = await graph.aget_state({"configurable": {"thread_id": thread_id}})
+        return state if state.interrupts else None
+
     @app.get("/api/runs/{thread_id}", response_model=RunDetail, tags=["runs"])
-    def open_thread(thread_id: str, request: Request) -> RunDetail:
-        """Un run et ses tours : brief, réponse et événements, pour rejouer la scène."""
+    async def open_thread(thread_id: str, request: Request) -> RunDetail:
+        """Un run et ses tours : brief, réponse et événements, pour rejouer la scène.
+
+        Un run qui attend une décision porte `status: waiting` et sa porte (`gate`).
+        """
         detail = index.get(thread_id, viewer_org(request))
         if detail is None:
             raise HTTPException(status_code=404, detail="Run introuvable.")
+        waiting = await pending_gate(request, thread_id)
+        if waiting is not None:
+            return detail.model_copy(update={"gate": waiting.interrupts[0].value})
         return detail
+
+    @app.post("/api/runs/{thread_id}/gate", tags=["runs"])
+    async def decide_gate(thread_id: str, decision: GateDecision, request: Request) -> Response:
+        """Répond à la porte humaine : approuver, rejeter avec un motif, ou modifier puis approuver.
+
+        Passé le délai (24 h), toute décision compte comme un rejet : une action
+        irréversible ne part jamais sur une approbation périmée.
+        """
+        owner = viewer_org(request)
+        if index.get(thread_id, owner) is None:
+            raise HTTPException(status_code=404, detail="Run introuvable.")
+        waiting = await pending_gate(request, thread_id)
+        if waiting is None:
+            raise HTTPException(status_code=409, detail="Ce run n'attend aucune décision.")
+        opened = datetime.fromisoformat(waiting.created_at)
+        if (datetime.now(UTC) - opened).total_seconds() > action_contract.GATE_TIMEOUT_SECONDS:
+            decision = GateDecision(decision="reject", reason="Délai dépassé : la porte a expiré.")
+        brief = str(waiting.values.get("brief", ""))
+        body = ChatRequest(
+            id=thread_id,
+            messages=[ChatMessage(role="user", parts=[{"type": "text", "text": brief}])],
+        )
+        who = identity_of(request)
+        return StreamingResponse(
+            run_stream(
+                request.app.state.chat_graph,
+                body,
+                user_id=who.account.id if who is not None else None,
+                index=index,
+                owner=owner,
+                command=Command(resume=decision.model_dump(mode="json")),
+            ),
+            headers=STREAM_HEADERS,
+        )
 
     @app.post("/api/runs/{thread_id}/resume", tags=["runs"])
     async def resume_thread(thread_id: str, request: Request) -> Response:
@@ -386,6 +438,11 @@ def create_app(
         if graph is None:
             return StreamingResponse(no_model_stream(), headers=STREAM_HEADERS)
         state = await graph.aget_state({"configurable": {"thread_id": thread_id}})
+        if state.interrupts:
+            raise HTTPException(
+                status_code=409,
+                detail="Ce run attend une décision : POST /api/runs/{id}/gate.",
+            )
         if not state.next:
             raise HTTPException(status_code=409, detail="Ce run n'a rien à reprendre.")
         brief = str(state.values.get("brief", ""))

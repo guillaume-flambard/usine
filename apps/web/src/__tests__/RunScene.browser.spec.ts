@@ -54,6 +54,37 @@ describe('RunScene', () => {
     expect(document.querySelector('desc')?.textContent).toContain('Spécialiste (b) : en erreur')
   })
 
+  it('shows a waiting gate with its actions and says a rollback undoes nothing outside', async () => {
+    await mount(
+      replay([
+        { kind: 'run-started', at: 0, data: {} },
+        started('synthesize', 't1', 0.1),
+        finished('synthesize', 't1', 0.2),
+        started('human_gate', 't2', 0.3),
+        {
+          kind: 'gate-opened',
+          at: 0.3,
+          node: 'human_gate',
+          data: {
+            taskId: 't2',
+            gate: {
+              actions: [
+                { kind: 'send', target: '#annonces', justification: 'publier', preview: 'v2' },
+              ],
+              notice: "Revenir en arrière restaure l'état du run, pas le monde.",
+            },
+          },
+        },
+      ]),
+    )
+    await expect.poll(() => nodeText('waiting')[0] ?? '').toContain('⏸ en attente')
+    expect(document.querySelector('[data-scene-status]')?.textContent).toContain(
+      'En attente de votre décision',
+    )
+    expect(document.querySelector('[data-gate]')?.textContent).toContain('Envoi vers #annonces')
+    expect(document.querySelector('[data-gate-notice]')?.textContent).toContain('pas le monde')
+  })
+
   it('draws 200 events as they arrive without a long frame', async () => {
     const model = ref<RunReadModel>(EMPTY_RUN)
     const screen = await render(RunScene, {

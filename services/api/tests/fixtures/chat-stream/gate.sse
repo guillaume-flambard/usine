@@ -1,0 +1,30 @@
+data: {"type": "start", "messageId": "id-1", "messageMetadata": {"threadId": "chat-1"}}
+
+data: {"type": "data-run-event", "data": {"kind": "run-started", "at": 0.25, "node": null, "data": {"threadId": "chat-1"}}}
+
+data: {"type": "data-run-event", "data": {"kind": "node-started", "at": 0.5, "node": "supervisor", "data": {"taskId": "t1"}}}
+
+data: {"type": "data-run-event", "data": {"kind": "node-finished", "at": 0.75, "node": "supervisor", "data": {"taskId": "t1", "subtasks": ["publier"]}}}
+
+data: {"type": "data-run-event", "data": {"kind": "node-started", "at": 1.0, "node": "specialist", "data": {"taskId": "t2", "task": "publier"}}}
+
+data: {"type": "data-run-event", "data": {"kind": "node-finished", "at": 1.25, "node": "specialist", "data": {"taskId": "t2", "specialists": [{"name": "fake", "framework": "test", "tokens": 1}]}}}
+
+data: {"type": "data-run-event", "data": {"kind": "node-started", "at": 1.5, "node": "synthesize", "data": {"taskId": "t3"}}}
+
+data: {"type": "data-run-event", "data": {"kind": "node-finished", "at": 1.75, "node": "synthesize", "data": {"taskId": "t3", "proposed": 1}}}
+
+data: {"type": "data-run-event", "data": {"kind": "node-started", "at": 2.0, "node": "human_gate", "data": {"taskId": "t4"}}}
+
+data: {"type": "data-run-event", "data": {"kind": "gate-opened", "at": 2.25, "node": "human_gate", "data": {"taskId": "t4", "gate": {"actions": [{"kind": "send", "target": "#annonces", "justification": "publier", "preview": "v2 est sortie"}], "notice": "Revenir en arrière restaure l'état du run, pas le monde : une action déjà exécutée (un envoi, une écriture, une PR) n'est pas défaite.", "expires_after_seconds": 86400}}}}
+
+data: {"type": "text-start", "id": "id-2"}
+
+data: {"type": "text-delta", "id": "id-2", "delta": "fait : publier"}
+
+data: {"type": "text-end", "id": "id-2"}
+
+data: {"type": "finish", "finishReason": "other"}
+
+data: [DONE]
+

@@ -259,3 +259,32 @@ async def test_a_client_disconnect_cancels_the_run() -> None:
 @pytest.mark.parametrize("name", ["ok.sse", "model-error.sse"])
 def test_fixtures_end_with_done(name: str) -> None:
     assert (FIXTURES / name).read_text(encoding="utf-8").endswith("data: [DONE]\n\n")
+
+
+class ProposingSpecialist:
+    async def run(self, task: SpecialistInput) -> SpecialistOutput:
+        from usine_api.contracts import ProposedAction
+
+        action = ProposedAction(
+            kind="send", target="#annonces", justification="publier", preview="v2 est sortie"
+        )
+        return SpecialistOutput(
+            answer="fait : publier", identity=IDENTITY, tokens=1, tool_calls=0, actions=(action,)
+        )
+
+
+async def test_a_gate_stops_the_stream_waiting_for_a_decision() -> None:
+    # Recorded for the web read model (MEM-20): the run stops on the human gate.
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    graph = build_graph(
+        FakePlanner(["publier"]), ProposingSpecialist(), checkpointer=InMemorySaver()
+    )
+    body = await collect(graph, request("publier"))
+    check_fixture("gate.sse", body)
+
+    parts = chunks(body)
+    kinds = [p["data"]["kind"] for p in parts if p["type"] == "data-run-event"]
+    assert kinds[-1] == "gate-opened"
+    assert "run-finished" not in kinds
+    assert parts[-1] == {"type": "finish", "finishReason": "other"}

@@ -22,7 +22,7 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 from pydantic import BaseModel, Field
 
-RunStatus = Literal["running", "done", "error"]
+RunStatus = Literal["running", "waiting", "done", "error"]
 TITLE_LENGTH = 80
 
 
@@ -42,6 +42,8 @@ class RunSummary(BaseModel):
 
 class RunDetail(RunSummary):
     history: list[RunTurn]
+    # The pending human gate (MEM-20), when the run waits for a decision.
+    gate: dict[str, Any] | None = None
 
 
 def title_of(brief: str) -> str:

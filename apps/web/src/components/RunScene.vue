@@ -15,17 +15,27 @@ const NAMES: Record<string, string> = {
   supervisor: 'Superviseur',
   specialist: 'Spécialiste',
   synthesize: 'Synthèse',
+  human_gate: 'Porte humaine',
+  act: 'Action',
 }
 const STATES: Record<NodeState, { sign: string; label: string }> = {
   running: { sign: '…', label: 'en cours' },
+  waiting: { sign: '⏸', label: 'en attente' },
   finished: { sign: '✓', label: 'terminé' },
   failed: { sign: '✕', label: 'en erreur' },
 }
 const RUN_STATUS: Record<RunReadModel['status'], string> = {
   idle: 'Aucun run',
   running: 'Run en cours',
+  waiting: 'En attente de votre décision',
   finished: 'Run terminé',
   failed: 'Run en erreur',
+}
+
+const ACTION_KINDS: Record<string, string> = {
+  external_write: 'Écriture externe',
+  send: 'Envoi',
+  pull_request: 'Pull request',
 }
 
 const placed = computed(() => layoutRun(props.model.nodes, props.model.edges))
@@ -70,6 +80,20 @@ const description = computed(() =>
       }}
       · {{ model.at.toFixed(1) }} s
     </p>
+    <div
+      v-if="model.gate && model.status === 'waiting'"
+      class="flex flex-col gap-1 rounded-md border border-default p-3 text-sm"
+      data-gate
+    >
+      <p class="font-medium">Action proposée, en attente de votre décision :</p>
+      <ul class="list-disc pl-5">
+        <li v-for="action in model.gate.actions" :key="`${action.kind}-${action.target}`">
+          {{ ACTION_KINDS[action.kind] ?? action.kind }} vers {{ action.target }} :
+          {{ action.justification }}
+        </li>
+      </ul>
+      <p class="text-toned" data-gate-notice>{{ model.gate.notice }}</p>
+    </div>
     <!-- Drawn at its real size and scrolled if needed: scaled down to fit the
          column, 14 px text fell to about 9 px (measured on 2026-11-14). -->
     <svg

@@ -8,7 +8,7 @@
  */
 import type { RunEventPayload } from '../contracts/ui-stream'
 
-export type NodeState = 'running' | 'finished' | 'failed'
+export type NodeState = 'running' | 'waiting' | 'finished' | 'failed'
 
 export interface RunNode {
   /** The short task id the service gives each node run (t1, t2...). */
@@ -32,10 +32,19 @@ export interface RunEdge {
   to: string
 }
 
-export type RunStatus = 'idle' | 'running' | 'finished' | 'failed'
+export type RunStatus = 'idle' | 'running' | 'waiting' | 'finished' | 'failed'
+
+/** A human gate (MEM-20): what is proposed, and the reminder shown with it. */
+export interface GateView {
+  actions: { kind: string; target: string; justification: string; preview: string }[]
+  notice: string
+  decision?: string
+  reason?: string
+}
 
 export interface RunReadModel {
   status: RunStatus
+  gate?: GateView
   nodes: RunNode[]
   edges: RunEdge[]
   /** Seconds since the start of the run, at the last event. */
@@ -48,6 +57,8 @@ export const EMPTY_RUN: RunReadModel = { status: 'idle', nodes: [], edges: [], a
 const SUPERVISOR = 'supervisor'
 const SPECIALIST = 'specialist'
 const SYNTHESIZE = 'synthesize'
+const HUMAN_GATE = 'human_gate'
+const ACT = 'act'
 
 function taskId(event: RunEventPayload): string | undefined {
   const value = event.data?.taskId
@@ -63,6 +74,10 @@ function edgesFor(nodes: RunNode[]): RunEdge[] {
     if (supervisor) edges.push({ from: supervisor.id, to: node.id })
     if (synthesize) edges.push({ from: node.id, to: synthesize.id })
   }
+  const gate = nodes.find((n) => n.name === HUMAN_GATE)
+  const act = nodes.find((n) => n.name === ACT)
+  if (synthesize && gate) edges.push({ from: synthesize.id, to: gate.id })
+  if (gate && act) edges.push({ from: gate.id, to: act.id })
   return edges
 }
 
@@ -103,6 +118,31 @@ export function reduceRun(model: RunReadModel, event: RunEventPayload): RunReadM
         }
       })
       return { ...base, nodes }
+    }
+    case 'gate-opened': {
+      const request = (data.gate ?? {}) as Partial<GateView>
+      const nodes = model.nodes.map((n): RunNode =>
+        n.id === id ? { ...n, state: 'waiting', finishedAt: undefined } : n,
+      )
+      return {
+        ...base,
+        nodes,
+        status: 'waiting',
+        gate: { actions: request.actions ?? [], notice: request.notice ?? '' },
+      }
+    }
+    case 'gate-decided': {
+      const nodes = model.nodes.map((n): RunNode =>
+        n.id === id ? { ...n, state: 'finished', finishedAt: event.at } : n,
+      )
+      const gate = model.gate
+        ? {
+            ...model.gate,
+            decision: String(data.decision ?? ''),
+            ...(typeof data.reason === 'string' ? { reason: data.reason } : {}),
+          }
+        : undefined
+      return { ...base, nodes, status: 'running', ...(gate ? { gate } : {}) }
     }
     case 'reasoning-started':
     case 'reasoning-settled': {

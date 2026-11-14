@@ -8,11 +8,17 @@ graph TD;
 	supervisor(supervisor)
 	specialist(specialist)
 	synthesize(synthesize)
+	human_gate(human_gate)
+	act(act)
 	__end__([<p>__end__</p>]):::last
 	__start__ --> supervisor;
+	human_gate -.-> __end__;
+	human_gate -.-> act;
 	specialist --> synthesize;
 	supervisor -.-> specialist;
-	synthesize --> __end__;
+	synthesize -.-> __end__;
+	synthesize -.-> human_gate;
+	act --> __end__;
 	classDef default fill:#f2f0ff,line-height:1.2
 	classDef first fill-opacity:0
 	classDef last fill:#bfb6fc

@@ -79,6 +79,51 @@
         "title": "ChatRequest",
         "type": "object"
       },
+      "GateDecision": {
+        "additionalProperties": false,
+        "description": "Approve, reject with a reason, or edit the actions then approve them.",
+        "properties": {
+          "actions": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ProposedAction"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actions"
+          },
+          "decision": {
+            "enum": [
+              "approve",
+              "reject",
+              "edit"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "title": "GateDecision",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -92,12 +137,62 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "ProposedAction": {
+        "additionalProperties": false,
+        "properties": {
+          "justification": {
+            "minLength": 1,
+            "title": "Justification",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "external_write",
+              "send",
+              "pull_request"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "preview": {
+            "description": "What would leave the runtime: a diff, a message.",
+            "title": "Preview",
+            "type": "string"
+          },
+          "target": {
+            "description": "Named target, never an address.",
+            "minLength": 1,
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "target",
+          "justification",
+          "preview"
+        ],
+        "title": "ProposedAction",
+        "type": "object"
+      },
       "RunDetail": {
         "properties": {
           "created_at": {
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "gate": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gate"
           },
           "history": {
             "items": {
@@ -109,6 +204,7 @@
           "status": {
             "enum": [
               "running",
+              "waiting",
               "done",
               "error"
             ],
@@ -177,6 +273,7 @@
           "status": {
             "enum": [
               "running",
+              "waiting",
               "done",
               "error"
             ],
@@ -460,7 +557,7 @@
         ]
       },
       "get": {
-        "description": "Un run et ses tours : brief, réponse et événements, pour rejouer la scène.",
+        "description": "Un run et ses tours : brief, réponse et événements, pour rejouer la scène.\n\nUn run qui attend une décision porte `status: waiting` et sa porte (`gate`).",
         "operationId": "open_thread_api_runs__thread_id__get",
         "parameters": [
           {
@@ -496,6 +593,57 @@
           }
         },
         "summary": "Open Thread",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/api/runs/{thread_id}/gate": {
+      "post": {
+        "description": "Répond à la porte humaine : approuver, rejeter avec un motif, ou modifier puis approuver.\n\nPassé le délai (24 h), toute décision compte comme un rejet : une action\nirréversible ne part jamais sur une approbation périmée.",
+        "operationId": "decide_gate_api_runs__thread_id__gate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "title": "Thread Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GateDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Decide Gate",
         "tags": [
           "runs"
         ]
