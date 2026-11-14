@@ -19,7 +19,9 @@ class Plan(BaseModel):
 
 
 class ChatModelPlanner:
-    def __init__(self, settings: ModelSettings, *, http_client: httpx.Client | None = None) -> None:
+    def __init__(
+        self, settings: ModelSettings, *, http_client: httpx.AsyncClient | None = None
+    ) -> None:
         # Tool calling, not json_schema (ChatOpenAI's default): every LiteLLM
         # route supports tools, not every one supports response_format, and the
         # lab already learned to carry structure through tools (CLAUDE.md).
@@ -28,7 +30,11 @@ class ChatModelPlanner:
         )
         self._runnable: Any = structured.with_retry(**retry_kwargs(settings))
 
-    def plan(self, brief: str) -> list[str]:
+    async def plan(self, brief: str) -> list[str]:
         messages = [SystemMessage(default_prompt(SUPERVISOR_PLAN)), HumanMessage(brief)]
-        result: Plan = self._runnable.invoke(messages)
-        return result.subtasks
+        result: Plan | None = await self._runnable.ainvoke(messages)
+        # A model may answer in plain text instead of calling the tool: seen on
+        # 2026-11-14 with "Bonjour" on lab-fast, where `with_structured_output`
+        # returns None. No plan means no sub-task; the supervisor then runs the
+        # brief itself (supervisor.py).
+        return result.subtasks if result is not None else []

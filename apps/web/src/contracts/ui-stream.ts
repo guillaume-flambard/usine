@@ -2,14 +2,19 @@
  * The parts of the Vercel AI SDK "UI message stream" the web app consumes
  * (docs/architecture/v2.md, MEM-14).
  *
- * Protocol: https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
- * (header `x-vercel-ai-ui-message-stream: v1`, SSE `data:` lines, `[DONE]`).
+ * Protocol: https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol, read in the
+ * installed `ai@7.0.165` (`uiMessageChunkSchema`, `UI_MESSAGE_STREAM_HEADERS`),
+ * which states more than the page. `POST /api/chat` sends `start` (thread id in
+ * `messageMetadata.threadId`), `data-run-event` parts, the answer as text, then
+ * `finish`; a failure is an `error` part then `finish` with `finishReason: "error"`.
+ * Recorded examples: services/api/tests/fixtures/chat-stream/.
  *
- * Only the standard text parts are typed here. Run events travel as custom
- * `data-*` parts, whose payload mirrors services/api/usine_api/contracts/run_event.py.
+ * Run events travel as custom `data-*` parts, whose payload mirrors
+ * services/api/usine_api/contracts/run_event.py.
  */
 
-export type StandardPartType = 'start' | 'text-start' | 'text-delta' | 'text-end' | 'finish'
+export type StandardPartType =
+  'start' | 'text-start' | 'text-delta' | 'text-end' | 'error' | 'finish'
 
 /** Custom parts carrying the run read model. Names are ours, prefixed `data-`. */
 export type RunDataPartType = 'data-run-event'

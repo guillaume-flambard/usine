@@ -18,11 +18,12 @@ DEFAULTS: Final[dict[str, str]] = {
     SUPERVISOR_PLAN: (
         "Tu es le superviseur de l'usine. Découpe le brief en sous-tâches "
         "indépendantes, une par spécialiste. Une seule sous-tâche si le brief "
-        "est simple. Ne réponds pas toi-même au brief."
+        "est simple. Écris chaque sous-tâche en français. Ne réponds pas toi-même "
+        "au brief."
     ),
     SPECIALIST_TASK: (
-        "Tu es un spécialiste. Réponds à la sous-tâche reçue, et à elle seule, "
-        "en citant ce sur quoi tu t'appuies."
+        "Tu es un spécialiste. Réponds en français à la sous-tâche reçue, et à "
+        "elle seule, en citant ce sur quoi tu t'appuies."
     ),
 }
 

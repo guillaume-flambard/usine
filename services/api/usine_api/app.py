@@ -19,13 +19,17 @@ from typing import Any
 
 import httpx
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 
 from .audit import AuditLog, InMemoryAuditLog
+from .chat_stream import STREAM_HEADERS, ChatRequest, no_model_stream, run_stream
 from .checkpoints import open_checkpointer
 from .erasure import Erasure, erasure_for
 from .evaluation import evaluate, measure
 from .flotte import lire as lire_flotte
+from .graph.planner import ChatModelPlanner
+from .graph.specialist import ChatModelSpecialist
+from .graph.supervisor import Planner, SpecialistRunner, build_graph
 from .identity import (
     SESSION_TTL_SECONDS,
     EmailSender,
@@ -157,6 +161,8 @@ def create_app(
     email: EmailSender | None = None,
     audit: AuditLog | None = None,
     secure_cookies: bool = True,
+    planner: Planner | None = None,
+    specialist: SpecialistRunner | None = None,
 ) -> FastAPI:
     """Construit le service. Tout ce qui touche l'extérieur est injectable."""
     bounds = limits or Limits()
@@ -209,6 +215,13 @@ def create_app(
         provider_endpoint = ENDPOINT
         chosen_model = model or DEFAULT_MODEL
         reasoning_off = OPENROUTER_REASONING_OFF
+    # Le planificateur et le spécialiste du chat : injectés par les tests, sinon
+    # un modèle par LiteLLM, sinon aucun (le chat le dit, il ne tombe pas).
+    chat_planner: Planner | None = planner
+    chat_specialist: SpecialistRunner | None = specialist
+    if gateway is not None:
+        chat_planner = chat_planner or ChatModelPlanner(gateway)
+        chat_specialist = chat_specialist or ChatModelSpecialist(gateway)
     site_origin = origin or os.environ.get("USINE_ORIGIN", "https://usine.memolabs.dev")
     if not api_key:
         # Un déploiement dégradé doit se remarquer, pas servir un rejeu en silence.
@@ -222,6 +235,13 @@ def create_app(
         # ramasse-miettes.
         async with open_checkpointer(db_url if stores_needed else "") as saver:
             app_.state.checkpointer = saver
+            # Le graphe du chat (MEM-14) vit le temps du service, sur le même
+            # checkpointer : un thread se reprend d'un message à l'autre.
+            app_.state.chat_graph = (
+                build_graph(chat_planner, chat_specialist, checkpointer=saver)
+                if chat_planner is not None and chat_specialist is not None
+                else None
+            )
             yield
         if pg is not None:
             pg.pool.close()
@@ -297,6 +317,15 @@ def create_app(
         # Un journal muet ne fait pas échouer un partage : l'action utile prime.
         with suppress(Exception):
             journal.record(org, action, target)
+
+    @app.post("/api/chat")
+    async def chat(body: ChatRequest, request: Request) -> StreamingResponse:
+        # La route garde son préfixe /api : c'est l'adresse par défaut de
+        # useChat, et le proxy de Vite le transmet tel quel.
+        graph = getattr(request.app.state, "chat_graph", None)
+        if graph is None:
+            return StreamingResponse(no_model_stream(), headers=STREAM_HEADERS)
+        return StreamingResponse(run_stream(graph, body), headers=STREAM_HEADERS)
 
     @app.get("/health")
     async def health(request: Request) -> JSONResponse:
