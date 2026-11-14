@@ -2,17 +2,17 @@ data: {"type": "start", "messageId": "id-1", "messageMetadata": {"threadId": "ch
 
 data: {"type": "data-run-event", "data": {"kind": "run-started", "at": 0.25, "node": null, "data": {"threadId": "chat-1"}}}
 
-data: {"type": "data-run-event", "data": {"kind": "node-started", "at": 0.5, "node": "supervisor", "data": {}}}
+data: {"type": "data-run-event", "data": {"kind": "node-started", "at": 0.5, "node": "supervisor", "data": {"taskId": "t1"}}}
 
-data: {"type": "data-run-event", "data": {"kind": "node-finished", "at": 0.75, "node": "supervisor", "data": {"subtasks": ["relire les portes"]}}}
+data: {"type": "data-run-event", "data": {"kind": "node-finished", "at": 0.75, "node": "supervisor", "data": {"taskId": "t1", "subtasks": ["relire les portes"]}}}
 
-data: {"type": "data-run-event", "data": {"kind": "node-started", "at": 1.0, "node": "specialist", "data": {"task": "relire les portes"}}}
+data: {"type": "data-run-event", "data": {"kind": "node-started", "at": 1.0, "node": "specialist", "data": {"taskId": "t2", "task": "relire les portes"}}}
 
-data: {"type": "data-run-event", "data": {"kind": "node-finished", "at": 1.25, "node": "specialist", "data": {"specialists": [{"name": "fake", "framework": "test", "tokens": 5}]}}}
+data: {"type": "data-run-event", "data": {"kind": "node-finished", "at": 1.25, "node": "specialist", "data": {"taskId": "t2", "specialists": [{"name": "fake", "framework": "test", "tokens": 5}]}}}
 
-data: {"type": "data-run-event", "data": {"kind": "node-started", "at": 1.5, "node": "synthesize", "data": {}}}
+data: {"type": "data-run-event", "data": {"kind": "node-started", "at": 1.5, "node": "synthesize", "data": {"taskId": "t3"}}}
 
-data: {"type": "data-run-event", "data": {"kind": "node-finished", "at": 1.75, "node": "synthesize", "data": {}}}
+data: {"type": "data-run-event", "data": {"kind": "node-finished", "at": 1.75, "node": "synthesize", "data": {"taskId": "t3"}}}
 
 data: {"type": "text-start", "id": "id-2"}
 
@@ -20,7 +20,7 @@ data: {"type": "text-delta", "id": "id-2", "delta": "fait : relire les portes"}
 
 data: {"type": "text-end", "id": "id-2"}
 
-data: {"type": "data-run-event", "data": {"kind": "run-finished", "at": 2.0, "node": null, "data": {}}}
+data: {"type": "data-run-event", "data": {"kind": "run-finished", "at": 2.0, "node": null, "data": {"outcome": "ok"}}}
 
 data: {"type": "finish", "finishReason": "stop"}
 

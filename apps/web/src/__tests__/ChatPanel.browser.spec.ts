@@ -8,6 +8,7 @@ import { render } from 'vitest-browser-vue'
 import { userEvent } from 'vitest/browser'
 import ui from '@nuxt/ui/vue-plugin'
 import { DefaultChatTransport } from 'ai'
+import { chatTransport, SERVICE_UNREACHABLE } from '../chat/transport'
 import ChatPanel from '../components/ChatPanel.vue'
 import { createAppRouter } from '../router'
 import { UI_STREAM_HEADER, UI_STREAM_VERSION } from '../contracts/ui-stream'
@@ -67,6 +68,8 @@ describe('ChatPanel states', () => {
     setup()
     await expect.poll(state).toBe('ready')
     expect(document.querySelector('[data-empty]')).not.toBeNull()
+    // No run, no scene: nothing is drawn ahead of an event (MEM-17).
+    expect(document.querySelector('[data-scene]')).toBeNull()
     expect(document.querySelector('[data-status]')?.textContent?.trim()).toBe('Prêt')
     const prompt = document.querySelector('[data-composer] textarea') as HTMLElement
     expect(getComputedStyle(prompt).fontSize).toBe('16px')
@@ -94,6 +97,16 @@ describe('ChatPanel states', () => {
       type: 'data-run-event',
       data: { kind: 'run-started', at: 0, node: null, data: {} },
     })
+    stream.send({
+      type: 'data-run-event',
+      data: { kind: 'node-started', at: 0.1, node: 'supervisor', data: { taskId: 't1' } },
+    })
+    // The scene draws the run while it streams, from its events.
+    await expect
+      .poll(() =>
+        document.querySelector('[data-node="supervisor"]')?.getAttribute('data-node-state'),
+      )
+      .toBe('running')
     stream.send({ type: 'text-start', id: 't1' })
     stream.send({ type: 'text-delta', id: 't1', delta: 'fait : relire' })
     await expect.poll(state).toBe('streaming')
@@ -148,5 +161,32 @@ describe('ChatPanel states', () => {
     expect(document.querySelector('[data-status]')?.textContent?.trim()).toBe(
       'Arrêté à votre demande',
     )
+  })
+})
+
+describe('ChatPanel when the service itself fails', () => {
+  function mountWith(fetchImpl: typeof fetch) {
+    return render(ChatPanel, {
+      props: { transport: chatTransport(fetchImpl) },
+      global: { plugins: [createAppRouter(), ui] },
+    })
+  }
+
+  it('says in French that the service is unreachable', async () => {
+    mountWith(async () => {
+      throw new TypeError('Failed to fetch')
+    })
+    await send('une tâche')
+    await expect.poll(state).toBe('error')
+    expect(document.querySelector('[data-chat-error]')?.textContent?.trim()).toBe(
+      SERVICE_UNREACHABLE,
+    )
+  })
+
+  it('says in French that the service answered an HTTP error', async () => {
+    mountWith(async () => new Response('Bad Gateway', { status: 502 }))
+    await send('une tâche')
+    await expect.poll(state).toBe('error')
+    expect(document.querySelector('[data-chat-error]')?.textContent).toContain('erreur 502')
   })
 })

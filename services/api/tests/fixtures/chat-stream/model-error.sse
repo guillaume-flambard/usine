@@ -2,11 +2,13 @@ data: {"type": "start", "messageId": "id-1", "messageMetadata": {"threadId": "ch
 
 data: {"type": "data-run-event", "data": {"kind": "run-started", "at": 0.25, "node": null, "data": {"threadId": "chat-1"}}}
 
-data: {"type": "data-run-event", "data": {"kind": "node-started", "at": 0.5, "node": "supervisor", "data": {}}}
+data: {"type": "data-run-event", "data": {"kind": "node-started", "at": 0.5, "node": "supervisor", "data": {"taskId": "t1"}}}
 
-data: {"type": "data-run-event", "data": {"kind": "node-finished", "at": 0.75, "node": "supervisor", "data": {"subtasks": ["une tâche"]}}}
+data: {"type": "data-run-event", "data": {"kind": "node-finished", "at": 0.75, "node": "supervisor", "data": {"taskId": "t1", "subtasks": ["une tâche"]}}}
 
-data: {"type": "data-run-event", "data": {"kind": "node-started", "at": 1.0, "node": "specialist", "data": {"task": "une tâche"}}}
+data: {"type": "data-run-event", "data": {"kind": "node-started", "at": 1.0, "node": "specialist", "data": {"taskId": "t2", "task": "une tâche"}}}
+
+data: {"type": "data-run-event", "data": {"kind": "run-finished", "at": 1.25, "node": null, "data": {"outcome": "error"}}}
 
 data: {"type": "error", "errorText": "Le modèle est saturé pour le moment (429). Réessayez dans une minute."}
 
