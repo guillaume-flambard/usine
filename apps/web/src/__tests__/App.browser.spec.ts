@@ -7,7 +7,7 @@ import '../assets/main.css'
 
 describe('App shell', () => {
   it('renders the brand, the status line, the conversation and the composer', async () => {
-    const screen = render(App, { global: { plugins: [createAppRouter(), ui] } })
+    const screen = await render(App, { global: { plugins: [createAppRouter(), ui] } })
 
     await expect
       .element(screen.getByRole('heading', { level: 1, name: "L'usine agentique" }))
