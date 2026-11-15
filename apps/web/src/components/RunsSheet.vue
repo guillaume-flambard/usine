@@ -16,6 +16,8 @@ const failure = ref('')
 
 const STATUS: Record<RunSummary['status'], string> = {
   running: 'interrompu ou en cours',
+  waiting: 'en attente de décision',
+  deciding: 'décision en cours',
   done: 'terminé',
   error: 'en erreur',
 }

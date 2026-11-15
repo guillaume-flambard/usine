@@ -49,6 +49,12 @@
   stroke-width: 2;
 }
 
+.scene-node[data-node-state='waiting'] rect {
+  stroke: var(--ui-warning);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+}
+
 .scene-node[data-node-state='failed'] rect {
   stroke: var(--ui-error);
   stroke-width: 2;

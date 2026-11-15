@@ -12,7 +12,12 @@ from __future__ import annotations
 
 import asyncio
 
-from usine_api.contracts import SpecialistIdentity, SpecialistInput, SpecialistOutput
+from usine_api.contracts import (
+    ProposedAction,
+    SpecialistIdentity,
+    SpecialistInput,
+    SpecialistOutput,
+)
 
 DELAY_SECONDS = 0.4
 
@@ -29,9 +34,25 @@ class ScriptedSpecialist:
 
     async def run(self, task: SpecialistInput) -> SpecialistOutput:
         await asyncio.sleep(DELAY_SECONDS)
+        answer = f"Réponse scriptée : {task.task}"
+        # A task that asks to publish proposes an irreversible action, so the
+        # human gate (MEM-20) can be shown and tested without a model.
+        actions = (
+            (
+                ProposedAction(
+                    kind="send",
+                    target="#annonces",
+                    justification="La tâche demande de publier.",
+                    preview=answer,
+                ),
+            )
+            if "publie" in task.task.lower()
+            else ()
+        )
         return SpecialistOutput(
-            answer=f"Réponse scriptée : {task.task}",
+            answer=answer,
             identity=self.identity,
             tokens=len(task.task.split()),
             tool_calls=0,
+            actions=actions,
         )

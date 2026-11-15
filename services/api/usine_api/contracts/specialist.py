@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .action import ProposedAction
+
 
 class Budget(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -43,3 +45,6 @@ class SpecialistOutput(BaseModel):
     identity: SpecialistIdentity
     tokens: int = Field(ge=0)
     tool_calls: int = Field(ge=0)
+    # Irreversible actions the specialist proposes; the graph never executes
+    # one without a human decision (MEM-20).
+    actions: tuple[ProposedAction, ...] = ()

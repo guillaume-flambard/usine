@@ -79,6 +79,16 @@ describe('chat stream contract (ai@7.0.165)', () => {
     for (const event of events ?? []) expect(RUN_EVENT_KINDS).toContain(event.kind)
   })
 
+  it('ends a run stopped on a human gate with finishReason other', async () => {
+    const list = await chunks('gate.sse')
+    expect(list.at(-1)).toEqual({ type: 'finish', finishReason: 'other' })
+    const message = await lastMessage(list)
+    const kinds = message?.parts
+      .filter((part) => part.type === 'data-run-event')
+      .map((part) => (part as { data: RunEventPayload }).data.kind)
+    expect(kinds?.at(-1)).toBe('gate-opened')
+  })
+
   it('carries a model error as a readable error chunk', async () => {
     const list = await chunks('model-error.sse')
     const error = list.find((chunk) => chunk.type === 'error')

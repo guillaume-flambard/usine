@@ -36,7 +36,7 @@ import openai
 from pydantic import BaseModel, ConfigDict, Field
 
 from usine_api.contracts import RunEvent, RunEventKind, SpecialistOutput
-from usine_api.graph.supervisor import SPECIALIST, SUPERVISOR, SYNTHESIZE
+from usine_api.graph.supervisor import ACT, HUMAN_GATE, SPECIALIST, SUPERVISOR, SYNTHESIZE
 from usine_api.observability import run_config
 from usine_api.threads import RunStatus, RunTurn, ThreadIndex
 
@@ -118,6 +118,10 @@ def _summary(node: str, payload: dict[str, Any], *, finished: bool) -> dict[str,
                 for o in outputs
             ]
         }
+    if node == SYNTHESIZE and finished and payload.get("proposed"):
+        return {"proposed": len(payload["proposed"])}
+    if node == ACT and finished:
+        return {"executed": list(payload.get("executed", []))}
     return {}
 
 
@@ -131,12 +135,17 @@ async def run_stream(
     index: ThreadIndex | None = None,
     owner: str | None = None,
     resume: bool = False,
+    command: Any | None = None,
 ) -> AsyncIterator[str]:
     """The SSE body of one chat turn. `new_id` and `clock` are injected by tests.
 
     `index` records the turn (MEM-18). `resume` continues the thread from its
     last checkpoint instead of starting a new brief: the graph is given no input,
     which is how LangGraph resumes (https://docs.langchain.com/oss/python/langgraph/persistence).
+    `command` is a `Command(resume=...)` answering a human gate (MEM-20).
+
+    A gate stops the run: its interrupt becomes a `gate-opened` event, the turn
+    is recorded as `waiting`, and the stream ends without `run-finished`.
     """
     thread_id = request.id or new_id()
     started = clock()
@@ -172,13 +181,14 @@ async def run_stream(
     # recorded run must replay to the same read model, so they stay inside.
     task_ids: dict[str, str] = {}
     answer = ""
+    waiting = False
     try:
         config = run_config(thread_id, user_id=user_id)
         # `aclosing`: when the client goes away, this generator is closed at a
         # `yield` (ASGI 2.4) or cancelled (older servers). Either way the graph
         # stream must be closed with it, which cancels the nodes still running;
         # a bare `async for` would leave them to the garbage collector.
-        graph_input = None if resume else {"brief": brief}
+        graph_input = command if command is not None else (None if resume else {"brief": brief})
         stream = graph.astream(graph_input, config, stream_mode=["tasks"], version="v2")
         async with aclosing(stream):
             async for chunk in stream:
@@ -196,7 +206,28 @@ async def run_stream(
                     continue
                 if task.get("error") is not None:
                     raise task["error"]
+                if task.get("interrupts"):
+                    waiting = True
+                    pending = task["interrupts"][0]
+                    # Not LangGraph's interrupt id: it holds a time-based part,
+                    # and a recorded run must replay alike. A run waits on one
+                    # gate at a time, so the decision needs no id.
+                    yield event(
+                        RunEventKind.GATE_OPENED,
+                        node=node,
+                        taskId=task_id,
+                        gate=pending["value"],
+                    )
+                    continue
                 result = task.get("result") or {}
+                if node == HUMAN_GATE:
+                    yield event(
+                        RunEventKind.GATE_DECIDED,
+                        node=node,
+                        taskId=task_id,
+                        **result.get("decision", {}),
+                    )
+                    continue
                 yield event(
                     RunEventKind.NODE_FINISHED,
                     node=node,
@@ -216,10 +247,17 @@ async def run_stream(
         yield sse("[DONE]")
         return
 
-    text_id = new_id()
-    yield sse({"type": "text-start", "id": text_id})
-    yield sse({"type": "text-delta", "id": text_id, "delta": answer})
-    yield sse({"type": "text-end", "id": text_id})
+    if answer:
+        text_id = new_id()
+        yield sse({"type": "text-start", "id": text_id})
+        yield sse({"type": "text-delta", "id": text_id, "delta": answer})
+        yield sse({"type": "text-end", "id": text_id})
+    if waiting:
+        # Not finished: the run waits for a decision (POST /api/runs/{id}/gate).
+        close_turn(answer, "waiting")
+        yield sse({"type": "finish", "finishReason": "other"})
+        yield sse("[DONE]")
+        return
     yield event(RunEventKind.RUN_FINISHED, outcome="ok")
     close_turn(answer, "done")
     yield sse({"type": "finish", "finishReason": "stop"})
