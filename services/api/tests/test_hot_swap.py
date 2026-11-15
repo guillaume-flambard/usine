@@ -143,3 +143,17 @@ async def test_a_pinned_run_reaches_the_graph_through_its_own_config(
     text = "".join([part async for part in run_stream(graph, request, specialist="other")])
     assert "other a répondu" in text
     assert first.calls == 0
+
+
+def test_a_new_message_on_a_branch_keeps_its_specialist(
+    client: TestClient, pair: tuple[_Specialist, _Specialist]
+) -> None:
+    """The thread remembers; the browser does not have to."""
+    first, second = pair
+    chat(client, "un brief", "chat-e")
+    branch = branch_of(fork(client, "chat-e", brief="un autre brief", specialist="other"))
+    assert second.calls == 1
+
+    chat(client, "encore une tâche", branch)
+    assert second.calls == 2
+    assert first.calls == 1

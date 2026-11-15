@@ -439,8 +439,19 @@ def create_app(
         # L'id du compte, jamais l'email : c'est ce qui part vers Langfuse.
         who = identity_of(request)
         user_id = who.account.id if who is not None else None
+        # A branch pinned to another specialist (MEM-33) keeps it on the next
+        # message too: the thread is the one that remembers, not the browser.
+        owner = viewer_org(request)
+        existing = index.get(body.id, owner) if body.id else None
         return StreamingResponse(
-            run_stream(graph, body, user_id=user_id, index=index, owner=viewer_org(request)),
+            run_stream(
+                graph,
+                body,
+                user_id=user_id,
+                index=index,
+                owner=owner,
+                specialist=existing.specialist if existing is not None else None,
+            ),
             headers=STREAM_HEADERS,
         )
 
