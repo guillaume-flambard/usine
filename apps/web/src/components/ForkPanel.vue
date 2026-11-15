@@ -28,7 +28,7 @@ const options = computed(() =>
 )
 
 const specialistOptions = computed(() => [
-  { value: '', label: 'Spécialiste par défaut du service' },
+  { value: 'default', label: 'Spécialiste par défaut du service' },
   ...specialists.value.map((item) => ({
     value: item.name,
     label: `${item.name} (${item.identity.framework})`,

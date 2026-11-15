@@ -19,7 +19,7 @@ import RunScene from './RunScene.vue'
 import RunsSheet from './RunsSheet.vue'
 import ForkPanel from './ForkPanel.vue'
 import GateDialog, { type GateDecisionInput } from './GateDialog.vue'
-import { fetchRun, type RunDetail } from '../chat/runs'
+import type { RunDetail } from '../chat/runs'
 
 const props = withDefaults(
   defineProps<{
@@ -30,7 +30,11 @@ const props = withDefaults(
   }>(),
   { transport: () => chatTransport(), chatId: undefined, initialMessages: () => [] },
 )
-const emit = defineEmits<{ open: [run: RunDetail]; fresh: [] }>()
+const emit = defineEmits<{
+  open: [run: RunDetail]
+  fresh: []
+  forked: [originalThreadId: string, branchThreadId: string]
+}>()
 
 const input = ref('')
 const stopped = ref(false)
@@ -44,7 +48,8 @@ const forkFailure = ref('')
 
 async function onForked(branch: string) {
   try {
-    emit('open', await fetchRun(branch))
+    const original = threadId.value
+    if (original) emit('forked', original, branch)
   } catch (error) {
     forkFailure.value = (error as Error).message
   }
