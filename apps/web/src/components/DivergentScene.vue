@@ -60,8 +60,8 @@ const EMPTY_MODEL: RunReadModel = { status: 'idle', nodes: [], edges: [], at: 0,
 
 const hasLeft = computed(() => left.value !== null)
 const hasRight = computed(() => right.value !== null)
-const leftThreadId = computed(() => left.value?.thread_id ?? '')
-const rightThreadId = computed(() => right.value?.thread_id ?? '')
+const leftId = computed(() => left.value?.thread_id ?? '')
+const rightId = computed(() => right.value?.thread_id ?? '')
 
 /** Porte une décision de porte humaine sur le run donné. */
 async function decide(threadId: string, decision: 'approve' | 'reject' | 'edit') {
@@ -99,7 +99,7 @@ async function decide(threadId: string, decision: 'approve' | 'reject' | 'edit')
             v-if="hasLeft && leftModel.gate"
             v-model:open="leftOpen"
             :gate="leftModel.gate"
-            @decide="(d) => decide(leftThreadId, d.decision as 'approve' | 'reject' | 'edit')"
+            @decide="(d) => decide(leftId, d.decision as 'approve' | 'reject' | 'edit')"
           />
         </div>
       </div>
@@ -118,7 +118,7 @@ async function decide(threadId: string, decision: 'approve' | 'reject' | 'edit')
             v-if="hasRight && rightModel.gate"
             v-model:open="rightOpen"
             :gate="rightModel.gate"
-            @decide="(d) => decide(rightThreadId, d.decision as 'approve' | 'reject' | 'edit')"
+            @decide="(d) => decide(rightId, d.decision as 'approve' | 'reject' | 'edit')"
           />
         </div>
       </div>
