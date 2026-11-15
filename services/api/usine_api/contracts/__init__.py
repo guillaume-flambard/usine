@@ -12,7 +12,13 @@ from .action import (
     ProposedAction,
 )
 from .run_event import RunEvent, RunEventKind
-from .specialist import Budget, SpecialistIdentity, SpecialistInput, SpecialistOutput
+from .specialist import (
+    Budget,
+    SpecialistIdentity,
+    SpecialistInput,
+    SpecialistOutput,
+    ToolName,
+)
 
 __all__ = [
     "GATE_TIMEOUT_SECONDS",
@@ -26,4 +32,5 @@ __all__ = [
     "SpecialistIdentity",
     "SpecialistInput",
     "SpecialistOutput",
+    "ToolName",
 ]

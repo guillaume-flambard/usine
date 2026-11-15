@@ -39,6 +39,7 @@ from usine_api.cassette import CassetteMiss
 from usine_api.contracts import RunEvent, RunEventKind, SpecialistOutput
 from usine_api.graph.supervisor import ACT, HUMAN_GATE, SPECIALIST, SUPERVISOR, SYNTHESIZE
 from usine_api.observability import record_gate_decision, run_config
+from usine_api.specialists.contract import BudgetExceeded
 from usine_api.threads import RunStatus, RunTurn, ThreadIndex
 
 logger = logging.getLogger(__name__)
@@ -102,6 +103,11 @@ def readable_error(error: BaseException) -> str:
         return "La passerelle de modèles est injoignable."
     if isinstance(error, openai.APIStatusError):
         return f"Le modèle a refusé la requête (erreur {error.status_code})."
+    if isinstance(error, BudgetExceeded):
+        return (
+            f"Un spécialiste a dépassé son budget ({error.kind}) : {error.actual} "
+            f"pour une limite de {error.limit}. Rien n'a été exécuté au-delà."
+        )
     if isinstance(error, CassetteMiss):
         # The demo (MEM-24) answers one recorded brief: say so, rather than
         # blaming an internal error for a question nobody recorded.

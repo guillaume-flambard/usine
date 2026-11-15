@@ -9,9 +9,19 @@ Tools are named, never addressed: a model never hands the service a URL to call.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Annotated
+
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from .action import ProposedAction
+
+#: A tool is a name from the allow-list, never an address (MEM-27): a model
+#: must not be able to hand the service a URL to call. Lowercase, dot, dash and
+#: underscore; no scheme, no slash, no port.
+ToolName = Annotated[
+    str,
+    StringConstraints(pattern=r"^[a-z0-9][a-z0-9._-]{0,63}$", strip_whitespace=True),
+]
 
 
 class Budget(BaseModel):
@@ -34,7 +44,9 @@ class SpecialistInput(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     task: str = Field(min_length=1)
-    tools: tuple[str, ...] = Field(default=(), description="Tool names from the allow-list.")
+    tools: tuple[ToolName, ...] = Field(
+        default=(), description="Tool names from the allow-list, never addresses."
+    )
     budget: Budget
 
 

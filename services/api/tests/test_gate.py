@@ -47,6 +47,8 @@ class Planner:
 class ProposingSpecialist:
     """Answers, and proposes one irreversible action."""
 
+    identity = IDENTITY
+
     async def run(self, task: SpecialistInput) -> SpecialistOutput:
         return SpecialistOutput(
             answer=f"fait : {task.task}", identity=IDENTITY, tokens=1, tool_calls=0, actions=(SEND,)

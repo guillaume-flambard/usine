@@ -33,6 +33,8 @@ class FakePlanner:
 
 
 class FakeSpecialist:
+    identity = IDENTITY
+
     async def run(self, task: SpecialistInput) -> SpecialistOutput:
         return SpecialistOutput(
             answer=f"fait : {task.task}", identity=IDENTITY, tokens=1, tool_calls=0

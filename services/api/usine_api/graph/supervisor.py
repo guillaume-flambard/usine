@@ -19,7 +19,7 @@ the model call in flight; a sync node would keep its thread running to the end.
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Protocol, TypedDict
+from typing import Annotated, Any, Protocol, TypedDict, cast
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
@@ -31,9 +31,10 @@ from usine_api.contracts import (
     GateDecision,
     GateRequest,
     ProposedAction,
-    SpecialistInput,
     SpecialistOutput,
 )
+from usine_api.specialists.contract import Specialist
+from usine_api.specialists.node import as_node
 
 SUPERVISOR = "supervisor"
 SPECIALIST = "specialist"
@@ -45,12 +46,6 @@ ACT = "act"
 class Planner(Protocol):
     async def plan(self, brief: str) -> list[str]:
         """Split the brief into independent sub-tasks (at least one)."""
-        ...
-
-
-class SpecialistRunner(Protocol):
-    async def run(self, task: SpecialistInput) -> SpecialistOutput:
-        """Answer one sub-task."""
         ...
 
 
@@ -108,7 +103,7 @@ DEFAULT_BUDGET = Budget(max_tokens=4_000, max_seconds=60, max_tool_calls=8)
 
 def build_graph(
     planner: Planner,
-    specialist: SpecialistRunner,
+    specialist: Specialist,
     *,
     checkpointer: BaseCheckpointSaver[Any] | None = None,
     budget: Budget = DEFAULT_BUDGET,
@@ -125,9 +120,14 @@ def build_graph(
     def dispatch(state: RunState) -> list[Send]:
         return [Send(SPECIALIST, {"task": task}) for task in state["subtasks"]]
 
+    # The Specialist contract's adapter (MEM-27): budget and trace metadata are
+    # applied once, for every framework, instead of once per implementation.
+    # The Specialist contract's adapter is generic over the state it reads; the
+    # graph's node has a concrete shape, so this node is the one boundary.
+    run_task = as_node(specialist, budget)
+
     async def run_specialist(state: SubtaskState) -> RunState:
-        output = await specialist.run(SpecialistInput(task=state["task"], budget=budget))
-        return {"results": [output]}
+        return cast(RunState, await run_task(state))
 
     def synthesize(state: RunState) -> RunState:
         proposed = [action for result in state["results"] for action in result.actions]
