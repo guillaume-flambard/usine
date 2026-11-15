@@ -11,6 +11,7 @@ qu'elle est propre.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from collections.abc import AsyncIterator, Mapping
@@ -18,6 +19,7 @@ from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
+from uuid import uuid4
 
 import httpx
 from fastapi import FastAPI, HTTPException, Query, Request, Response
@@ -25,6 +27,15 @@ from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from langgraph.types import Command
 from pydantic import BaseModel
 
+from .archive import (
+    MAX_RUN_ARCHIVE_BYTES,
+    ArchiveRefused,
+    RunArchive,
+    export_of,
+    file_name,
+    turns_of,
+)
+from .archive import read_archive as read_run_archive
 from .audit import AuditLog, InMemoryAuditLog
 from .cassette import MODES, Cassette, CassetteTransport, Mode, open_cassette
 from .chat_stream import STREAM_HEADERS, ChatMessage, ChatRequest, no_model_stream, run_stream
@@ -738,6 +749,53 @@ def create_app(
         if page is None:
             raise HTTPException(status_code=404, detail="Checkpoint introuvable.")
         return page
+
+    @app.get("/api/runs/{thread_id}/export", response_model=RunArchive, tags=["runs"])
+    async def export_thread(thread_id: str, request: Request) -> Response:
+        """L'archive JSON d'un run terminé, à télécharger (MEM-26)."""
+        detail = index.get(thread_id, viewer_org(request))
+        if detail is None:
+            raise HTTPException(status_code=404, detail="Run introuvable.")
+        try:
+            archive = export_of(detail)
+        except ArchiveRefused as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        return JSONResponse(
+            archive.model_dump(mode="json"),
+            headers={
+                "cache-control": "no-store",
+                "content-disposition": f'attachment; filename="{file_name(thread_id)}"',
+            },
+        )
+
+    @app.post("/api/runs/import", status_code=201, tags=["runs"])
+    async def import_thread(request: Request) -> RunDetail:
+        """Relit une archive en rejeu : un run neuf, lisible, rien n'est exécuté (MEM-26)."""
+        body = await request.body()
+        if len(body) > MAX_RUN_ARCHIVE_BYTES:
+            raise HTTPException(status_code=413, detail="Archive trop lourde.")
+        try:
+            archive = read_run_archive(json.loads(body or b"null"))
+        except json.JSONDecodeError as error:
+            raise HTTPException(
+                status_code=422, detail="Archive illisible : ce n'est pas du JSON."
+            ) from error
+        except ArchiveRefused as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        owner = viewer_org(request)
+        thread_id = uuid4().hex
+        restored = index.restore(
+            thread_id,
+            owner,
+            archive.run.title,
+            archive.run.status,
+            archive.run.specialist,
+            turns_of(archive, thread_id),
+        )
+        detail = index.get(thread_id, owner) if restored else None
+        if detail is None:  # pragma: no cover - a fresh uuid is never taken
+            raise HTTPException(status_code=409, detail="Le run n'a pas pu être importé.")
+        return detail
 
     @app.post("/api/runs/{thread_id}/fork", tags=["runs"])
     async def fork_thread(
