@@ -66,11 +66,24 @@ function seconds(node: RunNode): string {
   return `${(node.finishedAt - node.startedAt).toFixed(1)} s`
 }
 
-const description = computed(() =>
-  props.model.nodes
+/** The tool calls the run made, by name (MEM-38): a trace says what it did. */
+const toolsUsed = computed(() => {
+  const names = new Set<string>()
+  for (const node of props.model.nodes) {
+    for (const specialist of node.specialists ?? []) {
+      for (const tool of specialist.tools ?? []) names.add(tool)
+    }
+  }
+  return [...names].sort()
+})
+
+const description = computed(() => {
+  const nodes = props.model.nodes
     .map((n) => `${title(n)}${n.task ? ` (${n.task})` : ''} : ${STATES[n.state].label}`)
-    .join('. '),
-)
+    .join('. ')
+  const tools = toolsUsed.value.length ? ` Outils appelés : ${toolsUsed.value.join(', ')}.` : ''
+  return `${nodes}.${tools}`
+})
 </script>
 
 <template>
@@ -80,6 +93,9 @@ const description = computed(() =>
         model.nodes.length > 1 ? 's' : ''
       }}
       · {{ model.at.toFixed(1) }} s
+    </p>
+    <p v-if="toolsUsed.length" class="text-sm text-toned" data-tools>
+      Outils appelés : {{ toolsUsed.join(', ') }}
     </p>
     <div
       v-if="model.gate && model.status === 'waiting'"
