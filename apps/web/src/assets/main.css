@@ -78,3 +78,56 @@
   fill: var(--ui-text-toned);
   font-size: 12px;
 }
+
+/* Scène divergente (MEM-25) : deux panneaux côte à côte. Sur mobile ils
+   s'empilent ; sur desktop ils partagent la largeur. Aucun défilement
+   horizontal à aucune des largeurs cibles (375 / 768 / 1024 / 1440 px). */
+[data-divergent-scene] > div {
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 640px) {
+  [data-divergent-scene] > div {
+    flex-direction: row;
+  }
+}
+
+[data-divergent-scene] > div > div {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+[data-divergent-scene] [data-scene] {
+  overflow: auto;
+  min-height: 0;
+}
+
+/* Le graphe SVG ne doit jamais déborder de son panneau : il se réduit pour
+   tenir, et le panneau défile verticalement si besoin. */
+[data-divergent-scene] .scene-graph {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Bandeau de comparaison. */
+[data-comparison-banner] {
+  flex-shrink: 0;
+}
+
+[data-divergence] {
+  display: grid;
+  gap: 1;
+}
+
+[data-divergence] > p:first-child {
+  font-weight: 600;
+}
+
+/* Le bouton "forker ici" dans la ligne du temps reste petit et lisible. */
+[data-fork-here] {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+}
