@@ -32,6 +32,15 @@ from .contracts import action as action_contract
 from .erasure import Erasure, erasure_for
 from .evaluation import evaluate, measure
 from .flotte import lire as lire_flotte
+from .fork import (
+    CheckpointSummary,
+    ForkRefused,
+    ForkRequest,
+    UnknownCheckpoint,
+    fork_run,
+    history_of,
+    summarise,
+)
 from .graph.planner import ChatModelPlanner
 from .graph.specialist import ChatModelSpecialist
 from .graph.supervisor import ActionExecutor, Planner, SpecialistRunner, build_graph
@@ -472,6 +481,14 @@ def create_app(
         if not state.next:
             raise HTTPException(status_code=409, detail="Ce run n'a rien à reprendre.")
         brief = str(state.values.get("brief", ""))
+        if not brief:
+            # A branch seeded at the entry point keeps its brief in a pending
+            # input write, not in its state: a fork stream that was cut before
+            # its first super-step leaves nothing to resume by name.
+            raise HTTPException(
+                status_code=409,
+                detail="Ce run n'a pas encore exécuté son brief : relancez le fork.",
+            )
         body = ChatRequest(
             id=thread_id,
             messages=[ChatMessage(role="user", parts=[{"type": "text", "text": brief}])],
@@ -484,6 +501,59 @@ def create_app(
                 user_id=who.account.id if who is not None else None,
                 index=index,
                 owner=viewer_org(request),
+                resume=True,
+            ),
+            headers=STREAM_HEADERS,
+        )
+
+    @app.get("/api/runs/{thread_id}/checkpoints", tags=["runs"])
+    async def list_checkpoints(thread_id: str, request: Request) -> list[CheckpointSummary]:
+        """Les points où le run peut être rejoué, du plus récent au plus ancien (MEM-23)."""
+        if index.get(thread_id, viewer_org(request)) is None:
+            raise HTTPException(status_code=404, detail="Run introuvable.")
+        graph = getattr(request.app.state, "chat_graph", None)
+        if graph is None:
+            return []
+        config = {"configurable": {"thread_id": thread_id}}
+        states = history_of([state async for state in graph.aget_state_history(config)])
+        return [summarise(state) for state in states]
+
+    @app.post("/api/runs/{thread_id}/fork", tags=["runs"])
+    async def fork_thread(thread_id: str, body: ForkRequest, request: Request) -> Response:
+        """Ouvre une branche depuis un checkpoint et la fait diverger, en flux.
+
+        La branche a son propre identifiant (annoncé dans le premier événement)
+        et garde son lien à l'origine ; le run d'origine n'est pas modifié. Le
+        flux est celui d'une reprise : seuls les nœuds après le point de fork
+        s'exécutent, et le modèle est rappelé pour eux.
+        """
+        owner = viewer_org(request)
+        if index.get(thread_id, owner) is None:
+            raise HTTPException(status_code=404, detail="Run introuvable.")
+        graph = getattr(request.app.state, "chat_graph", None)
+        if graph is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Aucun modèle n'est configuré : un fork rejoue un run, il en faut un.",
+            )
+        try:
+            forked = await fork_run(graph, index, thread_id=thread_id, owner=owner, request=body)
+        except UnknownCheckpoint as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        except ForkRefused as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        who = identity_of(request)
+        chat_request = ChatRequest(
+            id=forked.detail.thread_id,
+            messages=[ChatMessage(role="user", parts=[{"type": "text", "text": forked.brief}])],
+        )
+        return StreamingResponse(
+            run_stream(
+                graph,
+                chat_request,
+                user_id=who.account.id if who is not None else None,
+                index=index,
+                owner=owner,
                 resume=True,
             ),
             headers=STREAM_HEADERS,
