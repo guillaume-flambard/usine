@@ -14,15 +14,17 @@ sur le transport HTTP en JSON-RPC. Le reste du protocole — invites, ressources
 échantillonnage — n'a pas d'appelant ici, et l'écrire sans appelant serait
 écrire du code mort.
 
-**Une limite à connaître** : un serveur *avec état* renvoie un identifiant de
-session dans un en-tête HTTP, et attend qu'on le renvoie ensuite. Notre
-transport ne rend que le corps, donc ces serveurs-là ne sont pas supportés. Les
-serveurs sans état — la majorité de ceux qu'on branchera — le sont. Le jour où
-il en faudra un, c'est le type `Transport` qui changera, pas ce module.
+**Les serveurs avec état sont supportés (MEM-41).** Un serveur conforme renvoie
+un identifiant de session dans l'en-tête `Mcp-Session-Id` à la poignée de main,
+et refuse ensuite toute demande qui ne le renvoie pas — c'est le cas de FastMCP,
+donc du serveur de l'usine. Le transport réel (`http_rpc`) retient cet
+identifiant par URL et le renvoie ; les transports de test, eux, n'en ont pas
+besoin.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -75,6 +77,30 @@ class McpRefusal(Exception):
         self.message = message
 
 
+#: The session a stateful server handed out, by URL. A server without state
+#: never sets the header, so this stays empty for it.
+_SESSIONS: dict[str, str] = {}
+
+SESSION_HEADER = "mcp-session-id"
+
+
+def remember_session(url: str, headers: Mapping[str, str]) -> None:
+    """Keep the session a server announced, so the next call can prove it."""
+    for name, value in headers.items():
+        if name.lower() == SESSION_HEADER and value:
+            _SESSIONS[url] = value
+            return
+
+
+def session_headers(url: str) -> dict[str, str]:
+    session = _SESSIONS.get(url)
+    return {SESSION_HEADER: session} if session else {}
+
+
+def forget_session(url: str) -> None:
+    _SESSIONS.pop(url, None)
+
+
 class Transport(Protocol):
     """Un appel JSON-RPC vers un serveur. Injecté pour que les tests s'en passent."""
 
@@ -123,7 +149,8 @@ async def shake_hands(server: Server, *, transport: Transport) -> None:
             },
         ),
     )
-    # Notification : pas d'identifiant, pas de réponse attendue.
+    # Notification : pas d'identifiant, pas de réponse attendue. Elle porte la
+    # session si le serveur en a donné une, comme tout ce qui suit.
     await transport(
         server.url,
         {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}},
