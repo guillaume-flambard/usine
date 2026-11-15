@@ -369,6 +369,20 @@ def create_app(
             wired.setdefault("crewai", CrewAISpecialist(gateway))
         except ImportError:
             pass
+        if whitelist.names():
+            # Le spécialiste à outils (MEM-38) n'existe que si la liste blanche
+            # nomme au moins un serveur : sans serveur, pas d'agent sans outils.
+            from .specialists.mcp_agent import McpAgentSpecialist
+
+            wired.setdefault(
+                "mcp-agent",
+                McpAgentSpecialist(
+                    gateway,
+                    registry=whitelist,
+                    transport=rpc,
+                    http_client=cassette_client,
+                ),
+            )
     site_origin = origin or os.environ.get("USINE_ORIGIN", "https://usine.memolabs.dev")
     if not api_key:
         # Un déploiement dégradé doit se remarquer, pas servir un rejeu en silence.

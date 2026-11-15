@@ -8,7 +8,7 @@ data: {"type": "data-run-event", "data": {"kind": "node-finished", "at": 0.75, "
 
 data: {"type": "data-run-event", "data": {"kind": "node-started", "at": 1.0, "node": "specialist", "data": {"taskId": "t2", "task": "publier"}}}
 
-data: {"type": "data-run-event", "data": {"kind": "node-finished", "at": 1.25, "node": "specialist", "data": {"taskId": "t2", "specialists": [{"name": "fake", "framework": "test", "tokens": 1}]}}}
+data: {"type": "data-run-event", "data": {"kind": "node-finished", "at": 1.25, "node": "specialist", "data": {"taskId": "t2", "specialists": [{"name": "fake", "framework": "test", "tokens": 1, "tools": []}]}}}
 
 data: {"type": "data-run-event", "data": {"kind": "node-started", "at": 1.5, "node": "synthesize", "data": {"taskId": "t3"}}}
 
