@@ -64,7 +64,15 @@ from .identity import (
 from .invites import etat as etat_invites
 from .invites import etiqueter as etiqueter_invite_langfuse
 from .limits import Limits, RateLimiter
-from .mcp import TIMEOUT_SECONDS, McpRefusal, Server, call_tool, list_tools
+from .mcp import (
+    TIMEOUT_SECONDS,
+    McpRefusal,
+    Server,
+    call_tool,
+    list_tools,
+    remember_session,
+    session_headers,
+)
 from .mcp_registry import Registry, RegistryRefusal
 from .memory import MAX_FACT, Fact, InMemoryMemory, Memory
 from .models import ModelSettings, model_settings
@@ -153,15 +161,21 @@ def _cassette_setting() -> tuple[Cassette | None, str]:
 
 
 async def http_rpc(url: str, payload: dict[str, Any]) -> dict[str, Any]:
-    """Un appel JSON-RPC vers un serveur d'outils. Remplacé dans les tests."""
+    """Un appel JSON-RPC vers un serveur d'outils. Remplacé dans les tests.
+
+    Un serveur avec état (FastMCP, donc le nôtre) donne une session à la poignée
+    de main et refuse ensuite ce qui ne la porte pas : l'en-tête est retenu par
+    `mcp` à chaque réponse et renvoyé ici.
+    """
     # Le délai vient du module qui connaît le protocole, pas d'un nombre
     # recopié ici : deux valeurs finiraient par diverger.
     async with httpx.AsyncClient(timeout=float(TIMEOUT_SECONDS)) as client:
         response = await client.post(
             url,
             json=payload,
-            headers={"accept": "application/json, text/event-stream"},
+            headers={"accept": "application/json, text/event-stream", **session_headers(url)},
         )
+        remember_session(url, dict(response.headers))
         try:
             return response.json()
         except ValueError:
