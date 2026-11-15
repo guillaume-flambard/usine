@@ -157,3 +157,83 @@ def test_a_new_message_on_a_branch_keeps_its_specialist(
     chat(client, "encore une tâche", branch)
     assert second.calls == 2
     assert first.calls == 1
+
+
+def _langchain_specialist() -> Any:
+    """The real LangChain adapter, on a scripted model: no network."""
+    import httpx
+
+    from usine_api.graph.specialist import ChatModelSpecialist
+    from usine_api.models import ModelSettings
+
+    def reply(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "id": "c",
+                "object": "chat.completion",
+                "created": 0,
+                "model": "lab-fast",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "stop",
+                        "message": {"role": "assistant", "content": "réponse LangChain"},
+                    }
+                ],
+                "usage": {"prompt_tokens": 3, "completion_tokens": 1, "total_tokens": 4},
+            },
+        )
+
+    settings = ModelSettings(base_url="http://litellm.test/v1", api_key="sk-test", model="lab-fast")
+    return ChatModelSpecialist(
+        settings, http_client=httpx.AsyncClient(transport=httpx.MockTransport(reply))
+    )
+
+
+def _pydantic_specialist() -> Any:
+    """The real Pydantic AI adapter, on a scripted model: no network."""
+    import json as json_module
+
+    from pydantic_ai.messages import ModelResponse, ToolCallPart
+    from pydantic_ai.models.function import FunctionModel
+
+    from usine_api.models import ModelSettings
+    from usine_api.specialists.pydantic_verdict import PydanticVerdictSpecialist
+
+    def verdict(_messages: Any, _info: Any) -> ModelResponse:
+        payload = {
+            "verdict": "passe",
+            "motifs": [{"intitule": "demande claire", "preuve": "un brief court"}],
+            "resume": "Rien d'interdit.",
+        }
+        return ModelResponse(
+            parts=[ToolCallPart(tool_name="final_result", args=json_module.dumps(payload))]
+        )
+
+    settings = ModelSettings(base_url="http://litellm.test/v1", api_key="sk-test", model="lab-fast")
+    return PydanticVerdictSpecialist(settings, model=FunctionModel(verdict))
+
+
+def test_a_langchain_run_forked_into_pydantic_ai_gives_two_traced_branches() -> None:
+    """MEM-33's flagship: the same run, two frameworks, each branch saying which."""
+    app = create_app(
+        planner=_Planner(),
+        specialist=_langchain_specialist(),
+        specialists={"pydantic-verdict": _pydantic_specialist()},
+    )
+    with TestClient(app) as client:
+        original = chat(client, "un brief", "chat-f")
+        assert '"framework": "langchain"' in original
+
+        reply = fork(client, "chat-f", brief="un autre brief", specialist="pydantic-verdict")
+        assert reply.status_code == 200
+        assert '"framework": "pydantic-ai"' in reply.text
+        assert "Verdict : passe." in reply.text
+
+        branch = client.get(f"/api/runs/{branch_of(reply)}").json()
+        assert branch["specialist"] == "pydantic-verdict"
+        assert branch["parent"]["thread_id"] == "chat-f"
+        assert branch["parent"]["checkpoint_id"]
+        # The original is untouched and still LangChain.
+        assert client.get("/api/runs/chat-f").json()["status"] == "done"
