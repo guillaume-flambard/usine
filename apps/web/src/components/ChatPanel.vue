@@ -17,8 +17,9 @@ import type { RunEventPayload } from '../contracts/ui-stream'
 import { replay } from '../run/readModel'
 import RunScene from './RunScene.vue'
 import RunsSheet from './RunsSheet.vue'
+import ForkPanel from './ForkPanel.vue'
 import GateDialog, { type GateDecisionInput } from './GateDialog.vue'
-import type { RunDetail } from '../chat/runs'
+import { fetchRun, type RunDetail } from '../chat/runs'
 
 const props = withDefaults(
   defineProps<{
@@ -37,6 +38,17 @@ const stopped = ref(false)
 // says which brief it can answer. The page shows it rather than letting a
 // visitor ask a question nobody recorded.
 const demoBrief = ref('')
+// Forking needs a run: the button only exists once this chat has a thread.
+const forkOpen = ref(false)
+const forkFailure = ref('')
+
+async function onForked(branch: string) {
+  try {
+    emit('open', await fetchRun(branch))
+  } catch (error) {
+    forkFailure.value = (error as Error).message
+  }
+}
 
 onMounted(async () => {
   try {
@@ -167,6 +179,15 @@ function onReload() {
         <p class="text-sm text-muted" role="status" aria-live="polite" data-status>
           {{ STATUS_LABELS[state] }}
         </p>
+        <UButton
+          v-if="threadId"
+          color="neutral"
+          variant="outline"
+          size="sm"
+          label="Forker"
+          data-fork-open
+          @click="forkOpen = true"
+        />
         <RunsSheet @open="(run) => emit('open', run)" @fresh="emit('fresh')" />
       </div>
     </header>
@@ -182,6 +203,12 @@ function onReload() {
       >
         <RunScene :model="run" @decide="gateOpen = true" />
         <GateDialog v-if="run.gate" v-model:open="gateOpen" :gate="run.gate" @decide="decide" />
+        <ForkPanel
+          v-if="threadId"
+          v-model:open="forkOpen"
+          :thread-id="threadId"
+          @forked="onForked"
+        />
       </aside>
       <div class="flex min-h-0 flex-1 flex-col">
         <section
@@ -198,6 +225,9 @@ function onReload() {
         <footer class="flex flex-col gap-2 px-4 pt-2 pb-4" data-composer>
           <p v-if="error" class="text-sm text-error" role="alert" data-chat-error>
             {{ error.message }}
+          </p>
+          <p v-if="forkFailure" class="text-sm text-error" role="alert" data-fork-failure>
+            {{ forkFailure }}
           </p>
           <p v-if="demoBrief" class="text-sm text-toned" data-demo>
             Démonstration enregistrée : ce run rejoue des réponses de modèle, sans modèle branché.

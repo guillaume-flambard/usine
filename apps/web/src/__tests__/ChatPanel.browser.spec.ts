@@ -231,3 +231,24 @@ describe('the recorded demo (MEM-24)', () => {
     expect(prompt.value).toBe('')
   })
 })
+
+describe('forking a run from the panel (MEM-23, MEM-33)', () => {
+  it('offers the fork only once the chat has a thread', async () => {
+    const { stream, respond } = await setup()
+    expect(document.querySelector('[data-fork-open]')).toBeNull()
+
+    await send('une tâche')
+    respond()
+    stream.send({ type: 'start', messageId: 'a1', messageMetadata: { threadId: 'chat-1' } })
+    stream.send({ type: 'text-start', id: 't1' })
+    stream.send({ type: 'text-delta', id: 't1', delta: 'fait' })
+    stream.send({ type: 'text-end', id: 't1' })
+    stream.send({ type: 'finish', finishReason: 'stop' })
+    stream.send('[DONE]')
+    stream.close()
+
+    // A run exists, so there is something to fork from.
+    await expect.poll(() => document.querySelector('[data-fork-open]')).not.toBeNull()
+    expect(root().dataset.threadId).toBe('chat-1')
+  })
+})
