@@ -8,7 +8,7 @@ import type { RunEventPayload } from '../contracts/ui-stream'
 export interface RunSummary {
   thread_id: string
   title: string
-  status: 'running' | 'waiting' | 'done' | 'error'
+  status: 'running' | 'waiting' | 'deciding' | 'done' | 'error'
   created_at: string
   turns: number
 }

@@ -22,7 +22,7 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 from pydantic import BaseModel, Field
 
-RunStatus = Literal["running", "waiting", "done", "error"]
+RunStatus = Literal["running", "waiting", "deciding", "done", "error"]
 TITLE_LENGTH = 80
 
 
@@ -86,6 +86,14 @@ class ThreadIndex(Protocol):
         ...
 
     def get(self, thread_id: str, owner: str | None) -> RunDetail | None: ...
+
+    def claim_gate(self, thread_id: str, owner: str | None) -> bool:
+        """Move a waiting run to `deciding`, atomically; False if it was not waiting.
+
+        Two decisions on one gate (a double click, two tabs) must not both
+        resume the run: the second one loses here and gets a 409.
+        """
+        ...
 
     def delete(self, thread_id: str, owner: str | None) -> bool: ...
 
@@ -152,6 +160,14 @@ class InMemoryThreadIndex:
             if row is None or row.owner != owner:
                 return None
             return RunDetail(**self._summary(thread_id, row).model_dump(), history=list(row.turns))
+
+    def claim_gate(self, thread_id: str, owner: str | None) -> bool:
+        with self._lock:
+            row = self._rows.get(thread_id)
+            if row is None or row.owner != owner or row.status != "waiting":
+                return False
+            row.status = "deciding"
+            return True
 
     def delete(self, thread_id: str, owner: str | None) -> bool:
         with self._lock:
@@ -232,6 +248,16 @@ class PostgresThreadIndex:
             turns=len(history),
             history=history,
         )
+
+    def claim_gate(self, thread_id: str, owner: str | None) -> bool:
+        with self._pool.connection() as conn:
+            row = conn.execute(
+                "UPDATE threads SET status = 'deciding' "
+                "WHERE thread_id = %s AND owner IS NOT DISTINCT FROM %s AND status = 'waiting' "
+                "RETURNING thread_id",
+                (thread_id, owner),
+            ).fetchone()
+        return row is not None
 
     def delete(self, thread_id: str, owner: str | None) -> bool:
         with self._pool.connection() as conn:

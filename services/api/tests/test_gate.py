@@ -29,6 +29,8 @@ from usine_api.contracts import (
 )
 from usine_api.contracts import action as action_contract
 from usine_api.graph import build_graph
+from usine_api.identity import InMemoryIdentityStore, InMemorySessionStore
+from usine_api.threads import InMemoryThreadIndex
 
 DSN = os.environ.get("USINE_TEST_DATABASE_URL", "")
 IDENTITY = SpecialistIdentity(name="fake", framework="test", framework_version="0")
@@ -152,9 +154,30 @@ def chat(client: TestClient, chat_id: str) -> str:
     return reply.text
 
 
+def signed_in(app: Any) -> TestClient:
+    """A client with a session: deciding a gate requires an identity."""
+    client = TestClient(app)
+    identity = app.state.test_identities.ensure("decideur@example.test")
+    client.cookies.set("usine_session", app.state.test_sessions.open(identity.account.id))
+    return client
+
+
+def make_app(**kwargs: Any) -> Any:
+    identities, sessions = InMemoryIdentityStore(), InMemorySessionStore()
+    app = create_app(
+        planner=Planner(),
+        specialist=ProposingSpecialist(),
+        identities=identities,
+        sessions=sessions,
+        **kwargs,
+    )
+    app.state.test_identities, app.state.test_sessions = identities, sessions
+    return app
+
+
 @pytest.fixture
 def client() -> Any:
-    with TestClient(create_app(planner=Planner(), specialist=ProposingSpecialist())) as c:
+    with signed_in(make_app()) as c:
         yield c
 
 
@@ -207,3 +230,53 @@ def test_an_expired_gate_counts_as_a_rejection(
 
 def test_gate_on_an_unknown_run_is_404(client: TestClient) -> None:
     assert client.post("/api/runs/nope/gate", json={"decision": "approve"}).status_code == 404
+
+
+def test_an_anonymous_visitor_cannot_decide() -> None:
+    with TestClient(make_app()) as anonymous:
+        chat(anonymous, "run-anon")
+        reply = anonymous.post("/api/runs/run-anon/gate", json={"decision": "approve"})
+        assert reply.status_code == 401
+
+
+def test_a_second_concurrent_decision_loses() -> None:
+    index = InMemoryThreadIndex()
+    with signed_in(make_app(threads=index)) as client:
+        chat(client, "run-race")
+        org = next(iter(index._rows.values())).owner  # noqa: SLF001
+        # The first decision has claimed the gate and is still running.
+        assert index.claim_gate("run-race", org)
+        assert not index.claim_gate("run-race", org)
+        reply = client.post("/api/runs/run-race/gate", json={"decision": "approve"})
+        assert reply.status_code == 409
+
+
+def test_an_edit_keeps_the_kind_and_target_proposed(client: TestClient) -> None:
+    chat(client, "run-edit")
+    elsewhere = SEND.model_copy(update={"target": "#tout-le-monde"}).model_dump()
+    reply = client.post(
+        "/api/runs/run-edit/gate", json={"decision": "edit", "actions": [elsewhere]}
+    )
+    assert reply.status_code == 422
+    better = SEND.model_copy(update={"preview": "v2 sort lundi"}).model_dump()
+    reply = client.post("/api/runs/run-edit/gate", json={"decision": "edit", "actions": [better]})
+    assert reply.status_code == 200
+    assert '"decision": "edit"' in reply.text
+    assert '"target": "#annonces"' in reply.text
+
+
+class CrashingExecutor:
+    """Fails mid-action, like a process killed while sending."""
+
+    async def execute(self, action: ProposedAction) -> str:
+        raise RuntimeError("process killed while sending")
+
+
+def test_actions_cut_mid_execution_are_never_resumed_blindly() -> None:
+    with signed_in(make_app(executor=CrashingExecutor())) as client:
+        chat(client, "run-crash")
+        decided = client.post("/api/runs/run-crash/gate", json={"decision": "approve"})
+        assert '"finishReason": "error"' in decided.text
+        reply = client.post("/api/runs/run-crash/resume")
+        assert reply.status_code == 409
+        assert "deux fois" in reply.json()["detail"]

@@ -34,7 +34,7 @@ from .evaluation import evaluate, measure
 from .flotte import lire as lire_flotte
 from .graph.planner import ChatModelPlanner
 from .graph.specialist import ChatModelSpecialist
-from .graph.supervisor import Planner, SpecialistRunner, build_graph
+from .graph.supervisor import ActionExecutor, Planner, SpecialistRunner, build_graph
 from .identity import (
     SESSION_TTL_SECONDS,
     EmailSender,
@@ -177,6 +177,7 @@ def create_app(
     planner: Planner | None = None,
     specialist: SpecialistRunner | None = None,
     threads: ThreadIndex | None = None,
+    executor: ActionExecutor | None = None,
 ) -> FastAPI:
     """Construit le service. Tout ce qui touche l'extérieur est injectable."""
     bounds = limits or Limits()
@@ -262,7 +263,7 @@ def create_app(
             # Le graphe du chat (MEM-14) vit le temps du service, sur le même
             # checkpointer : un thread se reprend d'un message à l'autre.
             app_.state.chat_graph = (
-                build_graph(chat_planner, chat_specialist, checkpointer=saver)
+                build_graph(chat_planner, chat_specialist, checkpointer=saver, executor=executor)
                 if chat_planner is not None and chat_specialist is not None
                 else None
             )
@@ -403,11 +404,28 @@ def create_app(
         irréversible ne part jamais sur une approbation périmée.
         """
         owner = viewer_org(request)
+        # Décider d'une action irréversible demande une identité : les visiteurs
+        # anonymes partagent un même espace, et l'un ne doit jamais approuver
+        # l'action d'un autre.
+        if owner is None:
+            raise HTTPException(status_code=401, detail="Connexion requise pour décider.")
         if index.get(thread_id, owner) is None:
             raise HTTPException(status_code=404, detail="Run introuvable.")
         waiting = await pending_gate(request, thread_id)
         if waiting is None:
             raise HTTPException(status_code=409, detail="Ce run n'attend aucune décision.")
+        if decision.decision == "edit":
+            # Une modification change le contenu, jamais la nature ni la cible :
+            # elle ne peut pas faire approuver une action que personne n'a proposée.
+            proposed = {(a["kind"], a["target"]) for a in waiting.interrupts[0].value["actions"]}
+            if any((a.kind, a.target) not in proposed for a in decision.actions or []):
+                raise HTTPException(
+                    status_code=422,
+                    detail="Une modification garde le genre et la cible des actions proposées.",
+                )
+        # Une seule décision par porte : la seconde, concurrente, perd ici.
+        if not index.claim_gate(thread_id, owner):
+            raise HTTPException(status_code=409, detail="Une décision est déjà en cours.")
         opened = datetime.fromisoformat(waiting.created_at)
         if (datetime.now(UTC) - opened).total_seconds() > action_contract.GATE_TIMEOUT_SECONDS:
             decision = GateDecision(decision="reject", reason="Délai dépassé : la porte a expiré.")
@@ -442,6 +460,14 @@ def create_app(
             raise HTTPException(
                 status_code=409,
                 detail="Ce run attend une décision : POST /api/runs/{id}/gate.",
+            )
+        if "act" in state.next:
+            # Des actions approuvées ont été coupées en cours d'exécution :
+            # reprendre les relancerait toutes, y compris celles déjà parties.
+            raise HTTPException(
+                status_code=409,
+                detail="Des actions approuvées ont été interrompues : les relancer "
+                "pourrait les exécuter deux fois.",
             )
         if not state.next:
             raise HTTPException(status_code=409, detail="Ce run n'a rien à reprendre.")

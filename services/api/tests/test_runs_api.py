@@ -193,6 +193,11 @@ async def test_on_postgres_a_deletion_leaves_no_checkpoint_and_no_index_row() ->
             index.finish(thread_id, RunTurn(brief="sur postgres", answer="ok"), "done")
 
             assert not index.start(thread_id, "org-x", "vol")
+            # The human gate claim (MEM-20): atomic, once, owner only.
+            index.finish(thread_id, RunTurn(brief="sur postgres"), "waiting")
+            assert not index.claim_gate(thread_id, "org-x")
+            assert index.claim_gate(thread_id, None)
+            assert not index.claim_gate(thread_id, None)
             page, _ = index.page(None, None, 100)
             assert thread_id in [r.thread_id for r in page]
 
