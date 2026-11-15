@@ -56,6 +56,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-usine}
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       USINE_ORIGIN: ${USINE_ORIGIN:-http://127.0.0.1:5173}
+      # Le rejeu (MEM-24) : vide par défaut, la démo enregistrée s'active en la
+      # demandant (voir .env.example).
+      USINE_CASSETTE: ${USINE_CASSETTE:-}
+      USINE_CASSETTE_MODE: ${USINE_CASSETTE_MODE:-}
     secrets:
       - postgres_password
     ports:

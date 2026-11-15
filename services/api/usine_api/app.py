@@ -16,7 +16,8 @@ import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
-from typing import Any
+from pathlib import Path
+from typing import Any, cast
 
 import httpx
 from fastapi import FastAPI, HTTPException, Query, Request, Response
@@ -25,6 +26,7 @@ from langgraph.types import Command
 from pydantic import BaseModel
 
 from .audit import AuditLog, InMemoryAuditLog
+from .cassette import MODES, Cassette, CassetteTransport, Mode, open_cassette
 from .chat_stream import STREAM_HEADERS, ChatMessage, ChatRequest, no_model_stream, run_stream
 from .checkpoints import open_checkpointer
 from .contracts import GateDecision
@@ -63,7 +65,7 @@ from .invites import etiqueter as etiqueter_invite_langfuse
 from .limits import Limits, RateLimiter
 from .mcp import TIMEOUT_SECONDS, McpRefusal, Server, call_tool, list_tools
 from .memory import MAX_FACT, Fact, InMemoryMemory, Memory
-from .models import model_settings
+from .models import ModelSettings, model_settings
 from .portes import Absent as PortesAbsent
 from .portes import dossier as portes_dir
 from .portes import lancer as lancer_portes
@@ -100,6 +102,36 @@ def address_of(request: Request) -> str:
         return first
     client = request.client
     return client.host if client else "?"
+
+
+#: La cassette livrée avec le service : le run que la vitrine rejoue sans clé.
+DEMO_CASSETTE = Path(__file__).resolve().parents[1] / "cassettes" / "demo.json"
+
+
+def _cassette_path() -> Path:
+    """Où lire ou écrire la cassette. Un chemin relatif part de services/api."""
+    raw = os.environ.get("USINE_CASSETTE", "")
+    path = Path(raw) if raw else DEMO_CASSETTE
+    if not path.is_absolute():
+        path = Path(__file__).resolve().parents[1] / path
+    return path
+
+
+def _cassette_setting() -> tuple[Cassette | None, str]:
+    """La cassette demandée par la configuration, et son mode.
+
+    Aucune cassette n'est active par défaut, même avec `cassettes/demo.json` sur
+    le disque : un déploiement qui n'a plus de modèle doit le dire, pas se
+    rabattre en silence sur un run enregistré. `USINE_CASSETTE` l'active.
+    """
+    raw = os.environ.get("USINE_CASSETTE", "")
+    mode = os.environ.get("USINE_CASSETTE_MODE", "") or "replay"
+    if mode not in MODES:
+        raise ValueError(f"USINE_CASSETTE_MODE doit être l'un de {', '.join(MODES)}")
+    if not raw:
+        return None, mode
+    chosen = cast(Mode, mode)
+    return open_cassette(_cassette_path(), chosen), chosen
 
 
 async def http_rpc(url: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -245,6 +277,31 @@ def create_app(
     # un modèle par LiteLLM, sinon aucun (le chat le dit, il ne tombe pas).
     chat_planner: Planner | None = planner
     chat_specialist: SpecialistRunner | None = specialist
+    # Le rejeu (MEM-24) : une cassette remplace la passerelle, quand elle est
+    # demandée ou quand il n'y a pas de modèle. Sans clé, la vitrine montre un
+    # vrai run enregistré plutôt qu'une animation ; la cassette dit son brief,
+    # et le service le dit à l'écran.
+    cassette, cassette_mode = _cassette_setting()
+    cassette_client: httpx.AsyncClient | None = None
+    if cassette is not None:
+        cassette_client = httpx.AsyncClient(
+            transport=CassetteTransport(cassette, cassette_mode, path=_cassette_path())
+        )
+        replay_settings = ModelSettings(
+            base_url="http://cassette.invalid/v1", api_key="replay", model=cassette.model
+        )
+        chat_planner = chat_planner or ChatModelPlanner(
+            replay_settings, http_client=cassette_client
+        )
+        chat_specialist = chat_specialist or ChatModelSpecialist(
+            replay_settings, http_client=cassette_client
+        )
+        logger.warning(
+            "cassette %s (%s) : les appels au modèle sont rejoués, le brief est « %s »",
+            _cassette_path(),
+            cassette_mode,
+            cassette.brief,
+        )
     if os.environ.get("USINE_SCRIPTED_MODELS") == "1":
         # Modèles scriptés, déterministes : le test de bout en bout de la CI
         # (MEM-19), qui n'a ni modèle ni réseau. Jamais par défaut.
@@ -586,6 +643,11 @@ def create_app(
                 "model": chosen_model,
                 "remaining": {"visitor": left.visitor, "global": left.site},
                 "callsPerRun": bounds.calls_per_run,
+                # A recorded demo runs a real graph with recorded answers
+                # (MEM-24): the page has to say so, and knows which brief it can
+                # answer.
+                "demo": cassette is not None,
+                "demoBrief": cassette.brief if cassette is not None else None,
             }
         )
 
