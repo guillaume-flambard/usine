@@ -1,0 +1,38 @@
+# Les serveurs d'outils autorisés (MEM-37).
+#
+# Un agent nomme un serveur, jamais une adresse : c'est le service qui résout le
+# nom vers l'URL, et un nom inconnu est refusé. Sans cette règle, une page
+# publique qui relaie une adresse fournie par un modèle est un proxy ouvert.
+#
+# Un serveur absent de ce fichier n'existe pas. Un outil absent de `tools` n'est
+# jamais exposé à l'agent, même si le serveur le propose.
+#
+# Niveaux de risque :
+#   read         lit, ne modifie rien
+#   write        modifie quelque chose de réversible
+#   irreversible envoie, publie, supprime : passe obligatoirement par la porte
+#                humaine (MEM-20) avant d'être exécuté
+#
+# Les secrets se désignent par le NOM d'une variable d'environnement, jamais par
+# sa valeur : ce fichier est versionné.
+#
+# Exemple (décommenter et adapter) :
+#
+# servers:
+#   - name: docs
+#     url: https://mcp.exemple.test/mcp
+#     description: la documentation publique du lab
+#     token_env: MCP_DOCS_TOKEN        # facultatif
+#     tools:
+#       search: read
+#       fetch: read
+#   - name: annonces
+#     url: https://mcp.exemple.test/annonces
+#     description: les publications du lab
+#     token_env: MCP_ANNONCES_TOKEN
+#     tools:
+#       list: read
+#       draft: write
+#       publish: irreversible
+
+servers: []

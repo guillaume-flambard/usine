@@ -65,6 +65,7 @@ from .invites import etat as etat_invites
 from .invites import etiqueter as etiqueter_invite_langfuse
 from .limits import Limits, RateLimiter
 from .mcp import TIMEOUT_SECONDS, McpRefusal, Server, call_tool, list_tools
+from .mcp_registry import Registry, RegistryRefusal
 from .memory import MAX_FACT, Fact, InMemoryMemory, Memory
 from .models import ModelSettings, model_settings
 from .portes import Absent as PortesAbsent
@@ -105,6 +106,20 @@ def address_of(request: Request) -> str:
         return first
     client = request.client
     return client.host if client else "?"
+
+
+#: La liste blanche des serveurs d'outils (MEM-37), versionnée avec le dépôt.
+def _mcp_config_path() -> Path:
+    return Path(__file__).resolve().parents[3] / "config" / "mcp-servers.yaml"
+
+
+def _allowed_tools(whitelist: Registry, server: str) -> set[str] | None:
+    """The tool names the whitelist allows, or None when nothing is declared."""
+    try:
+        registered = whitelist.resolve(server)
+    except RegistryRefusal:
+        return set()
+    return {tool.name for tool in registered.tools}
 
 
 #: La cassette livrée avec le service : le run que la vitrine rejoue sans clé.
@@ -222,6 +237,7 @@ def create_app(
     specialist: Specialist | None = None,
     specialists: Mapping[str, Specialist] | None = None,
     threads: ThreadIndex | None = None,
+    registry: Registry | None = None,
     executor: ActionExecutor | None = None,
 ) -> FastAPI:
     """Construit le service. Tout ce qui touche l'extérieur est injectable."""
@@ -258,7 +274,14 @@ def create_app(
     )
     # Nommés par nous, comme les sources. Vide par défaut : un serveur d'outils
     # est une décision de déploiement, pas un défaut qu'on découvre.
-    tool_servers: dict[str, Server] = servers or {}
+    # Les serveurs d'outils viennent de la liste blanche (MEM-37), jamais d'un
+    # modèle : `servers` n'est là que pour les tests.
+    whitelist: Registry = registry or Registry.load(_mcp_config_path())
+    # Un `servers` injecté (tests) EST la liste : on ne filtre pas par-dessus une
+    # liste blanche qui ne le connaît pas. En production, `servers` est vide et
+    # la liste blanche fait autorité.
+    filtering = registry is not None or servers is None
+    tool_servers: dict[str, Server] = servers or whitelist.servers()
     recollection: Memory = memory if memory is not None else InMemoryMemory()
     rpc = transport if transport is not None else http_rpc
     # Le modèle passe par le LiteLLM du lab (MEM-13) : le service ne lit plus
@@ -1223,11 +1246,19 @@ def create_app(
         found: list[dict[str, Any]] = []
         unreachable: list[str] = []
         for server in tool_servers.values():
+            allowed = _allowed_tools(whitelist, server.name) if filtering else None
             try:
-                found.extend(tool.as_json() for tool in await list_tools(server, transport=rpc))
+                discovered = await list_tools(server, transport=rpc)
             except McpRefusal:
                 # Un serveur muet ne fait pas taire les autres.
                 unreachable.append(server.name)
+                continue
+            for tool in discovered:
+                # Un outil que le serveur propose mais que la liste blanche ne
+                # nomme pas n'est jamais exposé à l'agent.
+                if allowed is not None and tool.name not in allowed:
+                    continue
+                found.append(tool.as_json())
         return no_store({"tools": found, "unreachable": unreachable})
 
     @app.post("/tools/{server_name}/{tool_name}")
@@ -1236,6 +1267,12 @@ def create_app(
         if server is None:
             known = ", ".join(sorted(tool_servers)) or "aucun"
             return no_store({"error": f"serveur inconnu : {server_name}. Serveurs : {known}"}, 400)
+        if filtering:
+            try:
+                # Le niveau de risque décide : un outil irréversible ne part pas ici.
+                whitelist.check_call(server_name, tool_name)
+            except RegistryRefusal as refused:
+                return no_store({"error": refused.message}, refused.status)
 
         raw = await request.body()
         if len(raw) > bounds.max_body:
