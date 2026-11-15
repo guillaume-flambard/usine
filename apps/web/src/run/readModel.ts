@@ -22,7 +22,7 @@ export interface RunNode {
   /** What the supervisor planned. */
   subtasks?: string[]
   /** Specialist identities and tokens, once finished. */
-  specialists?: { name: string; framework: string; tokens: number }[]
+  specialists?: { name: string; framework: string; tokens: number; tools?: string[] }[]
   /** Reasoning started and settled inside this node (reasoning events). */
   reasoning: { started: number; settled: number }
 }

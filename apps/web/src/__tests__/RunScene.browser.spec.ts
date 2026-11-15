@@ -117,3 +117,56 @@ describe('RunScene', () => {
     expect(slowest).toBeLessThan(150)
   })
 })
+
+describe('tool calls (MEM-38)', () => {
+  it('names the tools the run called, once a specialist reports them', async () => {
+    const model = replay([
+      { kind: 'run-started', at: 0, data: {} },
+      { kind: 'node-started', at: 0.1, node: 'specialist', data: { taskId: 't1' } },
+      {
+        kind: 'node-finished',
+        at: 0.4,
+        node: 'specialist',
+        data: {
+          taskId: 't1',
+          specialists: [
+            {
+              name: 'mcp-agent:lab-fast',
+              framework: 'langchain',
+              tokens: 12,
+              tools: ['docs__search', 'docs__fetch'],
+            },
+          ],
+        },
+      },
+    ])
+
+    await render(RunScene, { props: { model }, global: { plugins: [ui] } })
+
+    const line = () => document.querySelector('[data-tools]') as HTMLElement | null
+    expect(line()).not.toBeNull()
+    // Sorted: the same run must read the same way whatever order they ran in.
+    expect(line()!.textContent).toContain('docs__fetch, docs__search')
+    // Read by assistive tech too, not only drawn.
+    expect(document.querySelector('desc')!.textContent).toContain('Outils appelés')
+  })
+
+  it('says nothing when no tool ran', async () => {
+    const model = replay([
+      { kind: 'run-started', at: 0, data: {} },
+      { kind: 'node-started', at: 0.1, node: 'specialist', data: { taskId: 't1' } },
+      {
+        kind: 'node-finished',
+        at: 0.4,
+        node: 'specialist',
+        data: {
+          taskId: 't1',
+          specialists: [{ name: 'chat', framework: 'langchain', tokens: 3, tools: [] }],
+        },
+      },
+    ])
+
+    await render(RunScene, { props: { model }, global: { plugins: [ui] } })
+    expect(document.querySelector('[data-tools]')).toBeNull()
+  })
+})
