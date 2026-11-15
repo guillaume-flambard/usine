@@ -14,10 +14,17 @@ compatibles OpenAI (`OpenAIChatModel` + `OpenAIProvider(base_url=...)`), et
 Le verdict est rendu dans `answer` (le canal du contrat Specialist, celui que
 l'écran lit) ; le typage sert à garantir ce qui y arrive, pas à changer la
 forme du graphe.
+
+Outils MCP (MEM-82) : le spécialiste reçoit des serveurs MCP et découvre leurs
+outils à l'exécution via le client MCP de l'usine (`usine_api.mcp`), puis les
+expose comme des outils de l'agent Pydantic AI (`tools=`). C'est un adaptateur
+quand le support MCP natif du framework n'est pas disponible ; le protocole et
+la gestion de session (MEM-41) restent ceux du client de l'usine.
 """
 
 from __future__ import annotations
 
+import inspect
 import os
 from importlib.metadata import version
 from typing import Any, Literal
@@ -26,6 +33,7 @@ import httpx
 from pydantic import BaseModel, Field
 
 from usine_api.contracts import SpecialistIdentity, SpecialistInput, SpecialistOutput
+from usine_api.mcp import Server, Transport, call_tool, list_tools
 from usine_api.models import ModelSettings
 from usine_api.observability import record_verdict_attempts
 from usine_api.specialists import register
@@ -71,6 +79,40 @@ def render(verdict: Verdict) -> str:
     return "\n".join(lines)
 
 
+def _mcp_tool_function(server: Server, found: Any, transport: Transport) -> Any:
+    """Crée une fonction Python dont la signature reflète le schéma MCP découvert,
+    et dont le corps appelle le client MCP de l'usine.
+
+    Pydantic AI infère le schéma de l'outil depuis la signature de la fonction
+    passée dans `tools=` : on reconstruit donc une signature fidèle aux
+    paramètres déclarés par le serveur MCP.
+    """
+    schema = found.input_schema or {}
+    properties = schema.get("properties") or {}
+    required = set(schema.get("required") or [])
+
+    params: list[inspect.Parameter] = []
+    for pname, _pspec in properties.items():
+        params.append(
+            inspect.Parameter(
+                pname,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                annotation=str,
+                default=(inspect.Parameter.empty if pname in required else None),
+            )
+        )
+
+    async def call(**arguments: Any) -> str:
+        answer = await call_tool(server, found.name, arguments, transport=transport)
+        return str(answer.get("text", ""))
+
+    call.__name__ = found.name
+    call.__qualname__ = f"{server.name}__{found.name}"
+    call.__signature__ = inspect.Signature(params, return_annotation=str)  # type: ignore[attr-defined]
+    call.__doc__ = found.description or ""
+    return call
+
+
 @register("pydantic-verdict")
 class PydanticVerdictSpecialist:
     """`pydantic-verdict` in the registry: a typed verdict, never a partial one."""
@@ -82,6 +124,8 @@ class PydanticVerdictSpecialist:
         http_client: httpx.AsyncClient | None = None,
         retries: int = 2,
         model: Any | None = None,
+        mcp_servers: tuple[Server, ...] = (),
+        transport: Transport | None = None,
     ) -> None:
         self.identity = SpecialistIdentity(
             name=f"pydantic:{settings.model}",
@@ -92,8 +136,10 @@ class PydanticVerdictSpecialist:
         self._client = http_client
         self._retries = retries
         self._model = model
+        self._mcp_servers = mcp_servers
+        self._transport = transport
 
-    def _agent(self) -> Any:
+    def _agent(self, tools: tuple[Any, ...] = ()) -> Any:
         from pydantic_ai import Agent
 
         return Agent(
@@ -102,6 +148,7 @@ class PydanticVerdictSpecialist:
             retries=self._retries,
             instructions=INSTRUCTIONS,
             name="juge-des-portes",
+            tools=tools,
         )
 
     def _openai_model(self) -> Any:
@@ -116,11 +163,27 @@ class PydanticVerdictSpecialist:
         )
         return OpenAIChatModel(self._settings.model, provider=provider)
 
+    async def _discover_mcp_tools(self) -> tuple[Any, ...]:
+        """Découvre les outils MCP de chaque serveur et les rend appelables."""
+        transport = self._transport
+        if transport is None:
+            return ()
+        tools: list[Any] = []
+        for server in self._mcp_servers:
+            try:
+                discovered = await list_tools(server, transport=transport)
+            except Exception:  # un serveur MCP injoignable ne bloque pas le juge
+                continue
+            for found in discovered:
+                tools.append(_mcp_tool_function(server, found, transport))
+        return tuple(tools)
+
     async def run(self, task: SpecialistInput) -> SpecialistOutput:
         from pydantic_ai.exceptions import UnexpectedModelBehavior
 
+        mcp_tools = await self._discover_mcp_tools()
         try:
-            result = await self._agent().run(task.task)
+            result = await self._agent(tools=mcp_tools).run(task.task)
         except UnexpectedModelBehavior as error:
             # Bounded retries exhausted: a typed refusal, never a half verdict.
             record_verdict_attempts(

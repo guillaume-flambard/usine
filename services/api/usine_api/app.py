@@ -391,7 +391,13 @@ def create_app(
         from .specialists.pydantic_verdict import PydanticVerdictSpecialist
 
         wired.setdefault(
-            "pydantic-verdict", PydanticVerdictSpecialist(gateway, http_client=cassette_client)
+            "pydantic-verdict",
+            PydanticVerdictSpecialist(
+                gateway,
+                http_client=cassette_client,
+                mcp_servers=tuple(tool_servers.values()),
+                transport=rpc,
+            ),
         )
         wired.setdefault(
             "openai-agents", OpenAIAgentsSpecialist(gateway, http_client=cassette_client)

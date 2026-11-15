@@ -145,4 +145,5 @@ def test_a_service_with_a_gateway_offers_every_framework(
         "chat-model": "langchain",
         "pydantic-verdict": "pydantic-ai",
         "openai-agents": "openai-agents",
+        "mcp-agent": "langchain",
     }

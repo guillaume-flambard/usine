@@ -1,8 +1,8 @@
 # Les serveurs d'outils autorisés (MEM-37).
 #
-# Un agent nomme un serveur, jamais une adresse : c'est le service qui résout le
-# nom vers l'URL, et un nom inconnu est refusé. Sans cette règle, une page
-# publique qui relaie une adresse fournie par un modèle est un proxy ouvert.
+# Un agent nomme un serveur, jamais une adresse : c'est le service qui resout le
+# nom vers l'URL, et un nom inconnu est refuse. Sans cette règle, une page
+# publique qui relaye une adresse fournie par un modèle est un proxy ouvert.
 #
 # Un serveur absent de ce fichier n'existe pas. Un outil absent de `tools` n'est
 # jamais exposé à l'agent, même si le serveur le propose.
@@ -35,4 +35,26 @@
 #       draft: write
 #       publish: irreversible
 
-servers: []
+servers:
+  # Serveur de démonstration : lecture seule du système de fichiers (MEM-82).
+  # Démarré localement avec :
+  #   DEMO_FILESYSTEM_ROOT=/chemin/vers/un/corpus \
+  #   uv run python -m usine_api.demo_filesystem
+  - name: demo-filesystem
+    url: http://127.0.0.1:8761/mcp
+    description: lecture seule d'un corpus de fichiers (démo)
+    tools:
+      list_directory: read
+      read_file: read
+
+  # Serveur de démonstration : lecture seule de GitHub (MEM-82).
+  # Démarré localement avec :
+  #   GITHUB_TOKEN=ghp_xxxx \
+  #   uv run python -m usine_api.demo_github
+  - name: demo-github
+    url: http://127.0.0.1:8762/mcp
+    description: lecture seule des dépôts GitHub du lab (démo)
+    token_env: GITHUB_TOKEN
+    tools:
+      list_repos: read
+      read_file: read

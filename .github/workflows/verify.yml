@@ -5,9 +5,14 @@ name: Verification
 # project: this is where both pass.
 on:
   workflow_dispatch:
+  push:
+    branches: [v2]
+  pull_request:
+    branches: [v2]
 
 permissions:
   contents: read
+  statuses: write
 
 jobs:
   verify:
@@ -48,3 +53,22 @@ jobs:
       - name: Verify
         timeout-minutes: 15
         run: ./scripts/verify.sh
+
+      - name: Report usine/verify success
+        if: success()
+        run: |
+          SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+          gh api repos/${{ github.repository }}/commits/${SHA}/statuses \
+            -f state=success \
+            -f context=usine/verify \
+            -f description="Verification passed" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Report usine/verify failure
+        if: failure()
+        run: |
+          SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+          gh api repos/${{ github.repository }}/commits/${SHA}/statuses \
+            -f state=failure \
+            -f context=usine/verify \
+            -f description="Verification failed"
