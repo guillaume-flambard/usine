@@ -864,6 +864,16 @@
               "title": "Thread Id",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "stream",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Stream",
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {

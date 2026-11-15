@@ -86,3 +86,46 @@ Voir `deployment/README.md`. La politique de sécurité servie autorise
 `unsafe-eval` — et rien d'autre : les agents écrivent le code de leurs outils,
 et ce code doit tourner. Le code est affiché avant de s'exécuter, la porte
 humaine reste devant la livraison, et deux tests tiennent la politique.
+
+### L'usine comme serveur MCP
+
+L'usine expose ses primitives en MCP (MEM-39) : un client (Claude Code, Cursor,
+l'inspecteur MCP) peut lister les runs, en ouvrir un, voir ses points de fork et
+**ouvrir** une branche. Ouvrir, pas exécuter : `fork_run` demande à l'API une
+branche amorcée mais arrêtée, et la porte humaine reste devant.
+
+```sh
+# stdio, pour un client local ; l'API doit tourner
+uv run python -m usine_api.mcp_server
+
+# ou en HTTP
+USINE_MCP_TRANSPORT=streamable-http uv run python -m usine_api.mcp_server
+```
+
+Variables : `USINE_API_URL` (défaut `http://127.0.0.1:8000`),
+`USINE_MCP_TRANSPORT` (`stdio` par défaut, ou `streamable-http`).
+
+Configuration côté client (Claude Code, `~/.claude.json` ou le projet) :
+
+```json
+{
+  "mcpServers": {
+    "usine": {
+      "command": "uv",
+      "args": ["run", "python", "-m", "usine_api.mcp_server"],
+      "cwd": "/chemin/vers/lab/services/usine/services/api",
+      "env": { "USINE_API_URL": "http://127.0.0.1:8000" }
+    }
+  }
+}
+```
+
+Outils exposés : `list_runs`, `get_run`, `list_checkpoints`, `list_specialists`
+et `fork_run`. Leurs descriptions disent ce qu'ils font et leurs limites ;
+`tests/test_mcp_server.py` les appelle contre l'API réelle en mémoire, et la
+vérification par un client externe (`/mcp` dans Claude Code, ou l'inspecteur)
+reste une manipulation à faire à la main : une imitation de client ne
+prouverait rien de plus.
+
+L'authentification de ce serveur est MEM-40 : aujourd'hui il parle à une API
+locale, sans jeton.
