@@ -55,6 +55,7 @@ files = [
     "services/api/usine_api/compare.py",
     "services/api/usine_api/fork.py",
     "services/api/usine_api/specialists/",
+    "services/api/usine_api/mcp_registry.py",
     "services/api/usine_api/models.py",
     "services/api/usine_api/chat_stream.py",
     "services/api/usine_api/observability.py",
@@ -67,4 +68,8 @@ files = [
 # so mypy cannot see its stubs here; the adapter is tested in that environment.
 [[tool.mypy.overrides]]
 module = "crewai.*"
+ignore_missing_imports = true
+# PyYAML ships no type stubs; the registry reads one small file.
+[[tool.mypy.overrides]]
+module = "yaml"
 ignore_missing_imports = true
