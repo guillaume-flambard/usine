@@ -277,10 +277,11 @@ def create_app(
     # un modèle par LiteLLM, sinon aucun (le chat le dit, il ne tombe pas).
     chat_planner: Planner | None = planner
     chat_specialist: SpecialistRunner | None = specialist
-    # Le rejeu (MEM-24) : une cassette remplace la passerelle, quand elle est
-    # demandée ou quand il n'y a pas de modèle. Sans clé, la vitrine montre un
-    # vrai run enregistré plutôt qu'une animation ; la cassette dit son brief,
-    # et le service le dit à l'écran.
+    # Le rejeu (MEM-24) : une cassette remplace la passerelle, et seulement
+    # quand la configuration le demande (`USINE_CASSETTE`). Rien ne se rabat en
+    # silence sur un run enregistré. Sans clé, la vitrine montre alors un vrai
+    # run enregistré plutôt qu'une animation ; la cassette dit son brief, et le
+    # service le dit à l'écran.
     cassette, cassette_mode = _cassette_setting()
     cassette_client: httpx.AsyncClient | None = None
     if cassette is not None:
