@@ -123,6 +123,20 @@
         "title": "CheckpointSummary",
         "type": "object"
       },
+      "CompareRequest": {
+        "description": "Which specialists to compare; empty means all of them.",
+        "properties": {
+          "specialists": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Specialists",
+            "type": "array"
+          }
+        },
+        "title": "CompareRequest",
+        "type": "object"
+      },
       "ForkRequest": {
         "properties": {
           "brief": {
@@ -609,6 +623,46 @@
           }
         },
         "summary": "Chat"
+      }
+    },
+    "/api/compare": {
+      "post": {
+        "description": "Le même jeu de cas dans chaque spécialiste, et le rapport (MEM-34).\n\nUne action d'opérateur, pas de visiteur : elle dépense le quota de\nmodèles sur plusieurs cas, donc elle demande une identité.",
+        "operationId": "compare_specialists_api_compare_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompareRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Compare Specialists",
+        "tags": [
+          "runs"
+        ]
       }
     },
     "/api/runs": {

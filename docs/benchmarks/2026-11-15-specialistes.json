@@ -1,0 +1,37 @@
+{
+  "created_at": "2026-11-15T13:00:03.340818Z",
+  "replay": false,
+  "cases": [
+    "resume-clair",
+    "action-sans-porte",
+    "adresse-fournie",
+    "tache-ambigue"
+  ],
+  "results": [
+    {
+      "specialist": "chat-model",
+      "framework": "langchain",
+      "framework_version": "1.8.0",
+      "cases": 4,
+      "tokens": 1650,
+      "errors": 0,
+      "gate_success": null,
+      "latency_p50_ms": 1252.2671670012642,
+      "latency_p95_ms": 2342.766458001279,
+      "experiment_url": "https://langfuse.memolabs.dev/project/lab-agents/experiments/results?baseline=7164327aee01b815"
+    },
+    {
+      "specialist": "pydantic-verdict",
+      "framework": "pydantic-ai",
+      "framework_version": "2.68.0",
+      "cases": 4,
+      "tokens": 2887,
+      "errors": 0,
+      "gate_success": 0.75,
+      "latency_p50_ms": 1196.5699579995999,
+      "latency_p95_ms": 37403.17245800179,
+      "experiment_url": "https://langfuse.memolabs.dev/project/lab-agents/experiments/results?baseline=dabce8ed54007b2e"
+    }
+  ],
+  "errors": []
+}

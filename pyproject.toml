@@ -51,6 +51,7 @@ files = [
     "services/api/usine_api/graph",
     "services/api/usine_api/cassette.py",
     "services/api/usine_api/checkpoints.py",
+    "services/api/usine_api/compare.py",
     "services/api/usine_api/fork.py",
     "services/api/usine_api/specialists/",
     "services/api/usine_api/models.py",
