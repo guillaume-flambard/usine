@@ -45,7 +45,7 @@ from .fork import (
 )
 from .graph.planner import ChatModelPlanner
 from .graph.specialist import ChatModelSpecialist
-from .graph.supervisor import ActionExecutor, Planner, SpecialistRunner, build_graph
+from .graph.supervisor import ActionExecutor, Planner, build_graph
 from .identity import (
     SESSION_TTL_SECONDS,
     EmailSender,
@@ -83,6 +83,7 @@ from .reasoning import (
 from .runs import InMemoryRunStore, RunStore, Stored, new_id, read_archive
 from .settings import database_url
 from .sources import SourceRefusal, catalogue, fetch_source
+from .specialists.contract import Specialist
 from .threads import InMemoryThreadIndex, RunDetail, RunSummary, ThreadIndex
 from .tracing import trace_of
 
@@ -216,7 +217,7 @@ def create_app(
     audit: AuditLog | None = None,
     secure_cookies: bool = True,
     planner: Planner | None = None,
-    specialist: SpecialistRunner | None = None,
+    specialist: Specialist | None = None,
     threads: ThreadIndex | None = None,
     executor: ActionExecutor | None = None,
 ) -> FastAPI:
@@ -276,7 +277,7 @@ def create_app(
     # Le planificateur et le spécialiste du chat : injectés par les tests, sinon
     # un modèle par LiteLLM, sinon aucun (le chat le dit, il ne tombe pas).
     chat_planner: Planner | None = planner
-    chat_specialist: SpecialistRunner | None = specialist
+    chat_specialist: Specialist | None = specialist
     # Le rejeu (MEM-24) : une cassette remplace la passerelle, et seulement
     # quand la configuration le demande (`USINE_CASSETTE`). Rien ne se rabat en
     # silence sur un run enregistré. Sans clé, la vitrine montre alors un vrai

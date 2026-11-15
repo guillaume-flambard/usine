@@ -45,6 +45,8 @@ class CountingPlanner:
 
 
 class CountingSpecialist:
+    identity = IDENTITY
+
     def __init__(self) -> None:
         self.calls = 0
 

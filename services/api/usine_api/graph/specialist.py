@@ -1,8 +1,8 @@
 """The first real specialist: one chat model call through LiteLLM (MEM-14).
 
 It answers a sub-task with the `usine/specialist-task` prompt and nothing else:
-no tools yet. The framework-specific specialists (CrewAI, OpenAI Agents SDK,
-Pydantic AI, Claude Agent SDK) arrive with MEM-27 behind the same contract.
+no tools yet. It is registered as `chat-model` in the Specialist registry
+(MEM-27), behind the contract the framework adapters will also implement.
 """
 
 from __future__ import annotations
@@ -17,8 +17,10 @@ from usine_api.contracts import SpecialistIdentity, SpecialistInput, SpecialistO
 from usine_api.graph.prompts import SPECIALIST_TASK
 from usine_api.models import ModelSettings, chat_model, current_session_id, retry_kwargs
 from usine_api.observability import Prompts, chat_template
+from usine_api.specialists import register
 
 
+@register("chat-model")
 class ChatModelSpecialist:
     def __init__(
         self,

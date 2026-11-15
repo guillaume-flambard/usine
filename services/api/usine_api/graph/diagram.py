@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from usine_api.contracts import SpecialistInput, SpecialistOutput
+from usine_api.contracts import SpecialistIdentity, SpecialistInput, SpecialistOutput
 from usine_api.graph.supervisor import build_graph
 
 TARGET = Path(__file__).resolve().parents[4] / "docs/architecture/supervisor-graph.mmd"
@@ -22,6 +22,8 @@ class _NoPlanner:
 
 
 class _NoSpecialist:
+    identity = SpecialistIdentity(name="diagram", framework="none", framework_version="0")
+
     async def run(self, task: SpecialistInput) -> SpecialistOutput:
         raise NotImplementedError
 

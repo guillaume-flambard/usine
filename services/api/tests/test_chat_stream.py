@@ -40,6 +40,8 @@ class FakePlanner:
 
 
 class FakeSpecialist:
+    identity = IDENTITY
+
     async def run(self, task: SpecialistInput) -> SpecialistOutput:
         return SpecialistOutput(
             answer=f"fait : {task.task}", identity=IDENTITY, tokens=5, tool_calls=0
@@ -47,6 +49,8 @@ class FakeSpecialist:
 
 
 class FailingSpecialist:
+    identity = IDENTITY
+
     async def run(self, task: SpecialistInput) -> SpecialistOutput:
         response = httpx.Response(429, request=httpx.Request("POST", "http://litellm.test/v1"))
         raise openai.RateLimitError("rate limited", response=response, body=None)
@@ -54,6 +58,8 @@ class FailingSpecialist:
 
 class HangingSpecialist:
     """Waits forever, and records that it was cancelled."""
+
+    identity = IDENTITY
 
     def __init__(self) -> None:
         self.started = asyncio.Event()
@@ -262,6 +268,8 @@ def test_fixtures_end_with_done(name: str) -> None:
 
 
 class ProposingSpecialist:
+    identity = IDENTITY
+
     async def run(self, task: SpecialistInput) -> SpecialistOutput:
         from usine_api.contracts import ProposedAction
 
