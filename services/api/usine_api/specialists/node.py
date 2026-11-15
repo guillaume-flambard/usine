@@ -14,7 +14,6 @@ les quatre dériveraient. Ils sont appliqués ici, une fois :
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, TypeVar, cast
 
@@ -22,12 +21,12 @@ from langchain_core.runnables import Runnable, RunnableLambda
 
 from usine_api.specialists.contract import (
     Budget,
-    BudgetExceeded,
     Specialist,
     SpecialistInput,
     SpecialistOutput,
     ToolName,
 )
+from usine_api.specialists.contract import execute as run_within_budget
 
 
 def traced(specialist: Specialist) -> Runnable[SpecialistInput, SpecialistOutput]:
@@ -44,6 +43,18 @@ def traced(specialist: Specialist) -> Runnable[SpecialistInput, SpecialistOutput
     )
 
 
+class _Traced:
+    """The specialist seen by the budget: one named run, then the contract's."""
+
+    def __init__(self, specialist: Specialist) -> None:
+        self.identity = specialist.identity
+        self._run = traced(specialist)
+
+    async def run(self, task: SpecialistInput) -> SpecialistOutput:
+        output: SpecialistOutput = await self._run.ainvoke(task)
+        return output
+
+
 async def execute(
     specialist: Specialist,
     task: str,
@@ -51,34 +62,8 @@ async def execute(
     *,
     tools: tuple[ToolName, ...] = (),
 ) -> SpecialistOutput:
-    """Run one sub-task under the budget, and refuse what goes past it."""
-    entry = SpecialistInput(task=task, budget=budget, tools=tools)
-    try:
-        output = await asyncio.wait_for(
-            traced(specialist).ainvoke(entry), timeout=budget.max_seconds
-        )
-    except TimeoutError as error:
-        raise BudgetExceeded(
-            "durée",
-            specialist=specialist.identity,
-            limit=budget.max_seconds,
-            actual=budget.max_seconds,
-        ) from error
-    if output.tokens > budget.max_tokens:
-        raise BudgetExceeded(
-            "jetons",
-            specialist=specialist.identity,
-            limit=budget.max_tokens,
-            actual=output.tokens,
-        )
-    if output.tool_calls > budget.max_tool_calls:
-        raise BudgetExceeded(
-            "appels d'outils",
-            specialist=specialist.identity,
-            limit=budget.max_tool_calls,
-            actual=output.tool_calls,
-        )
-    return output
+    """Run one sub-task under the budget, traced, and refuse what goes past it."""
+    return await run_within_budget(_Traced(specialist), task, budget, tools=tools)
 
 
 StateIn = TypeVar("StateIn", bound=Mapping[str, Any])

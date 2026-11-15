@@ -13,10 +13,14 @@ from typing import Any
 import httpx
 
 from usine_api.cassette import Cassette, CassetteTransport
-from usine_api.compare import (
+from usine_api.compare import compare
+from usine_api.comparison import (
+    Attempt,
     Case,
-    compare,
+    ComparisonReport,
+    Tally,
     load_cases,
+    merge,
     percentile,
     render,
     verdict_of,
@@ -88,7 +92,7 @@ class FakeLangfuse:
 
 
 def test_the_case_set_is_frozen() -> None:
-    cases = load_cases()
+    cases = load_cases(Path("services/api/compare/cases.json"))
     assert len(cases) >= 3
     assert all(case.task for case in cases)
     # A case is a fixture: the file is versioned, and this test says so.
@@ -240,3 +244,54 @@ def test_the_route_needs_an_identity() -> None:
 class _Planner:
     async def plan(self, brief: str) -> list[str]:
         return [brief]
+
+
+def test_two_reports_merge_by_specialist_name() -> None:
+    here = ComparisonReport(
+        cases=["clair"],
+        results=[
+            Tally("chat-model", "langchain", "1", [Attempt(Case(name="clair", task="t"))]).measure(
+                replay=False, url=None
+            )
+        ],
+    )
+    elsewhere = ComparisonReport(
+        cases=["clair", "publie"],
+        results=[
+            Tally("crewai", "crewai", "1.15", [Attempt(Case(name="clair", task="t"))]).measure(
+                replay=False, url="https://langfuse.test/run/crewai"
+            )
+        ],
+    )
+
+    merged = merge(here, [elsewhere])
+
+    assert [measure.specialist for measure in merged.results] == ["chat-model", "crewai"]
+    assert merged.cases == ["clair", "publie"]
+    assert merged.results[1].experiment_url == "https://langfuse.test/run/crewai"
+
+
+def test_the_standalone_runner_reads_the_same_model_name_default() -> None:
+    """The runner avoids `usine_api.models`; its default must not drift from it."""
+    import importlib.util
+
+    from usine_api.models import DEFAULT_MODEL
+
+    spec = importlib.util.spec_from_file_location(
+        "compare_one", "services/api/scripts/compare-one.py"
+    )
+    assert spec is not None and spec.loader is not None
+    runner = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runner)
+
+    import os
+
+    previous_model = os.environ.pop("USINE_MODEL", None)
+    previous_url = os.environ.setdefault("LITELLM_BASE_URL", "http://litellm.test/v1")
+    try:
+        assert runner.gateway_from_env().model == DEFAULT_MODEL
+    finally:
+        if previous_model is not None:
+            os.environ["USINE_MODEL"] = previous_model
+        if previous_url == "http://litellm.test/v1" and "LITELLM_BASE_URL" not in os.environ:
+            os.environ.pop("LITELLM_BASE_URL", None)

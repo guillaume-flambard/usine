@@ -51,6 +51,7 @@ files = [
     "services/api/usine_api/graph",
     "services/api/usine_api/cassette.py",
     "services/api/usine_api/checkpoints.py",
+    "services/api/usine_api/comparison.py",
     "services/api/usine_api/compare.py",
     "services/api/usine_api/fork.py",
     "services/api/usine_api/specialists/",
@@ -61,3 +62,9 @@ files = [
     "services/api/usine_api/threads.py",
     "services/api/usine_api/settings.py",
 ]
+
+# CrewAI lives in its own environment (openai<3 against >=3.31 for Pydantic AI),
+# so mypy cannot see its stubs here; the adapter is tested in that environment.
+[[tool.mypy.overrides]]
+module = "crewai.*"
+ignore_missing_imports = true

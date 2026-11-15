@@ -23,6 +23,8 @@ que le contrat se lise d'un seul endroit.
 
 from __future__ import annotations
 
+import asyncio
+import time
 from typing import Protocol, runtime_checkable
 
 from usine_api.contracts import (
@@ -36,12 +38,28 @@ from usine_api.contracts import (
 __all__ = [
     "Budget",
     "BudgetExceeded",
+    "Gateway",
     "Specialist",
     "SpecialistIdentity",
     "SpecialistInput",
     "SpecialistOutput",
     "ToolName",
+    "execute",
 ]
+
+
+@runtime_checkable
+class Gateway(Protocol):
+    """What a specialist needs to reach the model gateway, and nothing more.
+
+    Structural on purpose: `ModelSettings` satisfies it without being imported,
+    so an adapter can live in an environment that has no LangChain at all (the
+    multi-environment comparator, MEM-34).
+    """
+
+    base_url: str
+    api_key: str
+    model: str
 
 
 @runtime_checkable
@@ -77,3 +95,43 @@ class BudgetExceeded(Exception):
         super().__init__(
             f"{specialist.name} a dépassé son budget ({kind}) : {actual} pour une limite de {limit}"
         )
+
+
+async def execute(
+    specialist: Specialist,
+    task: str,
+    budget: Budget,
+    *,
+    tools: tuple[ToolName, ...] = (),
+) -> SpecialistOutput:
+    """Run one sub-task under the budget, and refuse what goes past it.
+
+    Budget only: the trace wrapper lives with the graph adapter (`node.py`), so
+    this function is importable without LangChain.
+    """
+    entry = SpecialistInput(task=task, budget=budget, tools=tools)
+    started = time.perf_counter()
+    try:
+        output = await asyncio.wait_for(specialist.run(entry), timeout=budget.max_seconds)
+    except TimeoutError as error:
+        raise BudgetExceeded(
+            "durée",
+            specialist=specialist.identity,
+            limit=budget.max_seconds,
+            actual=round(time.perf_counter() - started, 3),
+        ) from error
+    if output.tokens > budget.max_tokens:
+        raise BudgetExceeded(
+            "jetons",
+            specialist=specialist.identity,
+            limit=budget.max_tokens,
+            actual=output.tokens,
+        )
+    if output.tool_calls > budget.max_tool_calls:
+        raise BudgetExceeded(
+            "appels d'outils",
+            specialist=specialist.identity,
+            limit=budget.max_tool_calls,
+            actual=output.tool_calls,
+        )
+    return output
