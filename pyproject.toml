@@ -5,7 +5,10 @@
 name = "usine-workspace"
 version = "0.0.0"
 requires-python = ">=3.12"
-dependencies = ["usine-api"]
+dependencies = [
+    "fastmcp[client]>=4.2.0",
+    "usine-api",
+]
 
 [dependency-groups]
 dev = [
