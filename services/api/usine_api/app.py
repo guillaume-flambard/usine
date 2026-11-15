@@ -35,6 +35,7 @@ from .archive import (
     parse_archive,
     turns_of,
 )
+from .atelier import bearer_allows, bearer_of, is_public
 from .audit import AuditLog, InMemoryAuditLog
 from .cassette import MODES, Cassette, CassetteTransport, Mode, open_cassette
 from .chat_stream import STREAM_HEADERS, ChatMessage, ChatRequest, no_model_stream, run_stream
@@ -91,12 +92,14 @@ from .mcp_auth import (
     McpAuthStore,
     McpBearer,
     McpSecret,
+    McpToken,
     McpTokenRequest,
     scope_allows,
 )
 from .mcp_registry import Registry, RegistryRefusal
 from .memory import MAX_FACT, Fact, InMemoryMemory, Memory
 from .models import ModelSettings, model_settings
+from .oidc import STATE_COOKIE, STATE_TTL_SECONDS, OidcClient, OidcRefused, oidc_settings
 from .portes import Absent as PortesAbsent
 from .portes import dossier as portes_dir
 from .portes import lancer as lancer_portes
@@ -276,10 +279,30 @@ def create_app(
     mcp_auth: McpAuthStore | None = None,
     internal_secret: str | None = None,
     executor: ActionExecutor | None = None,
+    open_atelier: bool | None = None,
+    oidc: OidcClient | None = None,
 ) -> FastAPI:
     """Construit le service. Tout ce qui touche l'extérieur est injectable."""
     bounds = limits or Limits()
     gate = limiter or RateLimiter(bounds)
+
+    # L'atelier est fermé par défaut (MEM-60, ADR 0002) : sans identité, ses
+    # routes répondent 401. Seul `USINE_ATELIER_OUVERT=1`, pour le dev et les
+    # tests, l'ouvre. Fermé, il ne connecte que par Pocket ID : le lien
+    # magique, qui donnerait un compte à n'importe quel e-mail, est coupé.
+    atelier_open = (
+        open_atelier
+        if open_atelier is not None
+        else os.environ.get("USINE_ATELIER_OUVERT", "") == "1"
+    )
+    if oidc is None and not atelier_open:
+        found = oidc_settings(dict(os.environ))
+        if found is not None:
+            oidc = OidcClient(found, httpx.AsyncClient(timeout=10))
+    if atelier_open:
+        logger.warning("atelier ouvert (USINE_ATELIER_OUVERT=1) : aucune route n'exige d'identité")
+    elif oidc is None:
+        logger.warning("atelier fermé sans Pocket ID configuré : personne ne peut s'y connecter")
 
     # Postgres si une base est fournie et qu'aucun store n'a été injecté (les
     # tests injectent leurs impls en mémoire). Sinon on reste en mémoire, et la
@@ -477,6 +500,21 @@ def create_app(
     )
 
     @app.middleware("http")
+    async def atelier_lock(request: Request, call_next: Any) -> Response:
+        # Défini avant `harden`, donc à l'intérieur : un 401 reçoit aussi ses
+        # en-têtes. Refus par défaut ; seules les routes de `PUBLIC_ROUTES`
+        # passent sans identité.
+        if atelier_open or is_public(request.method, request.url.path):
+            return await call_next(request)
+        if identity_of(request) is None and mcp_token_of(request) is None:
+            return JSONResponse(
+                {"detail": "Connexion requise."},
+                status_code=401,
+                headers={"cache-control": "no-store"},
+            )
+        return await call_next(request)
+
+    @app.middleware("http")
     async def harden(request: Request, call_next: Any) -> Response:
         # Défense en profondeur : le navigateur refuse de lui-même le détournement
         # de type, l'encadrement en iframe et la fuite de référent. N'écrase pas
@@ -517,10 +555,27 @@ def create_app(
             return None
         return people.by_account(account_id)
 
+    def mcp_token_of(request: Request) -> McpToken | None:
+        """Le jeton MCP de la requête, s'il est valide et ouvre cette route.
+
+        Avant MEM-60, l'API ignorait ce jeton : le serveur MCP lisait l'espace
+        des visiteurs anonymes au lieu de celui de l'organisation du jeton.
+        """
+        token = bearer_of(request.headers.get("authorization", ""))
+        if token is None:
+            return None
+        found = auth.verify(token)
+        if found is None or not bearer_allows(found.scope, request.method, request.url.path):
+            return None
+        return found
+
     def viewer_org(request: Request) -> str | None:
-        """L'org derrière la session, ou `None` pour un visiteur anonyme."""
+        """L'org derrière la session ou le jeton MCP, ou `None` pour un anonyme."""
         who = identity_of(request)
-        return who.organization.id if who is not None else None
+        if who is not None:
+            return who.organization.id
+        token = mcp_token_of(request)
+        return token.org if token is not None else None
 
     def owns_run(request: Request, run_id: str) -> bool:
         """Le run appartient-il, vivant, à l'org derrière la session ?
@@ -1094,6 +1149,8 @@ def create_app(
 
     @app.post("/auth/request-link")
     async def request_link(request: Request) -> JSONResponse:
+        if not atelier_open:
+            return no_store({"error": "connexion par Pocket ID seulement"}, 404)
         try:
             body = await request.json()
         except Exception:  # noqa: BLE001 — un corps illisible est une demande
@@ -1118,6 +1175,8 @@ def create_app(
 
     @app.get("/auth/redeem")
     async def redeem(request: Request, token: str = "") -> Response:
+        if not atelier_open:
+            return no_store({"error": "connexion par Pocket ID seulement"}, 404)
         email = links.redeem(token) if token else None
         if email is None:
             # Expiré, utilisé, inconnu : indistincts, et sans session.
@@ -1128,6 +1187,52 @@ def create_app(
         # cliquable depuis un email : le suivre connecte et ramène à la page.
         response = RedirectResponse(url=site_origin, status_code=303)
         set_session(response, session_id)
+        return response
+
+    @app.get("/auth/oidc/login")
+    async def oidc_login() -> Response:
+        """Envoie le navigateur chez Pocket ID (MEM-60)."""
+        if oidc is None:
+            return no_store({"error": "connexion indisponible"}, 503)
+        try:
+            url, state = await oidc.start()
+        except (httpx.HTTPError, OidcRefused):
+            logger.exception("Pocket ID injoignable au début de la connexion")
+            return no_store({"error": "connexion indisponible"}, 503)
+        response = RedirectResponse(url=url, status_code=303)
+        response.set_cookie(
+            STATE_COOKIE,
+            state,
+            httponly=True,
+            secure=secure_cookies,
+            samesite="lax",
+            max_age=STATE_TTL_SECONDS,
+            path="/",
+        )
+        return response
+
+    @app.get("/auth/oidc/callback")
+    async def oidc_callback(
+        request: Request, code: str = "", state: str = "", iss: str | None = None
+    ) -> Response:
+        """Retour de Pocket ID : tout se vérifie, puis la session est posée."""
+        if oidc is None:
+            return no_store({"error": "connexion indisponible"}, 503)
+        try:
+            _sub, email = await oidc.finish(
+                code=code, state=state, cookie_state=request.cookies.get(STATE_COOKIE), iss=iss
+            )
+        except (httpx.HTTPError, OidcRefused) as error:
+            # Le détail reste dans le journal : le visiteur n'apprend pas
+            # laquelle des vérifications a échoué.
+            logger.warning("connexion Pocket ID refusée : %s", error)
+            response = no_store({"error": "connexion refusée"}, 403)
+            response.delete_cookie(STATE_COOKIE, path="/")
+            return response
+        who = people.ensure(email)
+        response = RedirectResponse(url=site_origin, status_code=303)
+        set_session(response, seats.open(who.account.id))
+        response.delete_cookie(STATE_COOKIE, path="/")
         return response
 
     @app.get("/auth/session")

@@ -2713,6 +2713,7 @@ dependencies = [
     { name = "psycopg", extra = ["binary"] },
     { name = "psycopg-pool" },
     { name = "pydantic-ai-slim", extra = ["openai"] },
+    { name = "pyjwt", extra = ["crypto"] },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -2729,6 +2730,7 @@ requires-dist = [
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "psycopg-pool", specifier = ">=3.2" },
     { name = "pydantic-ai-slim", extras = ["openai"], specifier = ">=2.68,<3" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.10" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.38" },
 ]
 

@@ -31,7 +31,11 @@ function realEnv(): Record<string, string> {
   return env
 }
 
-const apiEnv: Record<string, string> = REAL ? realEnv() : { USINE_SCRIPTED_MODELS: '1' }
+// The e2e drives the atelier itself, not its door (MEM-60): the API runs open.
+const apiEnv: Record<string, string> = {
+  ...(REAL ? realEnv() : { USINE_SCRIPTED_MODELS: '1' }),
+  USINE_ATELIER_OUVERT: '1',
+}
 // The test reads Langfuse with the same keys as the API.
 if (REAL) Object.assign(process.env, apiEnv)
 

@@ -60,6 +60,9 @@ services:
       # demandant (voir .env.example).
       USINE_CASSETTE: ${USINE_CASSETTE:-}
       USINE_CASSETTE_MODE: ${USINE_CASSETTE_MODE:-}
+      # L'atelier est fermé par défaut (MEM-60). Ce compose est celui du poste
+      # de dev : il l'ouvre, sauf si .env dit le contraire.
+      USINE_ATELIER_OUVERT: ${USINE_ATELIER_OUVERT:-1}
     secrets:
       - postgres_password
     ports:
