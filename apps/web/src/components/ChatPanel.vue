@@ -9,7 +9,7 @@
  * events travel as `data-run-event` parts and feed the scene (MEM-17): the
  * latest assistant message's events, replayed into the read model.
  */
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useChat } from '@ai-sdk/vue'
 import type { ChatTransport, UIMessage } from 'ai'
 import { chatTransport } from '../chat/transport'
@@ -17,6 +17,7 @@ import type { RunEventPayload } from '../contracts/ui-stream'
 import { replay } from '../run/readModel'
 import RunScene from './RunScene.vue'
 import RunsSheet from './RunsSheet.vue'
+import GateDialog, { type GateDecisionInput } from './GateDialog.vue'
 import type { RunDetail } from '../chat/runs'
 
 const props = withDefaults(
@@ -40,14 +41,57 @@ const { messages, status, error, sendMessage, regenerate, stop } = useChat({
   messages: props.initialMessages,
 })
 
-/** The latest run: the events of the last assistant message, in stream order. */
+const isDecision = (m: UIMessage) =>
+  m.role === 'user' && (m.metadata as { gate?: string } | undefined)?.gate !== undefined
+
+/**
+ * The latest run: every assistant message since the last brief, in stream
+ * order. A gate decision (MEM-21) is not a new brief: the run it resumes
+ * continues in the same scene.
+ */
 const run = computed(() => {
-  const last = [...messages.value].reverse().find((m) => m.role === 'assistant')
-  const events = (last?.parts ?? [])
+  const all = messages.value
+  let start = 0
+  for (let i = all.length - 1; i >= 0; i--) {
+    const m = all[i]!
+    if (m.role === 'user' && !isDecision(m)) {
+      start = i + 1
+      break
+    }
+  }
+  const events = all
+    .slice(start)
+    .filter((m) => m.role === 'assistant')
+    .flatMap((m) => m.parts)
     .filter((part) => part.type === 'data-run-event')
     .map((part) => (part as { data: RunEventPayload }).data)
   return replay(events)
 })
+
+// The gate opens by itself when the stream announces it, and can be reopened
+// from the scene.
+const gateOpen = ref(false)
+watch(
+  () => run.value.status === 'waiting' && Boolean(run.value.gate),
+  (waiting) => {
+    if (waiting) gateOpen.value = true
+  },
+)
+
+const DECISION_TEXT: Record<GateDecisionInput['decision'], string> = {
+  approve: 'Décision : approuver.',
+  reject: 'Décision : rejeter.',
+  edit: 'Décision : approuver la version modifiée.',
+}
+
+function decide(decision: GateDecisionInput) {
+  stopped.value = false
+  const text =
+    decision.decision === 'reject'
+      ? `${DECISION_TEXT.reject} Motif : ${decision.reason}`
+      : DECISION_TEXT[decision.decision]
+  sendMessage({ text, metadata: { gate: decision.decision } }, { body: { gate: decision } })
+}
 
 /** The LangGraph thread of this chat, as the service announced it (MEM-14). */
 const threadId = computed(() => {
@@ -120,7 +164,8 @@ function onReload() {
         aria-label="Scène"
         class="max-h-64 shrink-0 overflow-auto px-4 lg:order-last lg:max-h-none lg:w-[37rem]"
       >
-        <RunScene :model="run" />
+        <RunScene :model="run" @decide="gateOpen = true" />
+        <GateDialog v-if="run.gate" v-model:open="gateOpen" :gate="run.gate" @decide="decide" />
       </aside>
       <div class="flex min-h-0 flex-1 flex-col">
         <section

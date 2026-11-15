@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import types
 
 import httpx
 import pytest
@@ -15,7 +16,7 @@ from usine_api.graph.planner import ChatModelPlanner
 from usine_api.graph.prompts import SUPERVISOR_PLAN, default_prompt
 from usine_api.graph.specialist import ChatModelSpecialist
 from usine_api.models import ModelSettings
-from usine_api.observability import Prompts, chat_template, run_config
+from usine_api.observability import Prompts, chat_template, record_gate_decision, run_config
 
 # A port nothing listens on: Langfuse is configured but unreachable.
 UNREACHABLE = "http://127.0.0.1:9"
@@ -162,3 +163,94 @@ async def test_every_model_call_carries_the_run_session_to_litellm() -> None:
     bodies.clear()
     await planner.plan("hors run")
     assert "litellm_session_id" not in bodies[0]
+
+
+class FakeLangfuse:
+    """The one call the gate score makes, recorded instead of sent."""
+
+    def __init__(self, error: Exception | None = None) -> None:
+        self.scores: list[dict[str, object]] = []
+        self.error = error
+
+    def create_score(self, **kwargs: object) -> None:
+        if self.error is not None:
+            raise self.error
+        self.scores.append(kwargs)
+
+
+def test_a_gate_decision_is_a_categorical_score_on_the_resumed_trace(
+    langfuse_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The decision is what a reader of the trace needs next to the interrupt:
+    # who answered what, and why, without opening the run.
+    client = FakeLangfuse()
+    monkeypatch.setattr("langfuse.get_client", lambda: client)
+    handler = types.SimpleNamespace(last_trace_id="trace-1")
+
+    record_gate_decision(
+        {"callbacks": [handler]},
+        "thread-1",
+        {"decision": "reject", "reason": "pas avant la recette"},
+    )
+
+    assert client.scores == [
+        {
+            "name": "porte-humaine",
+            "value": "reject",
+            "data_type": "CATEGORICAL",
+            "comment": "pas avant la recette",
+            "trace_id": "trace-1",
+        }
+    ]
+
+
+def test_without_a_trace_the_decision_lands_on_the_session(
+    langfuse_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client = FakeLangfuse()
+    monkeypatch.setattr("langfuse.get_client", lambda: client)
+
+    record_gate_decision(
+        {"callbacks": [types.SimpleNamespace()]}, "thread-1", {"decision": "approve"}
+    )
+
+    assert client.scores == [
+        {
+            "name": "porte-humaine",
+            "value": "approve",
+            "data_type": "CATEGORICAL",
+            "comment": None,
+            "session_id": "thread-1",
+        }
+    ]
+
+
+def test_without_tracing_nothing_is_sent(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    client = FakeLangfuse()
+    monkeypatch.setattr("langfuse.get_client", lambda: client)
+
+    record_gate_decision({"callbacks": [types.SimpleNamespace(last_trace_id="t")]}, "thread-1", {})
+    # Keys present but no handler: a run that was never traced has no score.
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-lf-test")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-lf-test")
+    record_gate_decision({}, "thread-1", {})
+
+    assert client.scores == []
+
+
+def test_a_failing_score_never_breaks_the_run(
+    langfuse_env: None, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr("langfuse.get_client", lambda: FakeLangfuse(RuntimeError("réseau")))
+    caplog.set_level(logging.WARNING, logger="usine.observability")
+
+    for _ in range(2):
+        record_gate_decision(
+            {"callbacks": [types.SimpleNamespace()]}, "thread-1", {"decision": "ok"}
+        )
+
+    warnings = [r for r in caplog.records if r.name == "usine.observability"]
+    assert len(warnings) == 1
+    assert "réseau" in warnings[0].getMessage()

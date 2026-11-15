@@ -37,7 +37,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from usine_api.contracts import RunEvent, RunEventKind, SpecialistOutput
 from usine_api.graph.supervisor import ACT, HUMAN_GATE, SPECIALIST, SUPERVISOR, SYNTHESIZE
-from usine_api.observability import run_config
+from usine_api.observability import record_gate_decision, run_config
 from usine_api.threads import RunStatus, RunTurn, ThreadIndex
 
 logger = logging.getLogger(__name__)
@@ -174,12 +174,20 @@ async def run_stream(
         yield sse({"type": "finish", "finishReason": "error"})
         yield sse("[DONE]")
         return
-    yield event(RunEventKind.RUN_STARTED, threadId=thread_id)
+    resumed = resume or command is not None
+    # A resumed run continues the scene of the run it resumes (MEM-21).
+    if resumed:
+        yield event(RunEventKind.RUN_STARTED, threadId=thread_id, resumed=True)
+    else:
+        yield event(RunEventKind.RUN_STARTED, threadId=thread_id)
     # One short id per node run, in order of start. Parallel specialists share
     # the node name, so the scene (MEM-17) needs this to pair a finish with its
     # start. LangGraph's own task ids hold a time-based checkpoint id: a
     # recorded run must replay to the same read model, so they stay inside.
     task_ids: dict[str, str] = {}
+    # A resumed stream numbers its tasks apart, so its ids never collide with
+    # those of the run it continues in the same scene.
+    id_prefix = f"r{new_id()[:6]}-" if resumed else "t"
     answer = ""
     waiting = False
     try:
@@ -194,7 +202,7 @@ async def run_stream(
             async for chunk in stream:
                 task = chunk["data"]
                 node = task["name"]
-                task_id = task_ids.setdefault(task["id"], f"t{len(task_ids) + 1}")
+                task_id = task_ids.setdefault(task["id"], f"{id_prefix}{len(task_ids) + 1}")
                 if "input" in task:
                     payload = task["input"] if isinstance(task["input"], dict) else {}
                     yield event(
@@ -252,6 +260,8 @@ async def run_stream(
         yield sse({"type": "text-start", "id": text_id})
         yield sse({"type": "text-delta", "id": text_id, "delta": answer})
         yield sse({"type": "text-end", "id": text_id})
+    if command is not None:
+        record_gate_decision(config, thread_id, dict(command.resume or {}))
     if waiting:
         # Not finished: the run waits for a decision (POST /api/runs/{id}/gate).
         close_turn(answer, "waiting")

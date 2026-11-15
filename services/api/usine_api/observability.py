@@ -106,3 +106,27 @@ def chat_template(text: str, linked: Any | None) -> ChatPromptTemplate:
     if linked is not None:
         template.metadata = {"langfuse_prompt": linked}
     return template
+
+
+def record_gate_decision(config: dict[str, Any], thread_id: str, decision: dict[str, Any]) -> None:
+    """The human decision as a named score in Langfuse (MEM-21).
+
+    On the trace of the run that resumed after the gate (the handler's last
+    trace), else on the session. Never breaks a run.
+    """
+    if not tracing_configured() or not config.get("callbacks"):
+        return
+    try:
+        from langfuse import get_client
+
+        trace_id = getattr(config["callbacks"][0], "last_trace_id", None)
+        target: dict[str, Any] = {"trace_id": trace_id} if trace_id else {"session_id": thread_id}
+        get_client().create_score(
+            name="porte-humaine",
+            value=str(decision.get("decision", "")),
+            data_type="CATEGORICAL",
+            comment=decision.get("reason") or None,
+            **target,
+        )
+    except Exception as error:  # noqa: BLE001 - tracing never breaks a run
+        _warn_once("gate-score", "Langfuse score for the human gate not sent: %s", error)
