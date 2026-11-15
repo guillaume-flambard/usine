@@ -21,6 +21,13 @@ export function chatTransport(
 ): DefaultChatTransport<UIMessage> {
   return new DefaultChatTransport({
     api: '/api/chat',
+    // A human gate decision (MEM-21) goes to the run's gate endpoint, which
+    // answers with the resumed run as a stream; any other message is a chat turn.
+    prepareSendMessagesRequest: ({ id, messages, body, trigger, messageId }) =>
+      body && 'gate' in body
+        ? { api: `/api/runs/${encodeURIComponent(id)}/gate`, body: body.gate as object }
+        : // The transport's own default body (HttpChatTransport.sendMessages).
+          { body: { ...body, id, messages, trigger, messageId } },
     fetch: async (input, init) => {
       let response: Response
       try {

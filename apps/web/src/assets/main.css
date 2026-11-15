@@ -8,10 +8,15 @@
    green-700 on white 4.94, green-400 on slate-900 10.05). */
 :root {
   --ui-primary: var(--ui-color-primary-700);
+  /* Same reason, measured on the gate's soft error button (MEM-21): the
+     library's red-500 text on its own 10 % tint measures 3.3:1, under AA
+     for a 16 px label. */
+  --ui-error: var(--ui-color-error-700);
 }
 
 .dark {
   --ui-primary: var(--ui-color-primary-400);
+  --ui-error: var(--ui-color-error-400);
 }
 
 @media (prefers-reduced-motion: reduce) {

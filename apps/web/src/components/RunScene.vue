@@ -10,6 +10,7 @@ import { layoutRun, linkPath, NODE_HEIGHT, NODE_WIDTH } from '../run/layout'
 import type { NodeState, RunNode, RunReadModel } from '../run/readModel'
 
 const props = defineProps<{ model: RunReadModel }>()
+const emit = defineEmits<{ decide: [] }>()
 
 const NAMES: Record<string, string> = {
   supervisor: 'Superviseur',
@@ -93,6 +94,15 @@ const description = computed(() =>
         </li>
       </ul>
       <p class="text-toned" data-gate-notice>{{ model.gate.notice }}</p>
+      <UButton
+        class="self-start"
+        color="primary"
+        size="xl"
+        label="Décider"
+        :ui="{ base: 'min-h-11' }"
+        data-gate-open
+        @click="emit('decide')"
+      />
     </div>
     <!-- Drawn at its real size and scrolled if needed: scaled down to fit the
          column, 14 px text fell to about 9 px (measured on 2026-11-14). -->

@@ -7,11 +7,10 @@ packages:
 allowBuilds:
   esbuild: true
   vue-demi: true
-  # Arrive par `sass-embedded`, ajouté pour compiler le SCSS de la coquille
-  # vendorisée. Son script d'installation récupère un binaire préconstruit ; il
-  # ne sert que la surveillance de fichiers, dont on ne se sert pas, mais laissé
-  # indécis il fait sortir `pnpm install --frozen-lockfile` en code 1 et la CI
-  # tombe avant même le type-check.
+  # Comes in through `sass-embedded`, added to compile the vendored shell's
+  # SCSS. Its install script fetches a prebuilt binary; it only serves file
+  # watching, which this repo does not use, but left undecided it makes
+  # `pnpm install --frozen-lockfile` exit 1 and CI falls before the type-check.
   '@parcel/watcher': true
   # Its postinstall installs the git hooks (https://lefthook.dev/installation/node/).
   lefthook: true

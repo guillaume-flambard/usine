@@ -90,9 +90,18 @@ export function reduceRun(model: RunReadModel, event: RunEventPayload): RunReadM
 
   switch (event.kind) {
     case 'run-started':
+      // A resumed run (after a human gate, MEM-21) continues the same scene.
+      if (data.resumed === true && model.events > 0) return { ...base, status: 'running' }
       return { ...EMPTY_RUN, status: 'running', at: event.at, events: 1 }
     case 'node-started': {
       if (!id || !event.node || model.nodes.some((n) => n.id === id)) return base
+      // On resume LangGraph replays the gate node: it is the same gate, so the
+      // waiting node takes the new task id instead of a second node appearing.
+      const waitingGate = model.nodes.find((n) => n.name === HUMAN_GATE && n.state === 'waiting')
+      if (event.node === HUMAN_GATE && waitingGate) {
+        const nodes = model.nodes.map((n) => (n === waitingGate ? { ...n, id } : n))
+        return { ...base, nodes, edges: edgesFor(nodes) }
+      }
       const node: RunNode = {
         id,
         name: event.node,
