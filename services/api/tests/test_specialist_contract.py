@@ -10,7 +10,9 @@ chacun réinventer son budget et son identité.
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Callable
+from typing import Any
 
 import httpx
 import pytest
@@ -65,6 +67,28 @@ def model_reply(_request: httpx.Request) -> httpx.Response:
     )
 
 
+def real_pydantic() -> Specialist:
+    """Pydantic AI, on a scripted model: no network, same contract."""
+    from pydantic_ai.messages import ModelResponse, ToolCallPart
+    from pydantic_ai.models.function import FunctionModel
+
+    from usine_api.specialists.pydantic_verdict import PydanticVerdictSpecialist
+
+    settings = ModelSettings(base_url="http://litellm.test/v1", api_key="sk-test", model="lab-fast")
+
+    def verdict(_messages: Any, _info: Any) -> ModelResponse:
+        payload = {
+            "verdict": "passe",
+            "motifs": [{"intitule": "tâche claire", "preuve": "écris une phrase"}],
+            "resume": "Rien d'interdit.",
+        }
+        return ModelResponse(
+            parts=[ToolCallPart(tool_name="final_result", args=json.dumps(payload))]
+        )
+
+    return PydanticVerdictSpecialist(settings, model=FunctionModel(verdict))
+
+
 def real_chat_model() -> Specialist:
     settings = ModelSettings(base_url="http://litellm.test/v1", api_key="sk-test", model="lab-fast")
     client = httpx.AsyncClient(transport=httpx.MockTransport(model_reply))
@@ -75,6 +99,7 @@ def real_chat_model() -> Specialist:
 IMPLEMENTATIONS: list[tuple[str, Callable[[], Specialist]]] = [
     ("fake", FakeSpecialist),
     ("chat-model", real_chat_model),
+    ("pydantic-verdict", real_pydantic),
 ]
 
 

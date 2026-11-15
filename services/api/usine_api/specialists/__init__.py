@@ -22,7 +22,10 @@ REGISTRY: dict[str, Factory] = {}
 #: finds them without the caller having to import the right module first: a
 #: registry that answers "unknown" while the implementation exists would be a
 #: worse contract than no registry.
-BUILTINS = ("usine_api.graph.specialist",)
+BUILTINS = (
+    "usine_api.graph.specialist",
+    "usine_api.specialists.pydantic_verdict",
+)
 
 
 def _ensure_builtins() -> None:

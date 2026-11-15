@@ -324,6 +324,14 @@ def create_app(
     wired: dict[str, Specialist] = dict(specialists or {})
     if chat_specialist is not None and "chat-model" not in wired:
         wired["chat-model"] = chat_specialist
+    if gateway is not None:
+        # Le second framework réel (MEM-31) : le même service propose le juge
+        # typé, et un fork peut épingler l'un ou l'autre.
+        from .specialists.pydantic_verdict import PydanticVerdictSpecialist
+
+        wired.setdefault(
+            "pydantic-verdict", PydanticVerdictSpecialist(gateway, http_client=cassette_client)
+        )
     site_origin = origin or os.environ.get("USINE_ORIGIN", "https://usine.memolabs.dev")
     if not api_key:
         # Un déploiement dégradé doit se remarquer, pas servir un rejeu en silence.

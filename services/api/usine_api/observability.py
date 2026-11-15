@@ -24,6 +24,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import ensure_config
 
 from usine_api.graph.prompts import default_prompt
 
@@ -139,3 +140,41 @@ def record_gate_decision(config: dict[str, Any], thread_id: str, decision: dict[
         )
     except Exception as error:  # noqa: BLE001 - tracing never breaks a run
         _warn_once("gate-score", "Langfuse score for the human gate not sent: %s", error)
+
+
+def _trace_target() -> dict[str, Any]:
+    """Where to attach a score: the run's trace, else its session, else nowhere."""
+    config = ensure_config()
+    callbacks = config.get("callbacks")
+    handler = callbacks[0] if isinstance(callbacks, list) and callbacks else callbacks
+    trace_id = getattr(handler, "last_trace_id", None)
+    if trace_id:
+        return {"trace_id": trace_id}
+    session = (config.get("metadata") or {}).get("langfuse_session_id")
+    return {"session_id": session} if session else {}
+
+
+def record_verdict_attempts(attempts: int, specialist: str, *, refused: bool) -> None:
+    """How many tries a typed verdict needed, as a score on the run's trace.
+
+    Best effort like every trace here: a missing Langfuse never breaks a run.
+    """
+    if not tracing_configured():
+        return
+    try:
+        target = _trace_target()
+        if not target:
+            return
+        from langfuse import get_client
+
+        get_client().create_score(
+            name="verdict/tentatives",
+            value=float(attempts),
+            data_type="NUMERIC",
+            comment=(
+                f"{specialist} : {'refusé' if refused else 'validé'} après {attempts} tentative(s)"
+            ),
+            **target,
+        )
+    except Exception as error:  # noqa: BLE001 - tracing never breaks a run
+        _warn_once("verdict-score", "Langfuse score for the verdict not sent: %s", error)

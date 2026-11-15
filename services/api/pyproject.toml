@@ -13,6 +13,7 @@ dependencies = [
     "langgraph-checkpoint-postgres>=3.2.1,<4",
     "langchain-openai>=1.8,<2",
     "langfuse>=5.2,<6",
+    "pydantic-ai-slim[openai]>=2.68,<3",
 ]
 
 [build-system]
