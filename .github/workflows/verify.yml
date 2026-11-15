@@ -13,25 +13,29 @@ jobs:
   verify:
     # PR and main checks run outside the VPS. The production image publisher
     # remains in build.yml and is only triggered on main.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 25
     # A stale uv.lock must fail the run, never be re-locked quietly.
     env:
       UV_LOCKED: '1'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      # The Node version comes from .nvmrc, the same file mise reads and the
+      # image in Dockerfile.verify follows: one version, three readers, instead
+      # of a fourth written here that nobody bumps.
+      - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: pnpm
 
-      # Le service compagnon a ses propres tests, et `pnpm lint` les lint.
-      # Sans uv, la vérification échouait sur une commande absente plutôt que
-      # sur un défaut du code.
-      - uses: astral-sh/setup-uv@v5
+      # The companion service has its own tests, and `pnpm lint` lints them.
+      # Without uv, verification failed on a missing command rather than on a
+      # defect in the code. Pinned to the full tag: upstream no longer
+      # publishes floating majors past v7.
+      - uses: astral-sh/setup-uv@v10.3.3
 
       - run: pnpm install --frozen-lockfile
 
