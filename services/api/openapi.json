@@ -79,6 +79,40 @@
         "title": "ChatRequest",
         "type": "object"
       },
+      "CheckpointState": {
+        "properties": {
+          "checkpoint_id": {
+            "title": "Checkpoint Id",
+            "type": "string"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "thread_id": {
+            "title": "Thread Id",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "values": {
+            "additionalProperties": true,
+            "title": "Values",
+            "type": "object"
+          }
+        },
+        "required": [
+          "thread_id",
+          "checkpoint_id",
+          "total",
+          "offset",
+          "values"
+        ],
+        "title": "CheckpointState",
+        "type": "object"
+      },
       "CheckpointSummary": {
         "description": "Ce qu'un client a besoin de savoir pour choisir un point de fork.",
         "properties": {
@@ -232,6 +266,89 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HistoryPoint": {
+        "description": "One checkpoint of the tree, without its state.",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "number"
+          },
+          "checkpoint_id": {
+            "title": "Checkpoint Id",
+            "type": "string"
+          },
+          "keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Keys",
+            "type": "array"
+          },
+          "next": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Next",
+            "type": "array"
+          },
+          "node": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Node"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunParent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step"
+          },
+          "thread_id": {
+            "title": "Thread Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "thread_id",
+          "checkpoint_id",
+          "at",
+          "next",
+          "keys"
+        ],
+        "title": "HistoryPoint",
         "type": "object"
       },
       "McpAudit": {
@@ -455,6 +572,27 @@
           "history"
         ],
         "title": "RunDetail",
+        "type": "object"
+      },
+      "RunHistory": {
+        "properties": {
+          "checkpoints": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryPoint"
+            },
+            "title": "Checkpoints",
+            "type": "array"
+          },
+          "thread_id": {
+            "title": "Thread Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "thread_id",
+          "checkpoints"
+        ],
+        "title": "RunHistory",
         "type": "object"
       },
       "RunPage": {
@@ -1048,6 +1186,81 @@
         ]
       }
     },
+    "/api/runs/{thread_id}/checkpoints/{checkpoint_id}": {
+      "get": {
+        "description": "L'état d'un checkpoint, par pages de clés (MEM-22).",
+        "operationId": "checkpoint_state_api_runs__thread_id__checkpoints__checkpoint_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "title": "Thread Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "checkpoint_id",
+            "required": true,
+            "schema": {
+              "title": "Checkpoint Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckpointState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Checkpoint State",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
     "/api/runs/{thread_id}/fork": {
       "post": {
         "description": "Ouvre une branche depuis un checkpoint et la fait diverger, en flux.\n\nLa branche a son propre identifiant (annoncé dans le premier événement)\net garde son lien à l'origine ; le run d'origine n'est pas modifié. Le\nflux est celui d'une reprise : seuls les nœuds après le point de fork\ns'exécutent, et le modèle est rappelé pour eux.",
@@ -1155,6 +1368,49 @@
           }
         },
         "summary": "Decide Gate",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/api/runs/{thread_id}/history": {
+      "get": {
+        "description": "Les checkpoints du run et de ses branches, en arbre, sans l'état (MEM-22).",
+        "operationId": "run_history_api_runs__thread_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "title": "Thread Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunHistory"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run History",
         "tags": [
           "runs"
         ]

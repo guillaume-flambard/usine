@@ -121,6 +121,10 @@ class ThreadIndex(Protocol):
 
     def get(self, thread_id: str, owner: str | None) -> RunDetail | None: ...
 
+    def branches(self, thread_id: str, owner: str | None) -> list[RunSummary]:
+        """The runs forked directly from this one (MEM-22), oldest first."""
+        ...
+
     def claim_gate(self, thread_id: str, owner: str | None) -> bool:
         """Move a waiting run to `deciding`, atomically; False if it was not waiting.
 
@@ -198,6 +202,20 @@ class InMemoryThreadIndex:
             if row is None or row.owner != owner:
                 return None
             return RunDetail(**self._summary(thread_id, row).model_dump(), history=list(row.turns))
+
+    def branches(self, thread_id: str, owner: str | None) -> list[RunSummary]:
+        with self._lock:
+            mine = sorted(
+                (
+                    (row.created_at, tid, row)
+                    for tid, row in self._rows.items()
+                    if row.owner == owner
+                    and row.parent is not None
+                    and row.parent.thread_id == thread_id
+                ),
+                key=lambda item: (item[0], item[1]),
+            )
+            return [self._summary(tid, row) for _, tid, row in mine]
 
     def claim_gate(self, thread_id: str, owner: str | None) -> bool:
         with self._lock:
@@ -314,6 +332,28 @@ class PostgresThreadIndex:
             parent=_parent_of(row[5], row[6]),
             specialist=row[7],
         )
+
+    def branches(self, thread_id: str, owner: str | None) -> list[RunSummary]:
+        with self._pool.connection() as conn:
+            rows = conn.execute(
+                "SELECT thread_id, title, status, created_at, jsonb_array_length(turns), "
+                "parent_thread_id, fork_checkpoint_id, specialist FROM threads "
+                "WHERE parent_thread_id = %s AND owner IS NOT DISTINCT FROM %s "
+                "ORDER BY created_at, thread_id",
+                (thread_id, owner),
+            ).fetchall()
+        return [
+            RunSummary(
+                thread_id=r[0],
+                title=r[1],
+                status=r[2],
+                created_at=r[3],
+                turns=r[4],
+                parent=_parent_of(r[5], r[6]),
+                specialist=r[7],
+            )
+            for r in rows
+        ]
 
     def claim_gate(self, thread_id: str, owner: str | None) -> bool:
         with self._pool.connection() as conn:

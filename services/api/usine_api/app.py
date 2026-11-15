@@ -47,6 +47,7 @@ from .fork import (
 from .graph.planner import ChatModelPlanner
 from .graph.specialist import ChatModelSpecialist
 from .graph.supervisor import ActionExecutor, Planner, build_graph
+from .history import CheckpointState, RunHistory, history_of_thread, state_page
 from .identity import (
     SESSION_TTL_SECONDS,
     EmailSender,
@@ -707,6 +708,36 @@ def create_app(
         config = {"configurable": {"thread_id": thread_id}}
         states = history_of([state async for state in graph.aget_state_history(config)])
         return [summarise(state) for state in states]
+
+    @app.get("/api/runs/{thread_id}/history", tags=["runs"])
+    async def run_history(thread_id: str, request: Request) -> RunHistory:
+        """Les checkpoints du run et de ses branches, en arbre, sans l'état (MEM-22)."""
+        owner = viewer_org(request)
+        if index.get(thread_id, owner) is None:
+            raise HTTPException(status_code=404, detail="Run introuvable.")
+        graph = getattr(request.app.state, "chat_graph", None)
+        if graph is None:
+            return RunHistory(thread_id=thread_id, checkpoints=[])
+        return await history_of_thread(graph, index, thread_id, owner)
+
+    @app.get("/api/runs/{thread_id}/checkpoints/{checkpoint_id}", tags=["runs"])
+    async def checkpoint_state(
+        thread_id: str,
+        checkpoint_id: str,
+        request: Request,
+        offset: int = Query(0, ge=0),
+        limit: int = Query(20, ge=1, le=100),
+    ) -> CheckpointState:
+        """L'état d'un checkpoint, par pages de clés (MEM-22)."""
+        if index.get(thread_id, viewer_org(request)) is None:
+            raise HTTPException(status_code=404, detail="Run introuvable.")
+        graph = getattr(request.app.state, "chat_graph", None)
+        page = None
+        if graph is not None:
+            page = await state_page(graph, thread_id, checkpoint_id, offset, limit)
+        if page is None:
+            raise HTTPException(status_code=404, detail="Checkpoint introuvable.")
+        return page
 
     @app.post("/api/runs/{thread_id}/fork", tags=["runs"])
     async def fork_thread(
