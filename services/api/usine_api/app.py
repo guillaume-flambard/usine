@@ -29,6 +29,7 @@ from .audit import AuditLog, InMemoryAuditLog
 from .cassette import MODES, Cassette, CassetteTransport, Mode, open_cassette
 from .chat_stream import STREAM_HEADERS, ChatMessage, ChatRequest, no_model_stream, run_stream
 from .checkpoints import open_checkpointer
+from .compare import COMPARE_BUDGET, CompareRequest, compare, load_cases
 from .contracts import GateDecision
 from .contracts import action as action_contract
 from .erasure import Erasure, erasure_for
@@ -674,6 +675,35 @@ def create_app(
         await request.app.state.checkpointer.adelete_thread(thread_id)
         index.delete(thread_id, owner)
         return Response(status_code=204)
+
+    @app.post("/api/compare", tags=["runs"])
+    async def compare_specialists(body: CompareRequest, request: Request) -> JSONResponse:
+        """Le même jeu de cas dans chaque spécialiste, et le rapport (MEM-34).
+
+        Une action d'opérateur, pas de visiteur : elle dépense le quota de
+        modèles sur plusieurs cas, donc elle demande une identité.
+        """
+        if identity_of(request) is None:
+            raise HTTPException(status_code=401, detail="Connexion requise pour comparer.")
+        chosen = {
+            name: instance
+            for name, instance in wired.items()
+            if not body.specialists or name in body.specialists
+        }
+        unknown = set(body.specialists or []) - set(wired)
+        if unknown:
+            raise HTTPException(
+                status_code=422, detail=f"spécialiste inconnu : {', '.join(sorted(unknown))}"
+            )
+        client = None
+        from .observability import tracing_configured
+
+        if tracing_configured():
+            from langfuse import get_client
+
+            client = get_client()
+        report = await compare(chosen, load_cases(), budget=COMPARE_BUDGET, client=client)
+        return no_store(report.model_dump(mode="json"))
 
     @app.get("/api/specialists", tags=["runs"])
     async def list_specialists() -> JSONResponse:
