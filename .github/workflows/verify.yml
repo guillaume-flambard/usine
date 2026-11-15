@@ -54,8 +54,12 @@ jobs:
         timeout-minutes: 15
         run: ./scripts/verify.sh
 
+      # gh needs GH_TOKEN inside Actions; without it the report step exits 4
+      # and turns a green verification red.
       - name: Report usine/verify success
         if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           SHA="${{ github.event.pull_request.head.sha || github.sha }}"
           gh api repos/${{ github.repository }}/commits/${SHA}/statuses \
@@ -66,6 +70,8 @@ jobs:
 
       - name: Report usine/verify failure
         if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           SHA="${{ github.event.pull_request.head.sha || github.sha }}"
           gh api repos/${{ github.repository }}/commits/${SHA}/statuses \
