@@ -32,6 +32,7 @@ a pas (`InvalidUpdateError: Ambiguous update, specify as_node`). Deux amorçages
 from __future__ import annotations
 
 import uuid
+from collections.abc import Mapping
 from typing import Any
 
 from langchain_core.runnables import RunnableConfig
@@ -39,6 +40,8 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import StateSnapshot
 from pydantic import BaseModel
 
+from usine_api.specialists import UnknownSpecialist
+from usine_api.specialists.contract import Specialist
 from usine_api.threads import RunDetail, RunParent, ThreadIndex, title_of
 
 #: `as_node` pour amorcer un thread neuf comme s'il recevait le brief.
@@ -73,6 +76,8 @@ class ForkRequest(BaseModel):
     checkpoint_id: str | None = None
     # A new instruction: the branch replans from the start with this brief.
     brief: str | None = None
+    # The implementation the branch runs (MEM-33). None: the service default.
+    specialist: str | None = None
 
 
 class Forked(BaseModel):
@@ -159,6 +164,7 @@ async def fork_run(
     thread_id: str,
     owner: str | None,
     request: ForkRequest,
+    available: Mapping[str, Specialist] | None = None,
     new_id: str | None = None,
 ) -> Forked:
     """Create the branch, seed it, and return it as the index sees it.
@@ -168,6 +174,10 @@ async def fork_run(
     point has its brief in a pending input write, not in its state, so the
     brief travels with this result instead of being read back from the graph.
     """
+    if request.specialist is not None and request.specialist not in (available or {}):
+        # Never a silent fallback to the default: a branch that asked for an
+        # implementation it cannot have must not run as another one.
+        raise UnknownSpecialist(request.specialist)
     states = history_of([s async for s in graph.aget_state_history(_config(thread_id))])
     chosen = choose(states, request.checkpoint_id)
     if not chosen.next:
@@ -177,7 +187,7 @@ async def fork_run(
     branch = new_id or uuid.uuid4().hex
     parent = RunParent(thread_id=thread_id, checkpoint_id=checkpoint_id_of(chosen))
     brief = request.brief or str(values.get("brief", ""))
-    if not index.fork(branch, owner, parent, title_of(brief)):
+    if not index.fork(branch, owner, parent, title_of(brief), request.specialist):
         raise ForkRefused("Cet identifiant de branche est déjà pris.")
     try:
         await graph.aupdate_state(_config(branch), values, as_node=as_node)

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
@@ -83,6 +83,7 @@ from .reasoning import (
 from .runs import InMemoryRunStore, RunStore, Stored, new_id, read_archive
 from .settings import database_url
 from .sources import SourceRefusal, catalogue, fetch_source
+from .specialists import UnknownSpecialist
 from .specialists.contract import Specialist
 from .threads import InMemoryThreadIndex, RunDetail, RunSummary, ThreadIndex
 from .tracing import trace_of
@@ -218,6 +219,7 @@ def create_app(
     secure_cookies: bool = True,
     planner: Planner | None = None,
     specialist: Specialist | None = None,
+    specialists: Mapping[str, Specialist] | None = None,
     threads: ThreadIndex | None = None,
     executor: ActionExecutor | None = None,
 ) -> FastAPI:
@@ -315,6 +317,13 @@ def create_app(
     if gateway is not None:
         chat_planner = chat_planner or ChatModelPlanner(gateway)
         chat_specialist = chat_specialist or ChatModelSpecialist(gateway)
+    # Quelles implémentations ce service sait faire tourner, par nom (MEM-33) :
+    # c'est ce que le fork peut épingler sur une branche, et ce que l'écran
+    # propose. Le registre (MEM-27) catalogue les adaptateurs ; ici on tient les
+    # instances réellement câblées, avec le bon client et la bonne passerelle.
+    wired: dict[str, Specialist] = dict(specialists or {})
+    if chat_specialist is not None and "chat-model" not in wired:
+        wired["chat-model"] = chat_specialist
     site_origin = origin or os.environ.get("USINE_ORIGIN", "https://usine.memolabs.dev")
     if not api_key:
         # Un déploiement dégradé doit se remarquer, pas servir un rejeu en silence.
@@ -331,7 +340,13 @@ def create_app(
             # Le graphe du chat (MEM-14) vit le temps du service, sur le même
             # checkpointer : un thread se reprend d'un message à l'autre.
             app_.state.chat_graph = (
-                build_graph(chat_planner, chat_specialist, checkpointer=saver, executor=executor)
+                build_graph(
+                    chat_planner,
+                    chat_specialist,
+                    specialists=wired,
+                    checkpointer=saver,
+                    executor=executor,
+                )
                 if chat_planner is not None and chat_specialist is not None
                 else None
             )
@@ -424,8 +439,19 @@ def create_app(
         # L'id du compte, jamais l'email : c'est ce qui part vers Langfuse.
         who = identity_of(request)
         user_id = who.account.id if who is not None else None
+        # A branch pinned to another specialist (MEM-33) keeps it on the next
+        # message too: the thread is the one that remembers, not the browser.
+        owner = viewer_org(request)
+        existing = index.get(body.id, owner) if body.id else None
         return StreamingResponse(
-            run_stream(graph, body, user_id=user_id, index=index, owner=viewer_org(request)),
+            run_stream(
+                graph,
+                body,
+                user_id=user_id,
+                index=index,
+                owner=owner,
+                specialist=existing.specialist if existing is not None else None,
+            ),
             headers=STREAM_HEADERS,
         )
 
@@ -477,7 +503,8 @@ def create_app(
         # l'action d'un autre.
         if owner is None:
             raise HTTPException(status_code=401, detail="Connexion requise pour décider.")
-        if index.get(thread_id, owner) is None:
+        detail = index.get(thread_id, owner)
+        if detail is None:
             raise HTTPException(status_code=404, detail="Run introuvable.")
         waiting = await pending_gate(request, thread_id)
         if waiting is None:
@@ -511,6 +538,7 @@ def create_app(
                 index=index,
                 owner=owner,
                 command=Command(resume=decision.model_dump(mode="json")),
+                specialist=detail.specialist,
             ),
             headers=STREAM_HEADERS,
         )
@@ -518,7 +546,8 @@ def create_app(
     @app.post("/api/runs/{thread_id}/resume", tags=["runs"])
     async def resume_thread(thread_id: str, request: Request) -> Response:
         """Reprend un run interrompu depuis son dernier checkpoint, en flux."""
-        if index.get(thread_id, viewer_org(request)) is None:
+        detail = index.get(thread_id, viewer_org(request))
+        if detail is None:
             raise HTTPException(status_code=404, detail="Run introuvable.")
         graph = getattr(request.app.state, "chat_graph", None)
         if graph is None:
@@ -561,6 +590,7 @@ def create_app(
                 index=index,
                 owner=viewer_org(request),
                 resume=True,
+                specialist=detail.specialist,
             ),
             headers=STREAM_HEADERS,
         )
@@ -596,7 +626,11 @@ def create_app(
                 detail="Aucun modèle n'est configuré : un fork rejoue un run, il en faut un.",
             )
         try:
-            forked = await fork_run(graph, index, thread_id=thread_id, owner=owner, request=body)
+            forked = await fork_run(
+                graph, index, thread_id=thread_id, owner=owner, request=body, available=wired
+            )
+        except UnknownSpecialist as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
         except UnknownCheckpoint as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
         except ForkRefused as error:
@@ -614,6 +648,7 @@ def create_app(
                 index=index,
                 owner=owner,
                 resume=True,
+                specialist=forked.detail.specialist,
             ),
             headers=STREAM_HEADERS,
         )
@@ -631,6 +666,25 @@ def create_app(
         await request.app.state.checkpointer.adelete_thread(thread_id)
         index.delete(thread_id, owner)
         return Response(status_code=204)
+
+    @app.get("/api/specialists", tags=["runs"])
+    async def list_specialists() -> JSONResponse:
+        """Les implémentations que ce service sait faire tourner (MEM-33).
+
+        C'est ce que le fork peut épingler, donc ce que l'écran propose : des
+        noms, avec l'identité que la trace portera.
+        """
+        return no_store(
+            {
+                "items": [
+                    {
+                        "name": name,
+                        "identity": instance.identity.model_dump(mode="json"),
+                    }
+                    for name, instance in sorted(wired.items())
+                ]
+            }
+        )
 
     @app.get("/health")
     async def health(request: Request) -> JSONResponse:

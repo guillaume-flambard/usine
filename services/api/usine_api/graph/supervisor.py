@@ -19,8 +19,10 @@ the model call in flight; a sync node would keep its thread running to the end.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Annotated, Any, Protocol, TypedDict, cast
 
+from langchain_core.runnables import ensure_config
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -33,6 +35,7 @@ from usine_api.contracts import (
     ProposedAction,
     SpecialistOutput,
 )
+from usine_api.specialists import UnknownSpecialist
 from usine_api.specialists.contract import Specialist
 from usine_api.specialists.node import as_node
 
@@ -81,6 +84,13 @@ class DryRunExecutor:
         return f"non exécutée : aucun exécuteur branché pour « {action.kind} » vers {action.target}"
 
 
+def named_specialist() -> str | None:
+    """The specialist a run named for itself, if any (MEM-33)."""
+    configured = ensure_config().get("configurable") or {}
+    name = configured.get("specialist")
+    return name if isinstance(name, str) and name else None
+
+
 class RunState(TypedDict, total=False):
     brief: str
     subtasks: list[str]
@@ -105,6 +115,7 @@ def build_graph(
     planner: Planner,
     specialist: Specialist,
     *,
+    specialists: Mapping[str, Specialist] | None = None,
     checkpointer: BaseCheckpointSaver[Any] | None = None,
     budget: Budget = DEFAULT_BUDGET,
     executor: ActionExecutor | None = None,
@@ -120,14 +131,25 @@ def build_graph(
     def dispatch(state: RunState) -> list[Send]:
         return [Send(SPECIALIST, {"task": task}) for task in state["subtasks"]]
 
-    # The Specialist contract's adapter (MEM-27): budget and trace metadata are
-    # applied once, for every framework, instead of once per implementation.
-    # The Specialist contract's adapter is generic over the state it reads; the
+    # The Specialist contract's adapter (MEM-27) is generic over the state it
+    # reads; the
     # graph's node has a concrete shape, so this node is the one boundary.
-    run_task = as_node(specialist, budget)
+    #
+    # The hot swap (MEM-33): a run names its specialist in its own config, and
+    # the node resolves it there. One graph for every framework, chosen per run
+    # rather than per process, which is what a forked branch needs. A name that
+    # is not loaded is an error, never a silent fallback to the default.
+    default_task = as_node(specialist, budget)
+    by_name = dict(specialists or {})
 
     async def run_specialist(state: SubtaskState) -> RunState:
-        return cast(RunState, await run_task(state))
+        name = named_specialist()
+        if name is None:
+            return cast(RunState, await default_task(state))
+        chosen = by_name.get(name)
+        if chosen is None:
+            raise UnknownSpecialist(name)
+        return cast(RunState, await as_node(chosen, budget)(state))
 
     def synthesize(state: RunState) -> RunState:
         proposed = [action for result in state["results"] for action in result.actions]

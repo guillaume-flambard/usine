@@ -39,6 +39,12 @@ class RunParent(BaseModel):
     checkpoint_id: str | None = None
 
 
+class RunSpecialist(BaseModel):
+    """The specialist a branch was pinned to (MEM-33), by name."""
+
+    name: str
+
+
 class RunSummary(BaseModel):
     thread_id: str
     title: str
@@ -48,6 +54,9 @@ class RunSummary(BaseModel):
     # The run this one was forked from (MEM-23): a branch keeps its link to the
     # trajectory it diverged from.
     parent: RunParent | None = None
+    # The specialist this run was pinned to at fork time (MEM-33); None means
+    # the service default.
+    specialist: str | None = None
 
 
 class RunDetail(RunSummary):
@@ -89,8 +98,16 @@ class ThreadIndex(Protocol):
         """Append a finished turn and set the status."""
         ...
 
-    def fork(self, thread_id: str, owner: str | None, parent: RunParent, title: str) -> bool:
-        """Open a branch row: its own id, its status, and where it comes from.
+    def fork(
+        self,
+        thread_id: str,
+        owner: str | None,
+        parent: RunParent,
+        title: str,
+        specialist: str | None = None,
+    ) -> bool:
+        """Open a branch row: its own id, its status, where it comes from, and
+        which specialist it runs (MEM-23, MEM-33).
 
         False when the id is taken: a branch never overwrites a run.
         """
@@ -123,6 +140,7 @@ class _Row:
     created_at: datetime
     turns: list[RunTurn] = field(default_factory=list)
     parent: RunParent | None = None
+    specialist: str | None = None
 
 
 class InMemoryThreadIndex:
@@ -156,6 +174,7 @@ class InMemoryThreadIndex:
             created_at=row.created_at,
             turns=len(row.turns),
             parent=row.parent,
+            specialist=row.specialist,
         )
 
     def page(
@@ -188,11 +207,20 @@ class InMemoryThreadIndex:
             row.status = "deciding"
             return True
 
-    def fork(self, thread_id: str, owner: str | None, parent: RunParent, title: str) -> bool:
+    def fork(
+        self,
+        thread_id: str,
+        owner: str | None,
+        parent: RunParent,
+        title: str,
+        specialist: str | None = None,
+    ) -> bool:
         with self._lock:
             if thread_id in self._rows:
                 return False
-            self._rows[thread_id] = _Row(owner, title, "running", datetime.now(UTC), parent=parent)
+            self._rows[thread_id] = _Row(
+                owner, title, "running", datetime.now(UTC), parent=parent, specialist=specialist
+            )
             return True
 
     def delete(self, thread_id: str, owner: str | None) -> bool:
@@ -239,7 +267,7 @@ class PostgresThreadIndex:
     ) -> tuple[list[RunSummary], str | None]:
         query = (
             "SELECT thread_id, title, status, created_at, jsonb_array_length(turns), "
-            "parent_thread_id, fork_checkpoint_id FROM threads "
+            "parent_thread_id, fork_checkpoint_id, specialist FROM threads "
             "WHERE owner IS NOT DISTINCT FROM %s"
         )
         params: list[Any] = [owner]
@@ -259,6 +287,7 @@ class PostgresThreadIndex:
                 created_at=r[3],
                 turns=r[4],
                 parent=_parent_of(r[5], r[6]),
+                specialist=r[7],
             )
             for r in rows
         ]
@@ -268,7 +297,7 @@ class PostgresThreadIndex:
         with self._pool.connection() as conn:
             row = conn.execute(
                 "SELECT thread_id, title, status, created_at, turns, "
-                "parent_thread_id, fork_checkpoint_id FROM threads "
+                "parent_thread_id, fork_checkpoint_id, specialist FROM threads "
                 "WHERE thread_id = %s AND owner IS NOT DISTINCT FROM %s",
                 (thread_id, owner),
             ).fetchone()
@@ -283,6 +312,7 @@ class PostgresThreadIndex:
             turns=len(history),
             history=history,
             parent=_parent_of(row[5], row[6]),
+            specialist=row[7],
         )
 
     def claim_gate(self, thread_id: str, owner: str | None) -> bool:
@@ -303,15 +333,23 @@ class PostgresThreadIndex:
             )
             return result.rowcount > 0
 
-    def fork(self, thread_id: str, owner: str | None, parent: RunParent, title: str) -> bool:
+    def fork(
+        self,
+        thread_id: str,
+        owner: str | None,
+        parent: RunParent,
+        title: str,
+        specialist: str | None = None,
+    ) -> bool:
         with self._pool.connection() as conn:
             row = conn.execute(
                 "INSERT INTO threads "
-                "(thread_id, owner, title, status, parent_thread_id, fork_checkpoint_id) "
-                "VALUES (%s, %s, %s, 'running', %s, %s) "
+                "(thread_id, owner, title, status, "
+                "parent_thread_id, fork_checkpoint_id, specialist) "
+                "VALUES (%s, %s, %s, 'running', %s, %s, %s) "
                 "ON CONFLICT (thread_id) DO NOTHING "
                 "RETURNING thread_id",
-                (thread_id, owner, title, parent.thread_id, parent.checkpoint_id),
+                (thread_id, owner, title, parent.thread_id, parent.checkpoint_id, specialist),
             ).fetchone()
         return row is not None
 

@@ -150,6 +150,7 @@ async def run_stream(
     owner: str | None = None,
     resume: bool = False,
     command: Any | None = None,
+    specialist: str | None = None,
 ) -> AsyncIterator[str]:
     """The SSE body of one chat turn. `new_id` and `clock` are injected by tests.
 
@@ -157,6 +158,8 @@ async def run_stream(
     last checkpoint instead of starting a new brief: the graph is given no input,
     which is how LangGraph resumes (https://docs.langchain.com/oss/python/langgraph/persistence).
     `command` is a `Command(resume=...)` answering a human gate (MEM-20).
+    `specialist` pins this run to a named implementation (MEM-33): the graph
+    resolves it from the run's own config, so one graph serves every framework.
 
     A gate stops the run: its interrupt becomes a `gate-opened` event, the turn
     is recorded as `waiting`, and the stream ends without `run-finished`.
@@ -205,7 +208,7 @@ async def run_stream(
     answer = ""
     waiting = False
     try:
-        config = run_config(thread_id, user_id=user_id)
+        config = run_config(thread_id, user_id=user_id, specialist=specialist)
         # `aclosing`: when the client goes away, this generator is closed at a
         # `yield` (ASGI 2.4) or cancelled (older servers). Either way the graph
         # stream must be closed with it, which cancels the nodes still running;
