@@ -35,6 +35,7 @@ from typing import Any
 import openai
 from pydantic import BaseModel, ConfigDict, Field
 
+from usine_api.cassette import CassetteMiss
 from usine_api.contracts import RunEvent, RunEventKind, SpecialistOutput
 from usine_api.graph.supervisor import ACT, HUMAN_GATE, SPECIALIST, SUPERVISOR, SYNTHESIZE
 from usine_api.observability import record_gate_decision, run_config
@@ -101,6 +102,13 @@ def readable_error(error: BaseException) -> str:
         return "La passerelle de modèles est injoignable."
     if isinstance(error, openai.APIStatusError):
         return f"Le modèle a refusé la requête (erreur {error.status_code})."
+    if isinstance(error, CassetteMiss):
+        # The demo (MEM-24) answers one recorded brief: say so, rather than
+        # blaming an internal error for a question nobody recorded.
+        return (
+            "Cette démonstration rejoue un run enregistré : elle ne connaît que "
+            "son brief. Branchez un modèle pour poser une autre question."
+        )
     return "Le run a échoué sur une erreur interne. Elle est journalisée."
 
 
