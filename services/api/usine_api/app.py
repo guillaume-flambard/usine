@@ -681,7 +681,12 @@ def create_app(
         return [summarise(state) for state in states]
 
     @app.post("/api/runs/{thread_id}/fork", tags=["runs"])
-    async def fork_thread(thread_id: str, body: ForkRequest, request: Request) -> Response:
+    async def fork_thread(
+        thread_id: str,
+        body: ForkRequest,
+        request: Request,
+        stream: bool = Query(True),
+    ) -> Response:
         """Ouvre une branche depuis un checkpoint et la fait diverger, en flux.
 
         La branche a son propre identifiant (annoncé dans le premier événement)
@@ -708,6 +713,11 @@ def create_app(
             raise HTTPException(status_code=422, detail=str(error)) from error
         except ForkRefused as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
+        if not stream:
+            # `stream=false` ouvre la branche sans la faire tourner : c'est ce
+            # qu'un client d'outils (MCP) demande, pour ne jamais exécuter une
+            # action à la place d'une personne.
+            return no_store(forked.detail.model_dump(mode="json"), 201)
         who = identity_of(request)
         chat_request = ChatRequest(
             id=forked.detail.thread_id,
