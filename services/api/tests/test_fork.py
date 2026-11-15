@@ -252,3 +252,45 @@ async def test_on_postgres_the_branch_has_its_own_checkpoint_rows(
             assert parent is not None and parent[0] == source and parent[1]
     finally:
         pool.close()
+
+
+async def test_seeding_a_branch_does_not_duplicate_the_specialist_results() -> None:
+    """The `results` channel has a reducer; seeding must not apply it twice.
+
+    Forking after the specialists is the case that would show it: the chosen
+    checkpoint already holds two outputs, and `update_state` runs them through
+    `collect_results` again on the new thread.
+    """
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    from usine_api.checkpoints import SERDE
+    from usine_api.threads import InMemoryThreadIndex
+
+    saver = InMemorySaver(serde=SERDE)
+    graph = build_graph(CountingPlanner(), CountingSpecialist(), checkpointer=saver)
+    source = "chat-reducer"
+    await graph.ainvoke({"brief": "un brief"}, {"configurable": {"thread_id": source}})
+    index = InMemoryThreadIndex()
+    assert index.start(source, None, "un brief")
+
+    states = [
+        state async for state in graph.aget_state_history({"configurable": {"thread_id": source}})
+    ]
+    chosen = next(state for state in states if "synthesize" in state.next)
+    after_specialists = dict(chosen.values)
+    assert len(after_specialists["results"]) == 2
+
+    forked = await fork_run(
+        graph,
+        index,
+        thread_id=source,
+        owner=None,
+        request=ForkRequest(
+            checkpoint_id=chosen.config["configurable"]["checkpoint_id"]  # type: ignore[index]
+        ),
+    )
+    seeded = await graph.aget_state({"configurable": {"thread_id": forked.detail.thread_id}})
+    assert len(seeded.values["results"]) == 2
+    assert [output.answer for output in seeded.values["results"]] == [
+        output.answer for output in after_specialists["results"]
+    ]
