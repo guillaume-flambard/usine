@@ -328,10 +328,14 @@ def create_app(
     if gateway is not None:
         # Le second framework réel (MEM-31) : le même service propose le juge
         # typé, et un fork peut épingler l'un ou l'autre.
+        from .specialists.openai_agents import OpenAIAgentsSpecialist
         from .specialists.pydantic_verdict import PydanticVerdictSpecialist
 
         wired.setdefault(
             "pydantic-verdict", PydanticVerdictSpecialist(gateway, http_client=cassette_client)
+        )
+        wired.setdefault(
+            "openai-agents", OpenAIAgentsSpecialist(gateway, http_client=cassette_client)
         )
     site_origin = origin or os.environ.get("USINE_ORIGIN", "https://usine.memolabs.dev")
     if not api_key:

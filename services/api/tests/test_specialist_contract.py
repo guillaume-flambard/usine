@@ -89,6 +89,37 @@ def real_pydantic() -> Specialist:
     return PydanticVerdictSpecialist(settings, model=FunctionModel(verdict))
 
 
+def real_openai_agents() -> Specialist:
+    """OpenAI Agents SDK, on a scripted chat-completions endpoint: no network."""
+    import httpx
+
+    from usine_api.specialists.openai_agents import OpenAIAgentsSpecialist
+
+    def reply(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "id": "c",
+                "object": "chat.completion",
+                "created": 0,
+                "model": "lab-fast",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "stop",
+                        "message": {"role": "assistant", "content": "réponse du SDK"},
+                    }
+                ],
+                "usage": {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8},
+            },
+        )
+
+    settings = ModelSettings(base_url="http://litellm.test/v1", api_key="sk-test", model="lab-fast")
+    return OpenAIAgentsSpecialist(
+        settings, http_client=httpx.AsyncClient(transport=httpx.MockTransport(reply))
+    )
+
+
 def real_chat_model() -> Specialist:
     settings = ModelSettings(base_url="http://litellm.test/v1", api_key="sk-test", model="lab-fast")
     client = httpx.AsyncClient(transport=httpx.MockTransport(model_reply))
@@ -100,6 +131,7 @@ IMPLEMENTATIONS: list[tuple[str, Callable[[], Specialist]]] = [
     ("fake", FakeSpecialist),
     ("chat-model", real_chat_model),
     ("pydantic-verdict", real_pydantic),
+    ("openai-agents", real_openai_agents),
 ]
 
 

@@ -268,10 +268,12 @@ def _live_specialists() -> dict[str, Specialist]:
     if settings is None:
         raise SystemExit("LITELLM_BASE_URL n'est pas défini : aucun modèle à comparer.")
     from usine_api.graph.specialist import ChatModelSpecialist
+    from usine_api.specialists.openai_agents import OpenAIAgentsSpecialist
 
     return {
         "chat-model": ChatModelSpecialist(settings),
         "pydantic-verdict": PydanticVerdictSpecialist(settings),
+        "openai-agents": OpenAIAgentsSpecialist(settings),
     }
 
 
