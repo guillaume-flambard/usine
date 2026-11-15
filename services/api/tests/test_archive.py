@@ -16,9 +16,11 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 from test_fork import CountingPlanner, CountingSpecialist, chat
+from test_runs import sign_in
 
 from usine_api.app import create_app
-from usine_api.archive import RunArchive
+from usine_api.archive import MAX_TURNS, RunArchive
+from usine_api.identity import RecordingEmailSender
 
 SCHEMA = Path(__file__).resolve().parents[3] / "docs" / "schemas" / "run-archive.v1.json"
 
@@ -54,9 +56,33 @@ def read_model(run: dict[str, Any]) -> dict[str, Any]:
     return model
 
 
-def make_client() -> tuple[TestClient, CountingPlanner]:
+def make_client(**kwargs: Any) -> tuple[TestClient, CountingPlanner]:
+    """A signed-in client: importing needs an account (review of MEM-26)."""
     planner = CountingPlanner()
-    return TestClient(create_app(planner=planner, specialist=CountingSpecialist())), planner
+    mailer = RecordingEmailSender()
+    app = create_app(
+        planner=planner,
+        specialist=CountingSpecialist(),
+        email=mailer,
+        secure_cookies=False,
+        **kwargs,
+    )
+    client = TestClient(app)
+    sign_in(client, mailer, "owner@atelier.co")
+    return client, planner
+
+
+def valid_archive(**run: Any) -> dict[str, Any]:
+    turn = {
+        "brief": "b",
+        "answer": "a",
+        "events": [{"kind": "run-started", "at": 0.0, "data": {}}],
+    }
+    return {
+        "format": "usine.run",
+        "version": 1,
+        "run": {"title": "t", "status": "done", "turns": [turn], **run},
+    }
 
 
 def test_exporting_then_importing_gives_the_same_read_model() -> None:
@@ -196,3 +222,65 @@ def test_on_postgres_a_restored_run_reads_back_and_never_overwrites() -> None:
         assert index.get(thread, "another-org") is None
     finally:
         pool.close()
+
+
+def test_importing_without_an_account_is_refused() -> None:
+    with TestClient(create_app(planner=CountingPlanner(), specialist=CountingSpecialist())) as c:
+        assert c.post("/api/runs/import", json=valid_archive()).status_code == 401
+
+
+def test_an_imported_run_names_itself_whatever_the_archive_says() -> None:
+    client, _ = make_client()
+    with client:
+        archive = valid_archive()
+        archive["run"]["turns"][0]["events"][0]["data"] = {"threadId": "someone-else"}
+        copy = client.post("/api/runs/import", json=archive).json()
+        started = copy["history"][0]["events"][0]
+        assert started["data"]["threadId"] == copy["thread_id"]
+
+
+def test_malformed_bodies_are_client_errors_not_crashes() -> None:
+    client, _ = make_client()
+    with client:
+        nested = '{"format": "usine.run", "version": 1, "x": ' + "[" * 200_000 + "]" * 200_000 + "}"
+        for body in (
+            b"\xff\xfe\xff",
+            nested.encode(),
+            json.dumps(valid_archive()).replace("0.0", "NaN").encode(),
+            json.dumps(valid_archive()).replace("0.0", "1e999").encode(),
+            json.dumps(valid_archive(title="a\u0000b")).encode(),
+        ):
+            reply = client.post(
+                "/api/runs/import", content=body, headers={"content-type": "application/json"}
+            )
+            assert reply.status_code == 422, (body[:40], reply.status_code)
+
+
+def test_a_version_must_be_an_integer_not_something_equal_to_one() -> None:
+    client, _ = make_client()
+    with client:
+        for version in (True, 1.0, "1"):
+            archive = valid_archive()
+            archive["version"] = version
+            assert client.post("/api/runs/import", json=archive).status_code == 422
+
+
+def test_titles_and_turns_are_bounded() -> None:
+    client, _ = make_client()
+    with client:
+        copy = client.post("/api/runs/import", json=valid_archive(title="x" * 5000)).json()
+        assert len(copy["title"]) <= 80
+        many = valid_archive()
+        many["run"]["turns"] = many["run"]["turns"] * (MAX_TURNS + 1)
+        assert client.post("/api/runs/import", json=many).status_code == 422
+
+
+def test_an_archive_too_large_is_refused_before_it_is_read() -> None:
+    client, _ = make_client()
+    with client:
+        reply = client.post(
+            "/api/runs/import",
+            content=b"{}",
+            headers={"content-type": "application/json", "content-length": "9999999"},
+        )
+        assert reply.status_code == 413

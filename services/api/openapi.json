@@ -31,6 +31,7 @@
             "items": {
               "$ref": "#/components/schemas/ArchivedTurn"
             },
+            "maxItems": 200,
             "title": "Turns",
             "type": "array"
           }
@@ -1213,7 +1214,7 @@
     },
     "/api/runs/import": {
       "post": {
-        "description": "Relit une archive en rejeu : un run neuf, lisible, rien n'est exécuté (MEM-26).",
+        "description": "Relit une archive en rejeu : un run neuf, lisible, rien n'est exécuté (MEM-26).\n\nConnexion requise : sans elle, le run irait dans la liste partagée des\nvisiteurs anonymes. Le limiteur compte l'import comme un appel, parce\nqu'aucun appel de modèle ne le ferait à sa place.",
         "operationId": "import_thread_api_runs_import_post",
         "responses": {
           "201": {

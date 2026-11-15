@@ -11,7 +11,6 @@ qu'elle est propre.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 from collections.abc import AsyncIterator, Mapping
@@ -33,9 +32,9 @@ from .archive import (
     RunArchive,
     export_of,
     file_name,
+    parse_archive,
     turns_of,
 )
-from .archive import read_archive as read_run_archive
 from .audit import AuditLog, InMemoryAuditLog
 from .cassette import MODES, Cassette, CassetteTransport, Mode, open_cassette
 from .chat_stream import STREAM_HEADERS, ChatMessage, ChatRequest, no_model_stream, run_stream
@@ -770,16 +769,27 @@ def create_app(
 
     @app.post("/api/runs/import", status_code=201, tags=["runs"])
     async def import_thread(request: Request) -> RunDetail:
-        """Relit une archive en rejeu : un run neuf, lisible, rien n'est exécuté (MEM-26)."""
-        body = await request.body()
-        if len(body) > MAX_RUN_ARCHIVE_BYTES:
+        """Relit une archive en rejeu : un run neuf, lisible, rien n'est exécuté (MEM-26).
+
+        Connexion requise : sans elle, le run irait dans la liste partagée des
+        visiteurs anonymes. Le limiteur compte l'import comme un appel, parce
+        qu'aucun appel de modèle ne le ferait à sa place.
+        """
+        if identity_of(request) is None:
+            raise HTTPException(status_code=401, detail="Connexion requise pour importer un run.")
+        declared = request.headers.get("content-length", "")
+        if declared.isdigit() and int(declared) > MAX_RUN_ARCHIVE_BYTES:
             raise HTTPException(status_code=413, detail="Archive trop lourde.")
+        refusal = gate.allow(address_of(request))
+        if refusal is not None:
+            raise HTTPException(status_code=429, detail=refusal)
+        body = bytearray()
+        async for chunk in request.stream():
+            body += chunk
+            if len(body) > MAX_RUN_ARCHIVE_BYTES:
+                raise HTTPException(status_code=413, detail="Archive trop lourde.")
         try:
-            archive = read_run_archive(json.loads(body or b"null"))
-        except json.JSONDecodeError as error:
-            raise HTTPException(
-                status_code=422, detail="Archive illisible : ce n'est pas du JSON."
-            ) from error
+            archive = parse_archive(bytes(body))
         except ArchiveRefused as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
         owner = viewer_org(request)
