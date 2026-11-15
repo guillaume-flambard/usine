@@ -73,6 +73,16 @@ from .mcp import (
     remember_session,
     session_headers,
 )
+from .mcp_auth import (
+    SCOPES,
+    InMemoryMcpAuthStore,
+    McpAudit,
+    McpAuthStore,
+    McpBearer,
+    McpSecret,
+    McpTokenRequest,
+    scope_allows,
+)
 from .mcp_registry import Registry, RegistryRefusal
 from .memory import MAX_FACT, Fact, InMemoryMemory, Memory
 from .models import ModelSettings, model_settings
@@ -252,6 +262,8 @@ def create_app(
     specialists: Mapping[str, Specialist] | None = None,
     threads: ThreadIndex | None = None,
     registry: Registry | None = None,
+    mcp_auth: McpAuthStore | None = None,
+    internal_secret: str | None = None,
     executor: ActionExecutor | None = None,
 ) -> FastAPI:
     """Construit le service. Tout ce qui touche l'extérieur est injectable."""
@@ -281,6 +293,16 @@ def create_app(
     # L'email : SMTP si configuré, journal sinon (dev). Un test injecte le sien.
     mailer: EmailSender = email or _default_email_sender()
     journal: AuditLog = audit or (pg.audit if pg is not None else InMemoryAuditLog())
+    # Les jetons du serveur MCP (MEM-40) : lecture et fork, révocables, jamais
+    # en clair dans la table. Un hachage ne prouve pas qu'il est révocable.
+    auth: McpAuthStore = mcp_auth or (pg.mcp_auth if pg is not None else InMemoryMcpAuthStore())
+    # La clé partagée avec le serveur MCP : sans elle, pas d'introspection. Une
+    # clé non configurée refuse tout, au lieu d'ouvrir le serveur par défaut.
+    shared: str = (
+        internal_secret
+        if internal_secret is not None
+        else os.environ.get("USINE_INTERNAL_SECRET", "")
+    )
     # L'effacement traverse cinq stores : il est tout-ou-rien quand ils sont
     # bien ceux d'un même pool, et honnêtement séquentiel sinon.
     eraser: Erasure = erasure_for(
@@ -778,6 +800,75 @@ def create_app(
             client = get_client()
         report = await compare(chosen, load_cases(), budget=COMPARE_BUDGET, client=client)
         return no_store(report.model_dump(mode="json"))
+
+    @app.post("/api/mcp/tokens", response_model=McpSecret, tags=["mcp"])
+    async def create_mcp_token(body: McpTokenRequest, request: Request) -> McpSecret:
+        """Un jeton pour le serveur MCP (MEM-40), rendu une seule fois.
+
+        Une action d'opérateur : elle ouvre l'accès à un client externe.
+        """
+        owner = viewer_org(request)
+        if owner is None:
+            raise HTTPException(status_code=401, detail="Connexion requise pour un jeton.")
+        if body.scope not in SCOPES:
+            raise HTTPException(status_code=422, detail=f"portée inconnue : {body.scope}")
+        return auth.issue(owner, body.label, body.scope).model_dump(mode="json")
+
+    @app.get("/api/mcp/tokens", tags=["mcp"])
+    async def list_mcp_tokens(request: Request) -> JSONResponse:
+        owner = viewer_org(request)
+        if owner is None:
+            raise HTTPException(status_code=401, detail="Connexion requise pour un jeton.")
+        return no_store({"items": [token.model_dump(mode="json") for token in auth.list(owner)]})
+
+    @app.delete("/api/mcp/tokens/{token_id}", status_code=204, tags=["mcp"])
+    async def revoke_mcp_token(token_id: str, request: Request) -> Response:
+        owner = viewer_org(request)
+        if owner is None:
+            raise HTTPException(status_code=401, detail="Connexion requise pour un jeton.")
+        if not auth.revoke(token_id, owner):
+            raise HTTPException(status_code=404, detail="Jeton introuvable.")
+        journal.record(owner, "mcp/revoke", token_id)
+        return Response(status_code=204)
+
+    async def internal(request: Request) -> str:
+        """La clé partagée avec le serveur MCP, ou rien."""
+        given = request.headers.get("x-usine-internal", "")
+        if not shared or given != shared:
+            raise HTTPException(status_code=401, detail="Clé interne refusée.")
+        return given
+
+    @app.post("/internal/mcp/verify", tags=["mcp"])
+    async def verify_mcp_token(body: McpBearer, request: Request) -> JSONResponse:
+        """Ce qu'un jeton MCP autorise, dit à qui en a la clé.
+
+        Le serveur MCP s'adresse ici à chaque outil : une seule autorité pour la
+        portée, et le hachage du jeton ne quitte jamais la base.
+        """
+        await internal(request)
+        token = auth.verify(body.token)
+        if token is None:
+            raise HTTPException(status_code=401, detail="Jeton inconnu ou révoqué.")
+        return no_store(
+            {
+                "id": token.id,
+                "org": token.org,
+                "label": token.label,
+                "scope": token.scope,
+            }
+        )
+
+    @app.post("/internal/mcp/audit", tags=["mcp"])
+    async def audit_mcp_call(body: McpAudit, request: Request) -> Response:
+        """Qui a appelé quel outil, et quand (MEM-40). Un secret n'y entre pas."""
+        await internal(request)
+        token = auth.verify(body.token)
+        if token is None:
+            raise HTTPException(status_code=401, detail="Jeton inconnu ou révoqué.")
+        if not scope_allows(token.scope, body.tool):
+            raise HTTPException(status_code=403, detail="Portée insuffisante.")
+        journal.record(token.org, f"mcp/{body.tool}", body.target or token.label)
+        return Response(status_code=202)
 
     @app.get("/api/specialists", tags=["runs"])
     async def list_specialists() -> JSONResponse:
