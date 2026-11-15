@@ -127,5 +127,65 @@ vérification par un client externe (`/mcp` dans Claude Code, ou l'inspecteur)
 reste une manipulation à faire à la main : une imitation de client ne
 prouverait rien de plus.
 
+#### Authentification (MEM-40)
+
+Le serveur MCP ne répond jamais sans jeton. Deux portées existent :
+
+- `read` : lecture seule (`list_runs`, `get_run`, `list_checkpoints`,
+  `list_specialists`) ;
+- `read_fork` : lecture plus ouverture de branche (`fork_run`, qui n'exécute
+  jamais une action irréversible : il ouvre une branche arrêtée).
+
+Un jeton est révocable, étiqueté, et son hachage (jamais le jeton en clair) est
+stocké dans la base (`mcp_tokens`, migration `0008`). Le jeton en clair n'est
+rendu qu'au moment de sa création.
+
+Créer un jeton (nécessite d'être connecté à l'API) :
+
+```sh
+curl -X POST http://127.0.0.1:8000/api/mcp/tokens \
+  -H "Content-Type: application/json" \
+  -d '{"label": "mon client", "scope": "read_fork"}'
+```
+
+Révoquer un jeton :
+
+```sh
+curl -X DELETE http://127.0.0.1:8000/api/mcp/tokens/<id>
+```
+
+Côté serveur MCP, le jeton s'injecte par variable d'environnement :
+
+```sh
+USINE_MCP_TOKEN=<le-jeton-en-clair> \
+USINE_INTERNAL_SECRET=<cle-partagee-avec-l-api> \
+uv run python -m usine_api.mcp_server
+```
+
+Variables : `USINE_API_URL` (défaut `http://127.0.0.1:8000`),
+`USINE_MCP_TRANSPORT` (`stdio` par défaut, ou `streamable-http`),
+`USINE_MCP_TOKEN`, `USINE_INTERNAL_SECRET`.
+
+Configuration côté client (Claude Code, `~/.claude.json` ou le projet) :
+
+```json
+{
+  "mcpServers": {
+    "usine": {
+      "command": "uv",
+      "args": ["run", "python", "-m", "usine_api.mcp_server"],
+      "cwd": "/chemin/vers/lab/services/usine/services/api",
+      "env": {
+        "USINE_API_URL": "http://127.0.0.1:8000",
+        "USINE_MCP_TOKEN": "<le-jeton-en-clair>",
+        "USINE_INTERNAL_SECRET": "<cle-partagee-avec-l-api>"
+      }
+    }
+  }
+}
+```
+
 L'authentification de ce serveur est MEM-40 : aujourd'hui il parle à une API
-locale, sans jeton.
+locale, protégé par un jeton porteur. Un appel sans jeton donne 401 ; un jeton
+`read` ne peut pas forker (403). Chaque appel d'outil est journalisé (qui, quoi,
+quand, aucun secret).

@@ -26,6 +26,7 @@ from .identity import (
     Organization,
     _hash,
 )
+from .mcp_auth import PostgresMcpAuthStore
 from .runs import Archive, Owned, Stored
 from .threads import PostgresThreadIndex
 
@@ -336,6 +337,8 @@ class PostgresStores:
         self.audit = PostgresAuditLog(self.pool)
         # L'index des runs v2 (MEM-18), table `threads` (migration 0005).
         self.threads = PostgresThreadIndex(self.pool)
+        # Les jetons du serveur MCP (MEM-40), table `mcp_tokens` (migration 0008).
+        self.mcp_auth = PostgresMcpAuthStore(self.pool)
         # L'effacement traverse les cinq tables : il tient sa propre
         # transaction, sur le même pool.
         self.erasure = PostgresErasure(self.pool)

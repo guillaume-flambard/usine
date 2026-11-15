@@ -234,6 +234,109 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "McpAudit": {
+        "properties": {
+          "target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
+          },
+          "token": {
+            "minLength": 1,
+            "title": "Token",
+            "type": "string"
+          },
+          "tool": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Tool",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "tool"
+        ],
+        "title": "McpAudit",
+        "type": "object"
+      },
+      "McpBearer": {
+        "properties": {
+          "token": {
+            "minLength": 1,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "McpBearer",
+        "type": "object"
+      },
+      "McpSecret": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "org": {
+            "title": "Org",
+            "type": "string"
+          },
+          "scope": {
+            "title": "Scope",
+            "type": "string"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "token",
+          "label",
+          "scope",
+          "org"
+        ],
+        "title": "McpSecret",
+        "type": "object"
+      },
+      "McpTokenRequest": {
+        "properties": {
+          "label": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "read",
+              "read_fork"
+            ],
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "scope"
+        ],
+        "title": "McpTokenRequest",
+        "type": "object"
+      },
       "ProposedAction": {
         "additionalProperties": false,
         "properties": {
@@ -662,6 +765,100 @@
         "summary": "Compare Specialists",
         "tags": [
           "runs"
+        ]
+      }
+    },
+    "/api/mcp/tokens": {
+      "get": {
+        "operationId": "list_mcp_tokens_api_mcp_tokens_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Mcp Tokens",
+        "tags": [
+          "mcp"
+        ]
+      },
+      "post": {
+        "description": "Un jeton pour le serveur MCP (MEM-40), rendu une seule fois.\n\nUne action d'opérateur : elle ouvre l'accès à un client externe.",
+        "operationId": "create_mcp_token_api_mcp_tokens_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/McpTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpSecret"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Mcp Token",
+        "tags": [
+          "mcp"
+        ]
+      }
+    },
+    "/api/mcp/tokens/{token_id}": {
+      "delete": {
+        "operationId": "revoke_mcp_token_api_mcp_tokens__token_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token_id",
+            "required": true,
+            "schema": {
+              "title": "Token Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Mcp Token",
+        "tags": [
+          "mcp"
         ]
       }
     },
@@ -1209,6 +1406,86 @@
           }
         },
         "summary": "Health"
+      }
+    },
+    "/internal/mcp/audit": {
+      "post": {
+        "description": "Qui a appelé quel outil, et quand (MEM-40). Un secret n'y entre pas.",
+        "operationId": "audit_mcp_call_internal_mcp_audit_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/McpAudit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Audit Mcp Call",
+        "tags": [
+          "mcp"
+        ]
+      }
+    },
+    "/internal/mcp/verify": {
+      "post": {
+        "description": "Ce qu'un jeton MCP autorise, dit à qui en a la clé.\n\nLe serveur MCP s'adresse ici à chaque outil : une seule autorité pour la\nportée, et le hachage du jeton ne quitte jamais la base.",
+        "operationId": "verify_mcp_token_internal_mcp_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/McpBearer"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Mcp Token",
+        "tags": [
+          "mcp"
+        ]
       }
     },
     "/memory/{run_id}": {
