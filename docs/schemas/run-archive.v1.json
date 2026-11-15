@@ -1,0 +1,154 @@
+{
+  "$defs": {
+    "ArchivedRun": {
+      "additionalProperties": false,
+      "properties": {
+        "specialist": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Specialist"
+        },
+        "status": {
+          "enum": [
+            "done",
+            "error"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "turns": {
+          "items": {
+            "$ref": "#/$defs/ArchivedTurn"
+          },
+          "maxItems": 200,
+          "title": "Turns",
+          "type": "array"
+        }
+      },
+      "required": [
+        "title",
+        "status",
+        "turns"
+      ],
+      "title": "ArchivedRun",
+      "type": "object"
+    },
+    "ArchivedTurn": {
+      "additionalProperties": false,
+      "properties": {
+        "answer": {
+          "default": "",
+          "title": "Answer",
+          "type": "string"
+        },
+        "brief": {
+          "title": "Brief",
+          "type": "string"
+        },
+        "events": {
+          "items": {
+            "$ref": "#/$defs/RunEvent"
+          },
+          "title": "Events",
+          "type": "array"
+        }
+      },
+      "required": [
+        "brief",
+        "events"
+      ],
+      "title": "ArchivedTurn",
+      "type": "object"
+    },
+    "RunEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "description": "Seconds elapsed since the start of the run.",
+          "minimum": 0,
+          "title": "At",
+          "type": "number"
+        },
+        "data": {
+          "additionalProperties": true,
+          "description": "Plain JSON only.",
+          "title": "Data",
+          "type": "object"
+        },
+        "kind": {
+          "$ref": "#/$defs/RunEventKind"
+        },
+        "node": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Graph node name, when it applies.",
+          "title": "Node"
+        }
+      },
+      "required": [
+        "kind",
+        "at"
+      ],
+      "title": "RunEvent",
+      "type": "object"
+    },
+    "RunEventKind": {
+      "description": "Event kinds. The list grows with M1 (graph nodes) and M2 (gates, forks).",
+      "enum": [
+        "run-started",
+        "node-started",
+        "node-finished",
+        "reasoning-started",
+        "reasoning-settled",
+        "tool-called",
+        "gate-opened",
+        "gate-decided",
+        "run-finished"
+      ],
+      "title": "RunEventKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A finished run, without anything that belongs to the server it came from.",
+  "properties": {
+    "format": {
+      "const": "usine.run",
+      "default": "usine.run",
+      "title": "Format",
+      "type": "string"
+    },
+    "run": {
+      "$ref": "#/$defs/ArchivedRun"
+    },
+    "version": {
+      "const": 1,
+      "default": 1,
+      "title": "Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "run"
+  ],
+  "title": "Usine run archive",
+  "type": "object"
+}

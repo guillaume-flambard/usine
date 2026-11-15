@@ -125,6 +125,21 @@ class ThreadIndex(Protocol):
         """The runs forked directly from this one (MEM-22), oldest first."""
         ...
 
+    def restore(
+        self,
+        thread_id: str,
+        owner: str | None,
+        title: str,
+        status: RunStatus,
+        specialist: str | None,
+        turns: list[RunTurn],
+    ) -> bool:
+        """Open a finished run read back from an archive (MEM-26).
+
+        False when the id is taken: an import never overwrites a run.
+        """
+        ...
+
     def claim_gate(self, thread_id: str, owner: str | None) -> bool:
         """Move a waiting run to `deciding`, atomically; False if it was not waiting.
 
@@ -202,6 +217,23 @@ class InMemoryThreadIndex:
             if row is None or row.owner != owner:
                 return None
             return RunDetail(**self._summary(thread_id, row).model_dump(), history=list(row.turns))
+
+    def restore(
+        self,
+        thread_id: str,
+        owner: str | None,
+        title: str,
+        status: RunStatus,
+        specialist: str | None,
+        turns: list[RunTurn],
+    ) -> bool:
+        with self._lock:
+            if thread_id in self._rows:
+                return False
+            self._rows[thread_id] = _Row(
+                owner, title, status, datetime.now(UTC), list(turns), specialist=specialist
+            )
+            return True
 
     def branches(self, thread_id: str, owner: str | None) -> list[RunSummary]:
         with self._lock:
@@ -332,6 +364,32 @@ class PostgresThreadIndex:
             parent=_parent_of(row[5], row[6]),
             specialist=row[7],
         )
+
+    def restore(
+        self,
+        thread_id: str,
+        owner: str | None,
+        title: str,
+        status: RunStatus,
+        specialist: str | None,
+        turns: list[RunTurn],
+    ) -> bool:
+        with self._pool.connection() as conn:
+            row = conn.execute(
+                "INSERT INTO threads (thread_id, owner, title, status, turns, specialist) "
+                "VALUES (%s, %s, %s, %s, %s, %s) "
+                "ON CONFLICT (thread_id) DO NOTHING "
+                "RETURNING thread_id",
+                (
+                    thread_id,
+                    owner,
+                    title,
+                    status,
+                    Jsonb([turn.model_dump() for turn in turns]),
+                    specialist,
+                ),
+            ).fetchone()
+        return row is not None
 
     def branches(self, thread_id: str, owner: str | None) -> list[RunSummary]:
         with self._pool.connection() as conn:

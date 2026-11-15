@@ -1,6 +1,76 @@
 {
   "components": {
     "schemas": {
+      "ArchivedRun": {
+        "additionalProperties": false,
+        "properties": {
+          "specialist": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Specialist"
+          },
+          "status": {
+            "enum": [
+              "done",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "turns": {
+            "items": {
+              "$ref": "#/components/schemas/ArchivedTurn"
+            },
+            "maxItems": 200,
+            "title": "Turns",
+            "type": "array"
+          }
+        },
+        "required": [
+          "title",
+          "status",
+          "turns"
+        ],
+        "title": "ArchivedRun",
+        "type": "object"
+      },
+      "ArchivedTurn": {
+        "additionalProperties": false,
+        "properties": {
+          "answer": {
+            "default": "",
+            "title": "Answer",
+            "type": "string"
+          },
+          "brief": {
+            "title": "Brief",
+            "type": "string"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/RunEvent"
+            },
+            "title": "Events",
+            "type": "array"
+          }
+        },
+        "required": [
+          "brief",
+          "events"
+        ],
+        "title": "ArchivedTurn",
+        "type": "object"
+      },
       "ChatMessage": {
         "description": "A `UIMessage`, reduced to what the service reads.",
         "properties": {
@@ -492,6 +562,32 @@
         "title": "ProposedAction",
         "type": "object"
       },
+      "RunArchive": {
+        "additionalProperties": false,
+        "description": "A finished run, without anything that belongs to the server it came from.",
+        "properties": {
+          "format": {
+            "const": "usine.run",
+            "default": "usine.run",
+            "title": "Format",
+            "type": "string"
+          },
+          "run": {
+            "$ref": "#/components/schemas/ArchivedRun"
+          },
+          "version": {
+            "const": 1,
+            "default": 1,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run"
+        ],
+        "title": "Usine run archive",
+        "type": "object"
+      },
       "RunDetail": {
         "properties": {
           "created_at": {
@@ -573,6 +669,60 @@
         ],
         "title": "RunDetail",
         "type": "object"
+      },
+      "RunEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "description": "Seconds elapsed since the start of the run.",
+            "minimum": 0.0,
+            "title": "At",
+            "type": "number"
+          },
+          "data": {
+            "additionalProperties": true,
+            "description": "Plain JSON only.",
+            "title": "Data",
+            "type": "object"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/RunEventKind"
+          },
+          "node": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Graph node name, when it applies.",
+            "title": "Node"
+          }
+        },
+        "required": [
+          "kind",
+          "at"
+        ],
+        "title": "RunEvent",
+        "type": "object"
+      },
+      "RunEventKind": {
+        "description": "Event kinds. The list grows with M1 (graph nodes) and M2 (gates, forks).",
+        "enum": [
+          "run-started",
+          "node-started",
+          "node-finished",
+          "reasoning-started",
+          "reasoning-settled",
+          "tool-called",
+          "gate-opened",
+          "gate-decided",
+          "run-finished"
+        ],
+        "title": "RunEventKind",
+        "type": "string"
       },
       "RunHistory": {
         "properties": {
@@ -1062,6 +1212,28 @@
         ]
       }
     },
+    "/api/runs/import": {
+      "post": {
+        "description": "Relit une archive en rejeu : un run neuf, lisible, rien n'est exécuté (MEM-26).\n\nConnexion requise : sans elle, le run irait dans la liste partagée des\nvisiteurs anonymes. Le limiteur compte l'import comme un appel, parce\nqu'aucun appel de modèle ne le ferait à sa place.",
+        "operationId": "import_thread_api_runs_import_post",
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Import Thread",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
     "/api/runs/{thread_id}": {
       "delete": {
         "description": "Efface le run : ses checkpoints LangGraph, puis son index.\n\nLes traces envoyées à Langfuse n'en font pas partie : voir\ndocs/securite/modele-de-menace-v2.md (registre des données).",
@@ -1256,6 +1428,49 @@
           }
         },
         "summary": "Checkpoint State",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/api/runs/{thread_id}/export": {
+      "get": {
+        "description": "L'archive JSON d'un run terminé, à télécharger (MEM-26).",
+        "operationId": "export_thread_api_runs__thread_id__export_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "title": "Thread Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunArchive"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Thread",
         "tags": [
           "runs"
         ]
