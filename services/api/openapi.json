@@ -146,6 +146,17 @@
               }
             ],
             "title": "Checkpoint Id"
+          },
+          "specialist": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Specialist"
           }
         },
         "title": "ForkRequest",
@@ -283,6 +294,17 @@
               }
             ]
           },
+          "specialist": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Specialist"
+          },
           "status": {
             "enum": [
               "running",
@@ -387,6 +409,17 @@
                 "type": "null"
               }
             ]
+          },
+          "specialist": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Specialist"
           },
           "status": {
             "enum": [
@@ -902,6 +935,26 @@
           }
         },
         "summary": "Resume Thread",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/api/specialists": {
+      "get": {
+        "description": "Les implémentations que ce service sait faire tourner (MEM-33).\n\nC'est ce que le fork peut épingler, donc ce que l'écran propose : des\nnoms, avec l'identité que la trace portera.",
+        "operationId": "list_specialists_api_specialists_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Specialists",
         "tags": [
           "runs"
         ]

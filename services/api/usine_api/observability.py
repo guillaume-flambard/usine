@@ -45,9 +45,18 @@ def tracing_configured(env: Mapping[str, str] | None = None) -> bool:
     return bool(env.get("LANGFUSE_PUBLIC_KEY") and env.get("LANGFUSE_SECRET_KEY"))
 
 
-def run_config(thread_id: str, *, user_id: str | None = None) -> dict[str, Any]:
-    """The LangGraph run config: the checkpoint thread, plus tracing when configured."""
-    config: dict[str, Any] = {"configurable": {"thread_id": thread_id}}
+def run_config(
+    thread_id: str, *, user_id: str | None = None, specialist: str | None = None
+) -> dict[str, Any]:
+    """The LangGraph run config: the checkpoint thread, plus tracing when configured.
+
+    `specialist` names the implementation this run is pinned to (MEM-33); the
+    graph reads it from its own config, never from a global.
+    """
+    configurable: dict[str, Any] = {"thread_id": thread_id}
+    if specialist:
+        configurable["specialist"] = specialist
+    config: dict[str, Any] = {"configurable": configurable}
     if not tracing_configured():
         return config
     try:
