@@ -9,7 +9,7 @@
  * events travel as `data-run-event` parts and feed the scene (MEM-17): the
  * latest assistant message's events, replayed into the read model.
  */
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useChat } from '@ai-sdk/vue'
 import type { ChatTransport, UIMessage } from 'ai'
 import { chatTransport } from '../chat/transport'
@@ -33,6 +33,22 @@ const emit = defineEmits<{ open: [run: RunDetail]; fresh: [] }>()
 
 const input = ref('')
 const stopped = ref(false)
+// The recorded demo (MEM-24): without a model, the service replays a run and
+// says which brief it can answer. The page shows it rather than letting a
+// visitor ask a question nobody recorded.
+const demoBrief = ref('')
+
+onMounted(async () => {
+  try {
+    const health = (await (await fetch('/health')).json()) as { demo?: boolean; demoBrief?: string }
+    if (health.demo && health.demoBrief) {
+      demoBrief.value = health.demoBrief
+      input.value = health.demoBrief
+    }
+  } catch {
+    // No service, or no demo: the composer stays as it is.
+  }
+})
 const { messages, status, error, sendMessage, regenerate, stop } = useChat({
   transport: props.transport,
   // The chat id is the LangGraph thread: a new message on a reopened run
@@ -182,6 +198,10 @@ function onReload() {
         <footer class="flex flex-col gap-2 px-4 pt-2 pb-4" data-composer>
           <p v-if="error" class="text-sm text-error" role="alert" data-chat-error>
             {{ error.message }}
+          </p>
+          <p v-if="demoBrief" class="text-sm text-toned" data-demo>
+            Démonstration enregistrée : ce run rejoue des réponses de modèle, sans modèle branché.
+            Elle ne connaît que ce brief.
           </p>
           <UChatPrompt
             v-model="input"

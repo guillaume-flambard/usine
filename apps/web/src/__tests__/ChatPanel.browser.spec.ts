@@ -3,7 +3,7 @@
  * of ai@7.0.165. Only `fetch` is replaced: the test writes the UI message stream
  * chunk by chunk, in the shape `POST /api/chat` sends (MEM-14).
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { render } from 'vitest-browser-vue'
 import { userEvent } from 'vitest/browser'
 import ui from '@nuxt/ui/vue-plugin'
@@ -188,5 +188,46 @@ describe('ChatPanel when the service itself fails', () => {
     await send('une tâche')
     await expect.poll(state).toBe('error')
     expect(document.querySelector('[data-chat-error]')?.textContent).toContain('erreur 502')
+  })
+})
+
+describe('the recorded demo (MEM-24)', () => {
+  it('prefills the recorded brief and says it is a recording', async () => {
+    const demo = 'Prépare une annonce de sortie pour la v2'
+    const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url === '/health') return Response.json({ ready: false, demo: true, demoBrief: demo })
+      return new Response('not found', { status: 404 })
+    })
+
+    await render(ChatPanel, {
+      props: { transport: new DefaultChatTransport({ api: '/api/chat' }) },
+      global: { plugins: [createAppRouter(), ui] },
+    })
+
+    const note = () => document.querySelector('[data-demo]') as HTMLElement | null
+    await expect.poll(note).not.toBeNull()
+    expect(note()!.textContent).toContain('Démonstration enregistrée')
+    const prompt = document.querySelector('[data-composer] textarea') as HTMLTextAreaElement
+    expect(prompt.value).toBe(demo)
+    spy.mockRestore()
+  })
+
+  it('leaves the composer empty when the service has a model', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) =>
+      String(input) === '/health'
+        ? Response.json({ ready: true, demo: false, demoBrief: null })
+        : new Response('not found', { status: 404 }),
+    )
+
+    await render(ChatPanel, {
+      props: { transport: new DefaultChatTransport({ api: '/api/chat' }) },
+      global: { plugins: [createAppRouter(), ui] },
+    })
+    await new Promise((r) => setTimeout(r, 100))
+
+    expect(document.querySelector('[data-demo]')).toBeNull()
+    const prompt = document.querySelector('[data-composer] textarea') as HTMLTextAreaElement
+    expect(prompt.value).toBe('')
   })
 })

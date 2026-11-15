@@ -41,7 +41,9 @@ function stubApi(page: RunPage) {
   const calls: string[] = []
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
     const url = String(input)
-    calls.push(url)
+    // The panel asks /health on mount for the recorded demo (MEM-24): not the
+    // subject here.
+    if (url !== '/health') calls.push(url)
     if (url.startsWith('/api/runs?')) return Response.json(page)
     if (url === '/api/runs/chat-1') return Response.json(RUN)
     return new Response('not found', { status: 404 })
