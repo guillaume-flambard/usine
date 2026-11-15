@@ -1,15 +1,16 @@
-# Comparaison de spécialistes — 2026-11-15 13:19 UTC
+# Comparaison de spécialistes — 2026-11-15 13:41 UTC
 
 Cas : resume-clair, action-sans-porte, adresse-fournie, tache-ambigue
 
 | Spécialiste | Framework | Jetons | Portes | Erreurs | p50 | p95 |
 |---|---|---|---|---|---|---|
-| `chat-model` | langchain 1.8.0 | 1371 | n/a | 0 | 809 ms | 1308 ms |
-| `pydantic-verdict` | pydantic-ai 2.68.0 | 3286 | 75% | 0 | 1089 ms | 53920 ms |
-| `openai-agents` | openai-agents 0.24.0 | 768 | n/a | 0 | 1428 ms | 37843 ms |
+| `chat-model` | langchain 1.8.0 | 1409 | n/a | 0 | 545 ms | 1391 ms |
+| `pydantic-verdict` | pydantic-ai 2.68.0 | 2999 | 100% | 0 | 1160 ms | 48130 ms |
+| `openai-agents` | openai-agents 0.24.0 | 945 | n/a | 0 | 13490 ms | 91135 ms |
+| `crewai` | crewai 1.15.41 | 791 | n/a | 0 | 267 ms | 5644 ms |
 
 ## Expériences Langfuse
 
-- `chat-model` : https://langfuse.memolabs.dev/project/lab-agents/experiments/results?baseline=36f94ba6e7161f11
-- `pydantic-verdict` : https://langfuse.memolabs.dev/project/lab-agents/experiments/results?baseline=2c68bfb4e4790ed8
-- `openai-agents` : https://langfuse.memolabs.dev/project/lab-agents/experiments/results?baseline=cc888fe0eb0c979d
+- `chat-model` : https://langfuse.memolabs.dev/project/lab-agents/experiments/results?baseline=a1c2e98cb448291f
+- `pydantic-verdict` : https://langfuse.memolabs.dev/project/lab-agents/experiments/results?baseline=9f9cd321ea3e74b8
+- `openai-agents` : https://langfuse.memolabs.dev/project/lab-agents/experiments/results?baseline=c576425527ed6d5d

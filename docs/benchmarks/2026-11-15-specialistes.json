@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-11-15T13:19:54.703613Z",
+  "created_at": "2026-11-15T13:41:06.464024Z",
   "replay": false,
   "cases": [
     "resume-clair",
@@ -13,36 +13,48 @@
       "framework": "langchain",
       "framework_version": "1.8.0",
       "cases": 4,
-      "tokens": 1371,
+      "tokens": 1409,
       "errors": 0,
       "gate_success": null,
-      "latency_p50_ms": 808.6466249988007,
-      "latency_p95_ms": 1308.2565000004251,
-      "experiment_url": "https://langfuse.memolabs.dev/project/lab-agents/experiments/results?baseline=36f94ba6e7161f11"
+      "latency_p50_ms": 545.2705419993435,
+      "latency_p95_ms": 1391.435959001683,
+      "experiment_url": "https://langfuse.memolabs.dev/project/lab-agents/experiments/results?baseline=a1c2e98cb448291f"
     },
     {
       "specialist": "pydantic-verdict",
       "framework": "pydantic-ai",
       "framework_version": "2.68.0",
       "cases": 4,
-      "tokens": 3286,
+      "tokens": 2999,
       "errors": 0,
-      "gate_success": 0.75,
-      "latency_p50_ms": 1088.9355839972268,
-      "latency_p95_ms": 53920.08120900209,
-      "experiment_url": "https://langfuse.memolabs.dev/project/lab-agents/experiments/results?baseline=2c68bfb4e4790ed8"
+      "gate_success": 1.0,
+      "latency_p50_ms": 1160.4741249975632,
+      "latency_p95_ms": 48129.72104199798,
+      "experiment_url": "https://langfuse.memolabs.dev/project/lab-agents/experiments/results?baseline=9f9cd321ea3e74b8"
     },
     {
       "specialist": "openai-agents",
       "framework": "openai-agents",
       "framework_version": "0.24.0",
       "cases": 4,
-      "tokens": 768,
+      "tokens": 945,
       "errors": 0,
       "gate_success": null,
-      "latency_p50_ms": 1428.1977089995053,
-      "latency_p95_ms": 37842.69858300104,
-      "experiment_url": "https://langfuse.memolabs.dev/project/lab-agents/experiments/results?baseline=cc888fe0eb0c979d"
+      "latency_p50_ms": 13490.030000000843,
+      "latency_p95_ms": 91135.18954199753,
+      "experiment_url": "https://langfuse.memolabs.dev/project/lab-agents/experiments/results?baseline=c576425527ed6d5d"
+    },
+    {
+      "specialist": "crewai",
+      "framework": "crewai",
+      "framework_version": "1.15.41",
+      "cases": 4,
+      "tokens": 791,
+      "errors": 0,
+      "gate_success": null,
+      "latency_p50_ms": 267.2987500009185,
+      "latency_p95_ms": 5644.462249998469,
+      "experiment_url": null
     }
   ],
   "errors": []

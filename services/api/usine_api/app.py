@@ -337,6 +337,15 @@ def create_app(
         wired.setdefault(
             "openai-agents", OpenAIAgentsSpecialist(gateway, http_client=cassette_client)
         )
+        try:
+            # CrewAI ne cohabite pas avec Pydantic AI (openai<3 contre >=3.31) :
+            # il vit dans son propre environnement, et ce service ne l'annonce
+            # que s'il est réellement installé (scripts/compare-one.py).
+            from .specialists.crewai import CrewAISpecialist
+
+            wired.setdefault("crewai", CrewAISpecialist(gateway))
+        except ImportError:
+            pass
     site_origin = origin or os.environ.get("USINE_ORIGIN", "https://usine.memolabs.dev")
     if not api_key:
         # Un déploiement dégradé doit se remarquer, pas servir un rejeu en silence.
