@@ -60,3 +60,5 @@ class SpecialistOutput(BaseModel):
     # Irreversible actions the specialist proposes; the graph never executes
     # one without a human decision (MEM-20).
     actions: tuple[ProposedAction, ...] = ()
+    # The tool calls it made, by name (MEM-38): a trace says which tools ran.
+    tools: tuple[str, ...] = ()

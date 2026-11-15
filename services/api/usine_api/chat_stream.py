@@ -128,7 +128,13 @@ def _summary(node: str, payload: dict[str, Any], *, finished: bool) -> dict[str,
         outputs: list[SpecialistOutput] = payload.get("results", [])
         return {
             "specialists": [
-                {"name": o.identity.name, "framework": o.identity.framework, "tokens": o.tokens}
+                {
+                    "name": o.identity.name,
+                    "framework": o.identity.framework,
+                    "tokens": o.tokens,
+                    # Which MCP tools ran (MEM-38): a trace says what it did.
+                    "tools": list(o.tools),
+                }
                 for o in outputs
             ]
         }
