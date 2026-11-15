@@ -79,6 +79,78 @@
         "title": "ChatRequest",
         "type": "object"
       },
+      "CheckpointSummary": {
+        "description": "Ce qu'un client a besoin de savoir pour choisir un point de fork.",
+        "properties": {
+          "checkpoint_id": {
+            "title": "Checkpoint Id",
+            "type": "string"
+          },
+          "next": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Next",
+            "type": "array"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step"
+          }
+        },
+        "required": [
+          "checkpoint_id",
+          "next"
+        ],
+        "title": "CheckpointSummary",
+        "type": "object"
+      },
+      "ForkRequest": {
+        "properties": {
+          "brief": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brief"
+          },
+          "checkpoint_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkpoint Id"
+          }
+        },
+        "title": "ForkRequest",
+        "type": "object"
+      },
       "GateDecision": {
         "additionalProperties": false,
         "description": "Approve, reject with a reason, or edit the actions then approve them.",
@@ -201,6 +273,16 @@
             "title": "History",
             "type": "array"
           },
+          "parent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunParent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "status": {
             "enum": [
               "running",
@@ -264,12 +346,47 @@
         "title": "RunPage",
         "type": "object"
       },
+      "RunParent": {
+        "description": "Where a branch comes from (MEM-23).",
+        "properties": {
+          "checkpoint_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkpoint Id"
+          },
+          "thread_id": {
+            "title": "Thread Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "thread_id"
+        ],
+        "title": "RunParent",
+        "type": "object"
+      },
       "RunSummary": {
         "properties": {
           "created_at": {
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunParent"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "status": {
             "enum": [
@@ -595,6 +712,104 @@
           }
         },
         "summary": "Open Thread",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/api/runs/{thread_id}/checkpoints": {
+      "get": {
+        "description": "Les points où le run peut être rejoué, du plus récent au plus ancien (MEM-23).",
+        "operationId": "list_checkpoints_api_runs__thread_id__checkpoints_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "title": "Thread Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CheckpointSummary"
+                  },
+                  "title": "Response List Checkpoints Api Runs  Thread Id  Checkpoints Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Checkpoints",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/api/runs/{thread_id}/fork": {
+      "post": {
+        "description": "Ouvre une branche depuis un checkpoint et la fait diverger, en flux.\n\nLa branche a son propre identifiant (annoncé dans le premier événement)\net garde son lien à l'origine ; le run d'origine n'est pas modifié. Le\nflux est celui d'une reprise : seuls les nœuds après le point de fork\ns'exécutent, et le modèle est rappelé pour eux.",
+        "operationId": "fork_thread_api_runs__thread_id__fork_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "title": "Thread Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fork Thread",
         "tags": [
           "runs"
         ]
