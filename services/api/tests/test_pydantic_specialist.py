@@ -127,7 +127,7 @@ def test_the_render_keeps_every_motif() -> None:
     assert "https://exemple.test" in rendered
 
 
-def test_a_service_with_a_gateway_offers_both_specialists(
+def test_a_service_with_a_gateway_offers_every_framework(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """MEM-33's swap needs two real implementations on the same service."""
@@ -141,4 +141,8 @@ def test_a_service_with_a_gateway_offers_both_specialists(
     with TestClient(create_app()) as client:
         items = client.get("/api/specialists").json()["items"]
     frameworks = {item["name"]: item["identity"]["framework"] for item in items}
-    assert frameworks == {"chat-model": "langchain", "pydantic-verdict": "pydantic-ai"}
+    assert frameworks == {
+        "chat-model": "langchain",
+        "pydantic-verdict": "pydantic-ai",
+        "openai-agents": "openai-agents",
+    }

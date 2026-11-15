@@ -24,6 +24,7 @@ REGISTRY: dict[str, Factory] = {}
 #: worse contract than no registry.
 BUILTINS = (
     "usine_api.graph.specialist",
+    "usine_api.specialists.openai_agents",
     "usine_api.specialists.pydantic_verdict",
 )
 
