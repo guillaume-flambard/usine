@@ -1,7 +1,8 @@
 /**
- * The human gate in the page (MEM-21): the three decisions, the keyboard alone,
- * and an accessibility audit of the open dialog. The page is the real App; only
- * `fetch` is replaced, answering in the stream shapes of MEM-14 and MEM-20.
+ * The human gate in the page (MEM-21), inline in the inspector (MEM-86): the
+ * three decisions, the A/C/R keys, and an accessibility audit of the gate card.
+ * The page is the real App; only `fetch` is replaced, answering in the stream
+ * shapes of MEM-14 and MEM-20.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render } from 'vitest-browser-vue'
@@ -82,25 +83,8 @@ function stubApi() {
   return gateBodies
 }
 
-const dialog = () => document.querySelector('[role="dialog"]') as HTMLElement | null
 const q = (selector: string) => document.querySelector(selector) as HTMLElement
-
-/**
- * axe reads colours at the instant it runs. Switching theme starts the
- * library's `transition-colors`; measuring during it reports a frame nobody
- * ever sees. Poll until two readings in a row agree.
- */
-async function colourSettled() {
-  let previous = ''
-  await expect
-    .poll(() => {
-      const current = getComputedStyle(q('[data-gate-reject] span')).color
-      const stable = current === previous
-      previous = current
-      return stable
-    })
-    .toBe(true)
-}
+const card = () => document.querySelector('[data-inspector] [data-gate-card]') as HTMLElement | null
 
 async function openGate() {
   await render(App, { global: { plugins: [createAppRouter(), ui] } })
@@ -110,22 +94,23 @@ async function openGate() {
     .toBe('in')
   await userEvent.fill(q('[data-composer] textarea'), 'publie la note')
   await userEvent.keyboard('{Enter}')
-  await expect.poll(dialog).not.toBeNull()
+  await expect.poll(card).not.toBeNull()
+  // The card takes the focus once the run stops at it.
+  await expect.poll(() => document.activeElement === card()).toBe(true)
 }
 
 afterEach(() => vi.restoreAllMocks())
 
-describe('human gate dialog', () => {
-  it('opens as a real dialog when the stream announces the gate', async () => {
+describe('human gate, inline in the inspector', () => {
+  it('shows the action, its exact arguments and the reminder when the stream announces it', async () => {
     stubApi()
     await openGate()
-    const box = dialog()!
-    expect(box.textContent).toContain('Envoi vers #annonces')
-    expect(box.textContent).toContain('La v2 est sortie.')
-    expect(box.textContent).toContain('pas le monde')
-    // The rest of the page cannot be reached while the decision is open.
-    expect(q('[data-shell]').hasAttribute('inert')).toBe(true)
-    expect(box.contains(document.activeElement)).toBe(true)
+    const gate = q('[data-inspector] [data-gate]')
+    expect(gate.textContent).toContain('Envoi vers #annonces')
+    expect(q('[data-gate-preview]').textContent).toContain('La v2 est sortie.')
+    expect(q('[data-gate-notice]').textContent).toContain('pas le monde')
+    expect(card()!.textContent).toContain('J’envoie ce message')
+    expect(q('[data-status]').textContent).toContain('À la porte')
   })
 
   it('approves, and the run resumes in the same scene', async () => {
@@ -139,7 +124,9 @@ describe('human gate dialog', () => {
     // One gate node, finished: the resumed run continued the scene.
     expect(document.querySelectorAll('[data-node="human_gate"]')).toHaveLength(1)
     expect(q('[data-node="act"]').getAttribute('data-node-state')).toBe('finished')
-    expect(q('[data-shell]').hasAttribute('inert')).toBe(false)
+    // The knot tightens on approval, and the card says what happened.
+    expect(q('[data-node="human_gate"]').classList.contains('tight')).toBe(true)
+    expect(q('[data-gate-done]').textContent).toContain('Approuvé')
   })
 
   it('rejects only with a reason', async () => {
@@ -147,10 +134,7 @@ describe('human gate dialog', () => {
     await openGate()
     await userEvent.click(q('[data-gate-reject]'))
     expect(q('[data-gate-confirm-reject]').hasAttribute('disabled')).toBe(true)
-    await userEvent.fill(
-      q('[data-gate-reason] textarea, textarea[data-gate-reason]'),
-      'pas avant la recette',
-    )
+    await userEvent.fill(q('textarea[data-gate-reason]'), 'pas avant la recette')
     await userEvent.click(q('[data-gate-confirm-reject]'))
 
     await expect
@@ -166,8 +150,7 @@ describe('human gate dialog', () => {
     const bodies = stubApi()
     await openGate()
     await userEvent.click(q('[data-gate-edit]'))
-    const field = q('[data-gate-preview-input] textarea, textarea[data-gate-preview-input]')
-    await userEvent.fill(field, 'La v2 sort lundi.')
+    await userEvent.fill(q('textarea[data-gate-preview-input]'), 'La v2 sort lundi.')
     await userEvent.click(q('[data-gate-confirm-edit]'))
 
     await expect
@@ -175,43 +158,53 @@ describe('human gate dialog', () => {
       .toEqual([{ decision: 'edit', actions: [{ ...ACTION, preview: 'La v2 sort lundi.' }] }])
   })
 
-  it('works with the keyboard alone', async () => {
+  it('decides with A from the keyboard', async () => {
     const bodies = stubApi()
     await openGate()
-    // Escape closes the dialog and gives the page back.
-    await userEvent.keyboard('{Escape}')
-    await expect.poll(dialog).toBeNull()
-    expect(q('[data-shell]').hasAttribute('inert')).toBe(false)
-
-    // Reopen from the scene, then Tab to "Approuver" and press Enter.
-    q('[data-gate-open]').focus()
-    await userEvent.keyboard('{Enter}')
-    await expect.poll(dialog).not.toBeNull()
-    for (let i = 0; i < 10 && !document.activeElement?.hasAttribute('data-gate-approve'); i++) {
-      await userEvent.keyboard('{Tab}')
-    }
-    expect(document.activeElement?.hasAttribute('data-gate-approve')).toBe(true)
-    await userEvent.keyboard('{Enter}')
+    await userEvent.keyboard('a')
     await expect.poll(() => bodies).toEqual([{ decision: 'approve' }])
   })
 
-  it('passes an accessibility audit in both themes, with no critical or serious issue', async () => {
+  it('opens the correction with C and the rejection with R, focus in the field', async () => {
+    const bodies = stubApi()
+    await openGate()
+    await userEvent.keyboard('c')
+    await expect.poll(() => q('[data-gate]').getAttribute('data-gate-mode')).toBe('edit')
+    expect(document.activeElement?.hasAttribute('data-gate-preview-input')).toBe(true)
+    // Typing in the field is text, never a decision.
+    await userEvent.keyboard('ra')
+    await userEvent.click(q('[data-gate-back]'))
+    card()!.focus()
+    await userEvent.keyboard('r')
+    await expect.poll(() => q('[data-gate]').getAttribute('data-gate-mode')).toBe('reject')
+    expect(document.activeElement?.hasAttribute('data-gate-reason')).toBe(true)
+    expect(bodies).toEqual([])
+  })
+
+  it('ignores the keys while the person types a brief', async () => {
+    const bodies = stubApi()
+    await openGate()
+    q('[data-composer] textarea').focus()
+    await userEvent.keyboard('a')
+    await new Promise((r) => setTimeout(r, 100))
+    expect(bodies).toEqual([])
+  })
+
+  it('reaches the gate from the knot in the graph', async () => {
     stubApi()
     await openGate()
-    // axe reads computed colours: measure once the entrance transition is
-    // over, otherwise a half-transparent frame reads as a contrast failure.
-    await expect.poll(() => getComputedStyle(dialog()!).opacity).toBe('1')
+    q('[data-composer] textarea').focus()
+    await userEvent.click(q('[data-gate-open]'))
+    await expect.poll(() => document.activeElement === card()).toBe(true)
+  })
 
-    for (const theme of ['clair', 'sombre']) {
-      document.documentElement.classList.toggle('dark', theme === 'sombre')
-      await colourSettled()
-      const result = await axe.run(dialog()!, { resultTypes: ['violations'] })
-      const blocking = result.violations
-        .filter((v) => v.impact === 'critical' || v.impact === 'serious')
-        .map((v) => `${v.id}: ${v.help} → ${v.nodes.map((n) => n.target.join(' ')).join(' | ')}`)
-      // The theme is named: a failure says which one to fix.
-      expect(blocking, `thème ${theme}`).toEqual([])
-    }
-    document.documentElement.classList.remove('dark')
+  it('passes an accessibility audit, with no critical or serious issue', async () => {
+    stubApi()
+    await openGate()
+    const result = await axe.run(q('[data-inspector]'), { resultTypes: ['violations'] })
+    const blocking = result.violations
+      .filter((v) => v.impact === 'critical' || v.impact === 'serious')
+      .map((v) => `${v.id}: ${v.help} → ${v.nodes.map((n) => n.target.join(' ')).join(' | ')}`)
+    expect(blocking).toEqual([])
   })
 })
