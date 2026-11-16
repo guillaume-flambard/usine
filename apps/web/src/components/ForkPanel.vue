@@ -8,7 +8,7 @@
  */
 import { computed, toRef } from 'vue'
 import { checkpointLabel, isForkable } from '../chat/forks'
-import { useFork } from '../chat/useFork'
+import { DEFAULT_SPECIALIST, useFork } from '../chat/useFork'
 
 const props = defineProps<{ threadId: string }>()
 const open = defineModel<boolean>('open', { required: true })
@@ -28,7 +28,7 @@ const options = computed(() =>
 )
 
 const specialistOptions = computed(() => [
-  { value: 'default', label: 'Spécialiste par défaut du service' },
+  { value: DEFAULT_SPECIALIST, label: 'Spécialiste par défaut du service' },
   ...specialists.value.map((item) => ({
     value: item.name,
     label: `${item.name} (${item.identity.framework})`,
@@ -47,7 +47,7 @@ async function onFork() {
   <UModal
     v-model:open="open"
     title="Forker ce run"
-    description="La branche rejoue le run depuis ce point, avec le spécialiste choisi. L'original n'est pas modifié."
+    description="La branche rejoue le run depuis ce point, avec le spécialiste choisi. L’original n’est pas modifié."
     :ui="{ content: 'max-w-xl' }"
   >
     <template #body>

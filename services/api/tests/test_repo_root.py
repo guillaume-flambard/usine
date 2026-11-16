@@ -24,7 +24,7 @@ def test_usine_root_moves_config_and_cassettes(monkeypatch, tmp_path):
     monkeypatch.setenv("USINE_ROOT", str(tmp_path))
     monkeypatch.delenv("USINE_CASSETTE", raising=False)
     assert app._mcp_config_path() == tmp_path / "config" / "mcp-servers.yaml"
-    assert app._cassette_path() == tmp_path / "services" / "api" / "cassettes" / "demo.json"
+    assert app._cassette_path() == tmp_path / "services" / "api" / "cassettes" / "vitrine.json"
 
 
 def test_the_image_sets_usine_root_to_its_copy_of_the_repo():

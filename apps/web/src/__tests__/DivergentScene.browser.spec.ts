@@ -117,7 +117,7 @@ const BRANCH_EVENTS: RunEventPayload[] = BRANCH_STREAM.filter(
 async function stubApi() {
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
     const url = String(input)
-    if (url === '/health') return Response.json({ ready: true, demo: false })
+    if (url === '/health') return Response.json({ ready: true, replay: false })
     if (url === '/api/chat') return sse(ORIGINAL_STREAM)
     if (url.endsWith('/checkpoints')) return Response.json(CHECKPOINTS)
     if (url === '/api/specialists') return Response.json(SPECIALISTS)

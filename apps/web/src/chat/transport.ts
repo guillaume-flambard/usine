@@ -10,10 +10,13 @@
 import { DefaultChatTransport, type UIMessage } from 'ai'
 
 export const SERVICE_UNREACHABLE =
-  "Le service de l'usine est injoignable. Réessayez dans un instant."
+  'Le service de l’usine est injoignable. Réessayez dans un instant.'
 
 export function serviceError(status: number): string {
-  return `Le service de l'usine a répondu par une erreur ${status}. Réessayez dans un instant.`
+  // Retrying does not cure a lost session: say what does (audit, 16 November 2026).
+  if (status === 401) return 'Votre session a expiré : reconnectez-vous pour continuer.'
+  if (status === 403) return 'Ce compte n’a pas accès à l’atelier.'
+  return `Le service de l’usine a répondu par une erreur ${status}. Réessayez dans un instant.`
 }
 
 export function chatTransport(

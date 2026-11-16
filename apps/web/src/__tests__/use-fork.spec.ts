@@ -54,20 +54,22 @@ async function opened() {
 }
 
 describe('the fork dialog state', () => {
-  it('offers the entry point first, and never the end of the run as a default', async () => {
+  it('offers the point before the specialists, never the end of the run', async () => {
+    // The first forkable point (before the synthesis) gave a one-node branch
+    // with nothing to compare (audit, 16 November 2026).
     stub()
     const { fork } = await opened()
-    expect(fork.chosen.value).toBe('cp-1')
+    expect(fork.chosen.value).toBe('cp-2')
     expect(fork.canFork.value).toBe(true)
+    // The select shows the service default instead of a blank.
+    expect(fork.specialist.value).toBe('default')
   })
 
   it('sends the chosen point and the service default when no specialist is picked', async () => {
     const state = stub()
     const { fork } = await opened()
-    fork.specialist.value = ''
-
     expect(await fork.fork()).toBe('branche-1')
-    expect(state.bodies).toEqual([{ checkpoint_id: 'cp-1' }])
+    expect(state.bodies).toEqual([{ checkpoint_id: 'cp-2' }])
     expect(fork.busy.value).toBe(false)
   })
 
@@ -77,7 +79,7 @@ describe('the fork dialog state', () => {
     fork.specialist.value = 'pydantic-verdict'
 
     expect(await fork.fork()).toBe('branche-1')
-    expect(state.bodies).toEqual([{ checkpoint_id: 'cp-1', specialist: 'pydantic-verdict' }])
+    expect(state.bodies).toEqual([{ checkpoint_id: 'cp-2', specialist: 'pydantic-verdict' }])
   })
 
   it('turns a refusal into a readable message and no branch', async () => {
