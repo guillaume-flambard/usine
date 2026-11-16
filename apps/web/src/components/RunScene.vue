@@ -9,7 +9,7 @@
  * as a list, each card on its thread.
  */
 import { computed, useId } from 'vue'
-import { layoutRun } from '../run/layout'
+import { layoutRun, sizeOf } from '../run/layout'
 import type { NodeState, RunNode, RunReadModel } from '../run/readModel'
 import { nodeName } from '../run/names'
 import { threadsOf, type Thread } from '../run/threads'
@@ -134,7 +134,11 @@ const approved = computed(() => {
 
 function place(node: RunNode) {
   const box = placed.value.boxes.get(node.id)
-  return { '--x': `${box?.x ?? 0}px`, '--y': `${box?.y ?? 0}px` }
+  return {
+    '--x': `${box?.x ?? 0}px`,
+    '--y': `${box?.y ?? 0}px`,
+    '--nh': `${box?.height ?? sizeOf(node).height}px`,
+  }
 }
 </script>
 
@@ -285,7 +289,7 @@ function place(node: RunNode) {
   display: flex;
   flex-direction: column;
   width: 206px;
-  height: 168px;
+  height: var(--nh);
   overflow: hidden;
   padding: var(--space-md) var(--space-md) var(--space-sm);
   border-radius: 18px;
