@@ -13,8 +13,8 @@ export function toolOf(action: Action): string {
 }
 
 const QUESTIONS: Record<string, string> = {
-  issue_write: 'J’ouvre cette issue ?',
-  create_issue: 'J’ouvre cette issue ?',
+  issue_write: 'J’ouvre ce ticket ?',
+  create_issue: 'J’ouvre ce ticket ?',
   create_pull_request: 'J’ouvre cette pull request ?',
 }
 

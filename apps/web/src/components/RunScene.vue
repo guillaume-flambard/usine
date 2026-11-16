@@ -117,7 +117,7 @@ const description = computed(() => {
   const nodes = props.model.nodes
     .map((n) => `${nodeName(n.name)}${n.task ? ` (${n.task})` : ''} : ${STATES[n.state]}`)
     .join('. ')
-  const tools = toolsUsed.value.length ? ` Outils appelés : ${toolsUsed.value.join(', ')}.` : ''
+  const tools = toolsUsed.value.length ? ` Outils demandés : ${toolsUsed.value.join(', ')}.` : ''
   return `${nodes}.${tools}`
 })
 
@@ -152,7 +152,7 @@ function place(node: RunNode) {
     <div class="scene-top">
       <p class="scene-status" data-scene-status>{{ statusLine }}</p>
       <p v-if="toolsUsed.length" class="scene-tools" data-tools>
-        Outils appelés : {{ toolsUsed.join(', ') }}
+        Outils demandés : {{ toolsUsed.join(', ') }}
       </p>
     </div>
     <div
@@ -456,9 +456,12 @@ function place(node: RunNode) {
     left: auto;
     top: auto;
   }
+  /* Unclipped: the card's thread is drawn outside it, on the left. Hidden
+     overflow cut every thread but the gate's (cold review, 16 November 2026). */
   .card {
     width: auto;
     height: auto;
+    overflow: visible;
   }
   .card-task,
   .card-meta {

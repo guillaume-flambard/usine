@@ -13,7 +13,7 @@
  * No model, no account, no call to the service. A decision taken here stays in
  * the page, and the page says so.
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { RunEventPayload } from '../contracts/ui-stream'
 import { EMPTY_RUN, reduceRun, type RunReadModel } from '../run/readModel'
 import { runDate, type RunDetail } from '../chat/runs'
@@ -22,8 +22,12 @@ import RunScene from './RunScene.vue'
 import AnswerMarkdown from './AnswerMarkdown'
 
 const REPO = 'https://github.com/guillaume-flambard/usine'
-/** The story plays in about this long, whatever the run took for real. */
-const PLAY_SECONDS = 14
+/**
+ * The longest pause between two recorded events, once played. The real run
+ * waited 22 s on the planner: played as is, step 1 sat alone long enough for a
+ * visitor to think the page had hung (cold review, 16 November 2026).
+ */
+const MAX_GAP_SECONDS = 2.5
 
 /** What a tool did, in words anyone reads. */
 const TOOL_WORDS: Record<string, string> = {
@@ -40,6 +44,7 @@ const shown = ref(0)
 const decision = ref<'open' | 'no' | null>(null)
 const chosen = ref(0)
 const technical = ref(false)
+const wholeTicket = ref(false)
 let timers: ReturnType<typeof setTimeout>[] = []
 
 /** The recorded events, up to the request for consent: the rest is the visitor's. */
@@ -49,8 +54,24 @@ const events = computed<RunEventPayload[]>(() => {
   const gate = turn.events.findIndex((e) => e.kind === 'gate-opened')
   return gate === -1 ? turn.events : turn.events.slice(0, gate + 1)
 })
+/**
+ * The visitor's own decision, as the events it would add to the run: the graph
+ * then shows the gate decided, not still waiting. It never leaves the page.
+ */
+const decided = computed<RunEventPayload[]>(() => {
+  const gate = events.value.at(-1)
+  if (!decision.value || gate?.kind !== 'gate-opened') return []
+  return [
+    {
+      ...gate,
+      kind: 'gate-decided',
+      data: { ...gate.data, decision: decision.value === 'open' ? 'approve' : 'reject' },
+    },
+    { at: gate.at, kind: 'run-finished', node: null, data: { outcome: 'ok' } },
+  ] as RunEventPayload[]
+})
 const model = computed<RunReadModel>(() =>
-  events.value.slice(0, shown.value).reduce(reduceRun, EMPTY_RUN),
+  [...events.value.slice(0, shown.value), ...decided.value].reduce(reduceRun, EMPTY_RUN),
 )
 
 const plan = computed(() => model.value.nodes.find((n) => n.name === 'supervisor')?.subtasks ?? [])
@@ -85,7 +106,7 @@ const tickets = computed<Ticket[]>(() =>
     }
   }),
 )
-const asked = computed(() => model.value.status === 'waiting' && tickets.value.length > 0)
+const asked = computed(() => tickets.value.length > 0 && shown.value >= events.value.length)
 const step = computed(() => {
   if (asked.value || decision.value) return 4
   if (agents.value.length) return 3
@@ -99,15 +120,27 @@ function play() {
   shown.value = 0
   decision.value = null
   chosen.value = 0
-  const list = events.value
-  const total = list.at(-1)?.at ?? 0
-  const scale = total > PLAY_SECONDS ? PLAY_SECONDS / total : 1
+  wholeTicket.value = false
   const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  list.forEach((event, index) => {
-    const delay = still ? 0 : Math.round(event.at * scale * 1000) + 1200
+  let clock = 0.6
+  events.value.forEach((event, index, list) => {
+    const previous = list[index - 1]
+    if (previous) clock += Math.min(event.at - previous.at, MAX_GAP_SECONDS)
+    const delay = still ? 0 : Math.round(clock * 1000)
     timers.push(setTimeout(() => (shown.value = Math.max(shown.value, index + 1)), delay))
   })
 }
+
+/** Each new step comes into view as it arrives: the story should not end below the fold. */
+const BEATS = ['question', 'plan', 'work', 'consent'] as const
+watch(step, async (now, before) => {
+  if (now <= before) return
+  await nextTick()
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  document
+    .querySelector(`[data-beat="${BEATS[now - 1]}"]`)
+    ?.scrollIntoView({ block: 'nearest', behavior: still ? 'auto' : 'smooth' })
+})
 
 async function decide(value: 'open' | 'no') {
   decision.value = value
@@ -116,6 +149,7 @@ async function decide(value: 'open' | 'no') {
 }
 
 onMounted(async () => {
+  document.title = 'La visite : un vrai run, rejoué · Usine'
   try {
     const response = await fetch('/visite/run.json')
     if (!response.ok) throw new Error(String(response.status))
@@ -159,8 +193,8 @@ const seconds = (value: number) =>
         </h1>
         <p class="lede">
           Voici un vrai cas, enregistré le {{ recorded || '16 novembre 2026' }}. Le site de ce
-          projet ne se mettait plus à jour. On a posé la question à l’assistant. Regardez ce qu’il
-          fait.
+          projet ne se mettait plus à jour (c’est réglé depuis). On a posé la question à
+          l’assistant. Regardez ce qu’il fait.
         </p>
       </section>
 
@@ -258,12 +292,21 @@ const seconds = (value: number) =>
             <article class="ticket" data-visit-ticket>
               <p class="ticket-kind">Ticket proposé</p>
               <h3>{{ tickets[chosen]?.title }}</h3>
-              <div class="ticket-body">
+              <div class="ticket-body" :class="{ whole: wholeTicket }">
                 <!-- Comark parses asynchronously: Suspense waits for it. -->
                 <Suspense
                   ><AnswerMarkdown :key="chosen" :value="tickets[chosen]?.body ?? ''"
                 /></Suspense>
               </div>
+              <button
+                type="button"
+                class="link more-ticket"
+                :aria-expanded="wholeTicket"
+                data-visit-whole-ticket
+                @click="wholeTicket = !wholeTicket"
+              >
+                {{ wholeTicket ? 'Replier le ticket' : 'Lire tout le ticket' }}
+              </button>
             </article>
             <div v-if="!decision" class="acts">
               <button type="button" class="btn btn-ink" data-visit-open @click="decide('open')">
@@ -305,7 +348,7 @@ const seconds = (value: number) =>
           data-visit-technical
           @click="technical = !technical"
         >
-          {{ technical ? 'Masquer' : 'Voir' }} comment les agents se sont organisés
+          {{ technical ? 'Masquer le graphe' : 'Voir le graphe des agents' }}
         </button>
         <div v-if="technical && model.events > 0" class="canvas">
           <RunScene :model="model" />
@@ -527,11 +570,28 @@ const seconds = (value: number) =>
   margin-top: var(--space-2xs);
   font: 600 var(--text-md) / 1.35 var(--font-sans);
 }
+/* Folded, the ticket shows its start and fades out: a cut mid-line in a
+   scroll box read as a bug (cold review, 16 November 2026). */
 .ticket-body {
-  max-height: 16rem;
+  max-height: 12rem;
   margin-top: var(--space-xs);
-  overflow-y: auto;
+  overflow: hidden;
+  overflow-wrap: anywhere;
   font-size: var(--text-sm);
+  mask-image: linear-gradient(to bottom, #000 65%, transparent);
+}
+.ticket-body.whole {
+  max-height: none;
+  mask-image: none;
+}
+.ticket-body :deep(table) {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.more-ticket {
+  min-height: 44px;
+  margin: 0;
 }
 /* The ticket's own Markdown headings stay small: it is a quoted document. */
 .ticket-body :deep(h1),

@@ -240,7 +240,7 @@ describe('tool calls (MEM-38)', () => {
     expect(line()!.textContent).toContain('docs__fetch, docs__search')
     // Read by assistive tech too, not only drawn.
     expect(document.querySelector('[data-scene-description]')!.textContent).toContain(
-      'Outils appelés',
+      'Outils demandés',
     )
   })
 
