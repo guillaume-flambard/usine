@@ -1,3 +1,10 @@
+<script lang="ts">
+import type { RunSummary as Summary } from '../chat/runs'
+
+/** The last list read, shared by every mount of the list in this page. */
+const lastRead: { runs: Summary[]; next: string | null } = { runs: [], next: null }
+</script>
+
 <script setup lang="ts">
 /**
  * Earlier runs (MEM-18), in the atelier's sidebar (MEM-86): listed on mount,
@@ -16,8 +23,12 @@ const emit = defineEmits<{
   fresh: []
 }>()
 
-const runs = ref<RunSummary[]>([])
-const next = ref<string | null>(null)
+// Opening a run remounts the atelier (App.vue keys it by thread), and this list
+// with it. Starting from the last list read, then refreshing behind it, keeps
+// the sidebar still: it used to empty itself for one frame on every click
+// (measured 16 November 2026: 8 runs, then 0, then 8 again).
+const runs = ref<RunSummary[]>(lastRead.runs)
+const next = ref<string | null>(lastRead.next)
 const loading = ref(false)
 const failure = ref('')
 const query = ref('')
@@ -42,6 +53,8 @@ async function load(more = false) {
     const page = await fetchRuns(more ? next.value : null)
     runs.value = more ? [...runs.value, ...page.items] : page.items
     next.value = page.next_cursor
+    lastRead.runs = runs.value
+    lastRead.next = next.value
   } catch (error) {
     failure.value = (error as Error).message
   } finally {

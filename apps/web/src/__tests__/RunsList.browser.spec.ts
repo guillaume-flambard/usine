@@ -71,10 +71,21 @@ describe('earlier runs', () => {
     expect(item.textContent).toContain('relire les portes')
     expect(item.textContent).toContain('terminé')
 
+    // Opening a run remounts the atelier: the list must not empty itself on the
+    // way (it flickered on every click, 16 November 2026).
+    const counts: number[] = []
+    let sampling = true
+    const sample = () => {
+      counts.push(document.querySelectorAll('[data-run]').length)
+      if (sampling) requestAnimationFrame(sample)
+    }
+    sample()
     await userEvent.click(item)
     await expect
       .poll(() => document.querySelector('[data-conversation]')?.textContent ?? '')
       .toContain('fait : relire les portes')
+    sampling = false
+    expect(counts.every((n) => n > 0)).toBe(true)
     // The scene replays the archived events.
     expect(
       document.querySelector('[data-node="supervisor"]')?.getAttribute('data-node-state'),
