@@ -26,6 +26,7 @@ from mcp.server.mcpserver.exceptions import UnexpectedToolError
 
 from usine_api.app import create_app
 from usine_api.contracts import SpecialistIdentity, SpecialistInput, SpecialistOutput
+from usine_api.identity import InMemoryIdentityStore, InMemorySessionStore
 from usine_api.mcp_auth import InMemoryMcpAuthStore
 from usine_api.mcp_server import McpUnauthorized, build
 
@@ -49,20 +50,43 @@ class _Specialist:
         )
 
 
+#: The organisation whose session creates the runs and whose tokens read them.
+ORG = ""
+SESSION = ""
+
+
 @pytest.fixture
 async def api() -> Any:
-    """Le vrai app, son lifespan tournant, avec un store de jetons en mémoire."""
+    """Le vrai app, son lifespan tournant, avec un store de jetons en mémoire.
+
+    Les runs sont créés par une session de l'organisation qui émet les jetons :
+    un jeton MCP ne lit que les runs de son organisation (MEM-60), et avant ce
+    lot ces tests lisaient, sans le savoir, l'espace des visiteurs anonymes.
+    """
     auth_store = InMemoryMcpAuthStore()
+    people = InMemoryIdentityStore()
+    seats = InMemorySessionStore()
+    owner = people.ensure("owner@atelier.co")
     app = create_app(
         planner=_Planner(),
         specialist=_Specialist(),
         mcp_auth=auth_store,
         internal_secret=INTERNAL_SECRET,
+        identities=people,
+        sessions=seats,
+        # Through the closed door (MEM-60): the token must open what it needs.
+        open_atelier=False,
     )
+    global ORG, SESSION
+    ORG = owner.organization.id
+    # Only the chat calls carry the session: the MCP server's calls carry the
+    # token alone, so these tests prove the token, not a leftover cookie.
+    SESSION = seats.open(owner.account.id)
     async with (
         app.router.lifespan_context(app),  # type: ignore[attr-defined]
         httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://usine.test"
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://usine.test",
         ) as client,
     ):
         yield client, auth_store
@@ -77,13 +101,14 @@ async def chat(api: Any, thread_id: str) -> None:
             "id": thread_id,
             "messages": [{"role": "user", "parts": [{"type": "text", "text": "x"}]}],
         },
+        headers={"cookie": f"usine_session={SESSION}"},
     )
     await response.aread()
 
 
 def issue_token(auth_store: InMemoryMcpAuthStore, scope: str) -> str:
     """Émet un jeton MCP et le retourne en clair (une seule fois)."""
-    return auth_store.issue("org-test", f"jeton {scope}", scope).token
+    return auth_store.issue(ORG, f"jeton {scope}", scope).token
 
 
 async def expect_mcp_refusal(
@@ -178,8 +203,14 @@ async def test_fork_opens_a_branch_without_running_it(api: Any) -> None:
     assert branch["turns"] == 0
 
     # Rien n'a tourné : la branche n'a pas de tour, et l'original est intact.
-    assert (await client.get(f"/api/runs/{branch['thread_id']}")).json()["turns"] == 0
-    assert (await client.get("/api/runs/chat-fork")).json()["turns"] == 1
+    reread = await client.get(
+        f"/api/runs/{branch['thread_id']}", headers={"cookie": f"usine_session={SESSION}"}
+    )
+    assert reread.json()["turns"] == 0
+    original = await client.get(
+        "/api/runs/chat-fork", headers={"cookie": f"usine_session={SESSION}"}
+    )
+    assert original.json()["turns"] == 1
 
 
 async def test_an_unknown_run_is_a_refusal_not_an_empty_run(api: Any) -> None:

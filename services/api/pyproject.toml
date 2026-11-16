@@ -16,6 +16,8 @@ dependencies = [
     "pydantic-ai-slim[openai]>=2.68,<3",
     "openai-agents>=0.6",
     "langchain>=1.2",
+    # La connexion Pocket ID (MEM-60) : vérifier un jeton d'identité RS256.
+    "pyjwt[crypto]>=2.10",
 ]
 
 [build-system]
