@@ -16,7 +16,7 @@ import re
 #: (méthode, chemin) servis sans identité.
 PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset(
     {
-        # La sonde de Traefik et d'autodeploy.
+        # La sonde de Traefik et d'autodeploy (en GET : la route ne sert pas HEAD).
         ("GET", "/health"),
         # Savoir si l'on est connecté, et se déconnecter.
         ("GET", "/auth/session"),

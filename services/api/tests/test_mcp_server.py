@@ -74,6 +74,8 @@ async def api() -> Any:
         internal_secret=INTERNAL_SECRET,
         identities=people,
         sessions=seats,
+        # Through the closed door (MEM-60): the token must open what it needs.
+        open_atelier=False,
     )
     global ORG, SESSION
     ORG = owner.organization.id

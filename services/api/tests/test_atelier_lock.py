@@ -36,7 +36,7 @@ from usine_api.app import create_app
 from usine_api.atelier import PUBLIC_ROUTES
 from usine_api.identity import InMemoryIdentityStore, InMemorySessionStore
 from usine_api.mcp_auth import InMemoryMcpAuthStore
-from usine_api.oidc import STATE_COOKIE, OidcClient, OidcSettings
+from usine_api.oidc import MAX_PENDING, STATE_COOKIE, OidcClient, OidcSettings, account_email
 
 ISSUER = "https://auth.example.test"
 CLIENT = "usine-client"
@@ -217,7 +217,11 @@ class Provider:
         return self.last_authorize["nonce"][0]
 
 
-def oidc_app(provider: Provider, allowed: frozenset[str] = frozenset({OWNER_SUB})) -> Any:
+def oidc_app(
+    provider: Provider,
+    allowed: frozenset[str] = frozenset({OWNER_SUB}),
+    **kwargs: Any,
+) -> Any:
     client = OidcClient(
         OidcSettings(
             issuer=ISSUER,
@@ -228,7 +232,7 @@ def oidc_app(provider: Provider, allowed: frozenset[str] = frozenset({OWNER_SUB}
         ),
         httpx.AsyncClient(transport=httpx.MockTransport(provider.handler)),
     )
-    return closed_app(oidc=client)
+    return closed_app(oidc=client, **kwargs)
 
 
 def log_in(client: TestClient, provider: Provider, **callback: str) -> httpx.Response:
@@ -250,7 +254,7 @@ def test_pocket_id_logs_the_owner_in_with_pkce() -> None:
         assert done.status_code == 303
         asked = provider.last_authorize
         assert asked["code_challenge_method"] == ["S256"]
-        assert asked["scope"] == ["openid email"]
+        assert asked["scope"] == ["openid"]
         # The verifier sent to the token endpoint is the one behind the challenge.
         import base64
         import hashlib
@@ -263,7 +267,7 @@ def test_pocket_id_logs_the_owner_in_with_pkce() -> None:
         )
         assert asked["code_challenge"] == [challenge]
         assert client.get("/api/runs").status_code == 200
-        assert client.get("/auth/session").json()["email"] == "owner@atelier.co"
+        assert client.get("/auth/session").json()["email"] == account_email(OWNER_SUB)
 
 
 @pytest.mark.parametrize(
@@ -276,7 +280,7 @@ def test_pocket_id_logs_the_owner_in_with_pkce() -> None:
         "expired",
         "foreign-key",
         "alg-none",
-        "no-email",
+        "sub-too-long",
     ],
 )
 def test_pocket_id_refuses_a_bad_token(tamper: str) -> None:
@@ -287,7 +291,7 @@ def test_pocket_id_refuses_a_bad_token(tamper: str) -> None:
         "wrong-issuer": {"iss": "https://evil.test"},
         "wrong-nonce": {"nonce": "replayed"},
         "expired": {"exp": int(time.time()) - 60},
-        "no-email": {"email": None},
+        "sub-too-long": {"sub": "x" * 129},
     }.get(tamper, {})
     if tamper == "foreign-key":
         provider.signing_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -326,3 +330,113 @@ def test_closed_without_pocket_id_nobody_can_log_in() -> None:
     with TestClient(closed_app()) as client:
         assert client.get("/auth/oidc/login", follow_redirects=False).status_code == 503
         assert client.get("/api/runs").status_code == 401
+
+
+def test_the_email_claim_never_picks_the_account() -> None:
+    """Review of MEM-60: an allowed sub that claims someone's email stays itself."""
+    provider = Provider()
+    people = InMemoryIdentityStore()
+    victim = people.ensure("victim@atelier.co")
+    provider.claims = {"email": "victim@atelier.co", "email_verified": False}
+    with TestClient(oidc_app(provider, identities=people)) as client:
+        assert log_in(client, provider).status_code == 303
+        session = client.get("/auth/session").json()
+        assert session["org"] != victim.organization.id
+        assert session["email"] == account_email(OWNER_SUB)
+
+
+def test_subs_that_differ_only_in_case_get_different_accounts() -> None:
+    assert account_email("Abc") != account_email("abc")
+
+
+def test_a_redirect_without_iss_is_refused() -> None:
+    provider = Provider()
+    with TestClient(oidc_app(provider)) as client:
+        started = client.get("/auth/oidc/login", follow_redirects=False).headers["location"]
+        provider.last_authorize = parse_qs(urlparse(started).query)
+        reply = client.get(
+            "/auth/oidc/callback",
+            params={"code": "good-code", "state": provider.last_authorize["state"][0]},
+            follow_redirects=False,
+        )
+        assert reply.status_code == 403
+
+
+def test_pending_logins_are_capped() -> None:
+    provider = Provider()
+    app = oidc_app(provider, limiter=_NoLimit())
+    with TestClient(app) as client:
+        for _ in range(MAX_PENDING + 50):
+            assert client.get("/auth/oidc/login", follow_redirects=False).status_code == 303
+    oidc = next(c.cell_contents for c in _closure(app) if isinstance(c.cell_contents, OidcClient))
+    assert len(oidc._pending) == MAX_PENDING
+
+
+def test_logging_in_is_rate_limited() -> None:
+    from usine_api.limits import Limits, RateLimiter
+
+    provider = Provider()
+    tight = RateLimiter(Limits(per_minute=2, per_visitor_per_day=100, per_day=100))
+    with TestClient(oidc_app(provider, limiter=tight)) as client:
+        codes = [
+            client.get("/auth/oidc/login", follow_redirects=False).status_code for _ in range(3)
+        ]
+    assert codes == [303, 303, 429]
+
+
+def test_a_broken_provider_reply_is_a_refusal_not_a_crash() -> None:
+    provider = Provider()
+
+    def broken(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/oidc/token":
+            return httpx.Response(200, text="<html>not json</html>")
+        return provider.handler(request)
+
+    client_ = OidcClient(
+        OidcSettings(
+            issuer=ISSUER + "/",
+            client_id=CLIENT,
+            client_secret="secret",
+            redirect_uri="http://testserver/auth/oidc/callback",
+            allowed_subs=frozenset({OWNER_SUB}),
+        ),
+        httpx.AsyncClient(transport=httpx.MockTransport(broken)),
+    )
+    with TestClient(closed_app(oidc=client_)) as client:
+        assert log_in(client, provider).status_code == 403
+
+
+class _NoLimit:
+    def allow(self, address: str) -> None:
+        return None
+
+    def remaining(self, address: str) -> Any:  # pragma: no cover - unused here
+        raise NotImplementedError
+
+
+def _closure(app: Any) -> list[Any]:
+    """The cells of the route handler that holds the OIDC client."""
+    for route in app.routes:
+        if getattr(route, "path", "") == "/auth/oidc/login":
+            return list(route.endpoint.__closure__ or [])
+    raise AssertionError("no login route")
+
+
+def test_through_the_closed_door_a_token_sees_only_its_own_org() -> None:
+    people, seats, tokens = InMemoryIdentityStore(), InMemorySessionStore(), InMemoryMcpAuthStore()
+    owner = people.ensure("owner@atelier.co")
+    mine = tokens.issue(owner.organization.id, "mien", "read").token
+    theirs = tokens.issue("org-other", "autre", "read").token
+    app = closed_app(identities=people, sessions=seats, mcp_auth=tokens)
+    with TestClient(app) as client:
+        message = {"role": "user", "parts": [{"type": "text", "text": "brief"}]}
+        cookie = {"cookie": f"usine_session={seats.open(owner.account.id)}"}
+        client.post("/api/chat", json={"id": "run-a", "messages": [message]}, headers=cookie)
+
+        def read(token: str, path: str) -> httpx.Response:
+            return client.get(path, headers={"authorization": f"Bearer {token}"})
+
+        assert [r["thread_id"] for r in read(mine, "/api/runs").json()["items"]] == ["run-a"]
+        assert read(mine, "/api/runs/run-a").status_code == 200
+        assert read(theirs, "/api/runs").json()["items"] == []
+        assert read(theirs, "/api/runs/run-a").status_code == 404

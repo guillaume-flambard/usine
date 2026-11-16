@@ -20,6 +20,11 @@ Ce que la vérification exige, dans l'ordre :
    notre client, `exp`, et le `nonce` de cette connexion ;
 4. le `sub` est dans la liste blanche. Une liste vide ne laisse entrer
    personne : l'atelier échoue en fermé.
+
+Le compte de l'atelier est rattaché au `sub`, jamais à l'e-mail : un e-mail se
+modifie dans un profil, un `sub` non. Rattacher par e-mail laissait quiconque
+admis changer le sien pour entrer dans l'organisation d'un autre (revue de
+sécurité de MEM-60).
 """
 
 from __future__ import annotations
@@ -43,6 +48,27 @@ STATE_TTL_SECONDS = 600
 ALGORITHMS = ["RS256"]
 
 STATE_COOKIE = "usine_oidc_state"
+
+#: Connexions commencées et pas finies gardées au plus : au-delà, les plus
+#: anciennes sont oubliées. `/auth/oidc/login` est public, il ne doit pas
+#: pouvoir remplir la mémoire du service.
+MAX_PENDING = 1000
+
+#: A Pocket ID `sub` is a UUID: anything longer is refused before it names an account.
+MAX_SUB_LENGTH = 128
+
+#: The domain of the accounts bound to a `sub`. `.invalid` is reserved (RFC 2606):
+#: no magic link can ever reach, nor collide with, such an address.
+ACCOUNT_DOMAIN = "pocket-id.invalid"
+
+
+def account_email(sub: str) -> str:
+    """The identity key of the atelier account bound to this `sub`.
+
+    Hex-encoded: the identity store lowercases emails, and two subs that differ
+    only in case must never share an account.
+    """
+    return f"{sub.encode().hex()}@{ACCOUNT_DOMAIN}"
 
 
 class OidcRefused(Exception):
@@ -77,7 +103,8 @@ def oidc_settings(env: dict[str, str]) -> OidcSettings | None:
     )
     issuer, client_id, client_secret, redirect_uri = values
     return OidcSettings(
-        issuer=issuer,
+        # One spelling everywhere: discovery, redirect and token are compared to it.
+        issuer=issuer.rstrip("/"),
         client_id=client_id,
         client_secret=client_secret,
         redirect_uri=redirect_uri,
@@ -104,10 +131,13 @@ class OidcClient:
         if self._discovery is None:
             reply = await self.http.get(f"{self.settings.base}/.well-known/openid-configuration")
             reply.raise_for_status()
-            found = reply.json()
+            found = _json(reply)
             # The document must describe the issuer we were told to trust.
-            if found.get("issuer", "").rstrip("/") != self.settings.base:
+            if str(found.get("issuer", "")).rstrip("/") != self.settings.base:
                 raise OidcRefused("discovery issuer mismatch")
+            for name in ("authorization_endpoint", "token_endpoint", "jwks_uri"):
+                if not isinstance(found.get(name), str):
+                    raise OidcRefused(f"discovery has no {name}")
             self._discovery = found
         return self._discovery
 
@@ -123,6 +153,9 @@ class OidcClient:
         state = secrets.token_urlsafe(32)
         verifier = secrets.token_urlsafe(48)
         nonce = secrets.token_urlsafe(32)
+        while len(self._pending) >= MAX_PENDING:
+            # Dicts keep insertion order: the first key is the oldest login.
+            del self._pending[next(iter(self._pending))]
         self._pending[state] = _Pending(verifier, nonce, self.clock() + STATE_TTL_SECONDS)
         challenge = (
             base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
@@ -134,7 +167,7 @@ class OidcClient:
                 "response_type": "code",
                 "client_id": self.settings.client_id,
                 "redirect_uri": self.settings.redirect_uri,
-                "scope": "openid email",
+                "scope": "openid",
                 "state": state,
                 "nonce": nonce,
                 "code_challenge": challenge,
@@ -145,14 +178,16 @@ class OidcClient:
 
     async def finish(
         self, *, code: str, state: str, cookie_state: str | None, iss: str | None
-    ) -> tuple[str, str]:
-        """Check everything, and return the verified (sub, email)."""
+    ) -> str:
+        """Check everything, and return the verified, allowed `sub`."""
         self._forget_expired()
         pending = self._pending.pop(state, None) if state else None
         if pending is None or not cookie_state or not secrets.compare_digest(state, cookie_state):
             raise OidcRefused("unknown or unbound state")
-        if iss is not None and iss.rstrip("/") != self.settings.base:
-            raise OidcRefused("issuer mismatch in the redirect")
+        # Pocket ID announces `authorization_response_iss_parameter_supported`:
+        # a redirect without `iss` did not come from it (RFC 9207).
+        if iss is None or iss.rstrip("/") != self.settings.base:
+            raise OidcRefused("issuer missing or mismatched in the redirect")
         if not code:
             raise OidcRefused("no code")
         config = await self._config()
@@ -168,19 +203,18 @@ class OidcClient:
         )
         if reply.status_code != 200:
             raise OidcRefused("token endpoint refused the code")
-        id_token = reply.json().get("id_token")
+        id_token = _json(reply).get("id_token")
         if not isinstance(id_token, str):
             raise OidcRefused("no id_token")
         claims = await self._verify(id_token, config)
         if claims.get("nonce") != pending.nonce:
             raise OidcRefused("nonce mismatch")
-        sub = str(claims.get("sub", ""))
+        sub = claims.get("sub")
+        if not isinstance(sub, str) or not 0 < len(sub) <= MAX_SUB_LENGTH:
+            raise OidcRefused("malformed subject")
         if sub not in self.settings.allowed_subs:
             raise OidcRefused("subject not allowed")
-        email = claims.get("email")
-        if not isinstance(email, str) or "@" not in email:
-            raise OidcRefused("no email claim")
-        return sub, email
+        return sub
 
     async def _verify(self, token: str, config: dict[str, Any]) -> dict[str, Any]:
         try:
@@ -191,7 +225,10 @@ class OidcClient:
             raise OidcRefused("unexpected algorithm")
         reply = await self.http.get(config["jwks_uri"])
         reply.raise_for_status()
-        keys = jwt.PyJWKSet.from_dict(reply.json())
+        try:
+            keys = jwt.PyJWKSet.from_dict(_json(reply))
+        except jwt.PyJWTError as error:
+            raise OidcRefused("unusable JWKS") from error
         key = next((k for k in keys.keys if k.key_id == header.get("kid")), None)
         if key is None:
             raise OidcRefused("unknown signing key")
@@ -201,8 +238,19 @@ class OidcClient:
                 key=key.key,
                 algorithms=ALGORITHMS,
                 audience=self.settings.client_id,
-                issuer=self.settings.issuer,
+                issuer=self.settings.base,
                 options={"require": ["exp", "iat", "sub", "iss", "aud"]},
             )
         except jwt.PyJWTError as error:
             raise OidcRefused("id_token rejected") from error
+
+
+def _json(reply: httpx.Response) -> dict[str, Any]:
+    """A provider reply as a JSON object, or a refusal: never a 500."""
+    try:
+        found = reply.json()
+    except ValueError as error:
+        raise OidcRefused("provider reply is not JSON") from error
+    if not isinstance(found, dict):
+        raise OidcRefused("provider reply is not a JSON object")
+    return found

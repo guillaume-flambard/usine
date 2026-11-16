@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import os
+import secrets
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
@@ -99,7 +100,14 @@ from .mcp_auth import (
 from .mcp_registry import Registry, RegistryRefusal
 from .memory import MAX_FACT, Fact, InMemoryMemory, Memory
 from .models import ModelSettings, model_settings
-from .oidc import STATE_COOKIE, STATE_TTL_SECONDS, OidcClient, OidcRefused, oidc_settings
+from .oidc import (
+    STATE_COOKIE,
+    STATE_TTL_SECONDS,
+    OidcClient,
+    OidcRefused,
+    account_email,
+    oidc_settings,
+)
 from .portes import Absent as PortesAbsent
 from .portes import dossier as portes_dir
 from .portes import lancer as lancer_portes
@@ -994,7 +1002,7 @@ def create_app(
     async def internal(request: Request) -> str:
         """La clé partagée avec le serveur MCP, ou rien."""
         given = request.headers.get("x-usine-internal", "")
-        if not shared or given != shared:
+        if not shared or not secrets.compare_digest(given.encode(), shared.encode()):
             raise HTTPException(status_code=401, detail="Clé interne refusée.")
         return given
 
@@ -1190,10 +1198,14 @@ def create_app(
         return response
 
     @app.get("/auth/oidc/login")
-    async def oidc_login() -> Response:
+    async def oidc_login(request: Request) -> Response:
         """Envoie le navigateur chez Pocket ID (MEM-60)."""
         if oidc is None:
             return no_store({"error": "connexion indisponible"}, 503)
+        # Public, donc sous le compteur comme le lien magique.
+        refusal = gate.allow(address_of(request))
+        if refusal is not None:
+            return no_store({"error": refusal}, 429)
         try:
             url, state = await oidc.start()
         except (httpx.HTTPError, OidcRefused):
@@ -1219,7 +1231,7 @@ def create_app(
         if oidc is None:
             return no_store({"error": "connexion indisponible"}, 503)
         try:
-            _sub, email = await oidc.finish(
+            sub = await oidc.finish(
                 code=code, state=state, cookie_state=request.cookies.get(STATE_COOKIE), iss=iss
             )
         except (httpx.HTTPError, OidcRefused) as error:
@@ -1229,7 +1241,8 @@ def create_app(
             response = no_store({"error": "connexion refusée"}, 403)
             response.delete_cookie(STATE_COOKIE, path="/")
             return response
-        who = people.ensure(email)
+        # Le compte suit le `sub`, jamais l'e-mail (voir oidc.py).
+        who = people.ensure(account_email(sub))
         response = RedirectResponse(url=site_origin, status_code=303)
         set_session(response, seats.open(who.account.id))
         response.delete_cookie(STATE_COOKIE, path="/")

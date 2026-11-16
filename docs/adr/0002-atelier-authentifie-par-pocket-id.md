@@ -25,7 +25,7 @@ Le premier utilisateur de l'usine est le lab (`CLAUDE.md`, décision du 10 septe
 2. **Fermé par défaut.** Toute route sans identité répond 401, sauf la courte liste publique de `services/api/usine_api/atelier.py` : la sonde, la session, la connexion, et les routes internes du serveur MCP, protégées par leur clé. Seul `USINE_ATELIER_OUVERT=1` ouvre l'atelier, pour le poste de dev et les tests.
 3. **Le lien magique est coupé** tant que l'atelier est fermé, puisqu'il donnerait un compte à n'importe quel e-mail.
 4. **Liste blanche des `sub`** (`USINE_OIDC_ALLOWED_SUBS`). Vide, elle ne laisse entrer personne.
-5. La session de l'API reste celle qui existe déjà. Pocket ID prouve l'identité, puis l'API ouvre son propre cookie de session, rattaché au compte de l'e-mail vérifié. L'identifiant de ce compte part dans Langfuse comme `user_id`.
+5. La session de l'API reste celle qui existe déjà. Pocket ID prouve l'identité, puis l'API ouvre son propre cookie de session. **Le compte est rattaché au `sub`, jamais à l'e-mail** : un e-mail se modifie dans un profil, un `sub` non. La revue de sécurité l'a montré : rattaché à l'e-mail, un `sub` admis qui annonçait l'e-mail d'un autre entrait dans son organisation. L'identifiant de ce compte part dans Langfuse comme `user_id`.
 6. Le serveur MCP n'a pas de session, mais il a un jeton MCP. L'API le lit maintenant (`Authorization: Bearer`). Il n'ouvre que les routes de ses outils, dans sa portée et son organisation. Avant ce lot, l'API ignorait ce jeton, et le serveur MCP lisait l'espace des visiteurs anonymes.
 7. La vitrine publique ne parle pas à l'API : sans session, aucune route qui appelle un modèle ne répond.
 
@@ -33,7 +33,7 @@ Le premier utilisateur de l'usine est le lab (`CLAUDE.md`, décision du 10 septe
 
 - Une étape revient au propriétaire : enregistrer le client `usine` dans Pocket ID avec l'adresse de retour `https://usine.memolabs.dev/api/auth/oidc/callback`, puis poser son identifiant, son secret et le `sub` admis dans le `.env` du service.
 - Le front v2 n'a pas encore d'écran de connexion. Avant la recette en ligne (MEM-62), il lui faut un lien « Se connecter » vers `/api/auth/oidc/login`, affiché quand l'API répond 401.
-- Les états de connexion en cours vivent en mémoire, pour dix minutes. Avec une seule instance du service, c'est suffisant. Plusieurs instances devraient les partager.
+- Les états de connexion en cours vivent en mémoire, pour dix minutes, mille au plus, et la route de connexion passe sous le limiteur. Avec une seule instance du service, c'est suffisant. Plusieurs instances devraient les partager.
 - Le basic auth Traefik reste une défense en profondeur possible devant l'atelier, sans remplacer celle-ci.
 
 ## Sources
