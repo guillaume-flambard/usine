@@ -56,6 +56,8 @@ describe('run read model', () => {
     expect(model.status).toBe('failed')
     expect(model.nodes.find((n) => n.name === 'specialist')?.state).toBe('failed')
     expect(model.nodes.find((n) => n.name === 'supervisor')?.state).toBe('finished')
+    // The reason is in the archive, so a reopened or compared run can say it.
+    expect(model.error).toContain('saturé')
   })
 
   it('a run stopped on a human gate waits, with its actions and the reminder', async () => {

@@ -197,6 +197,18 @@ describe('DivergentScene (MEM-25)', () => {
     expect(document.querySelectorAll('h2')).toHaveLength(2)
   })
 
+  it('montre la réponse de chaque branche, et revient à la conversation', async () => {
+    stubApi()
+    await render(App, { global: { plugins: [createAppRouter(), ui] } })
+
+    await forkFromRun()
+    await expect.poll(() => document.querySelectorAll('[data-branch-answer]')).toHaveLength(2)
+
+    await userEvent.click(document.querySelector('[data-divergent-back]') as HTMLElement)
+    await expect.poll(() => document.querySelector('[data-divergent-scene]')).toBeNull()
+    await expect.poll(() => document.querySelector('[data-composer]')).not.toBeNull()
+  })
+
   it('ne défile pas horizontalement aux quatre largeurs cibles', async () => {
     stubApi()
     await render(App, { global: { plugins: [createAppRouter(), ui] } })

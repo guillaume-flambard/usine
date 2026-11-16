@@ -47,6 +47,8 @@ export interface RunReadModel {
   gate?: GateView
   nodes: RunNode[]
   edges: RunEdge[]
+  /** Why the run failed, as the service worded it for a person. */
+  error?: string
   /** Seconds since the start of the run, at the last event. */
   at: number
   events: number
@@ -166,7 +168,12 @@ export function reduceRun(model: RunReadModel, event: RunEventPayload): RunReadM
       const nodes = failed
         ? model.nodes.map((n): RunNode => (n.state === 'running' ? { ...n, state: 'failed' } : n))
         : model.nodes
-      return { ...base, nodes, status: failed ? 'failed' : 'finished' }
+      return {
+        ...base,
+        nodes,
+        status: failed ? 'failed' : 'finished',
+        ...(failed && typeof data.error === 'string' ? { error: data.error } : {}),
+      }
     }
     default:
       // Tool calls and gates (M2, M3) arrive later; an unknown kind is counted

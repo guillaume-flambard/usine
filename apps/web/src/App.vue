@@ -4,7 +4,7 @@ import type { UIMessage } from 'ai'
 import ChatPanel from './components/ChatPanel.vue'
 import DivergentScene from './components/DivergentScene.vue'
 import SignIn from './components/SignIn.vue'
-import { toMessages, type RunDetail } from './chat/runs'
+import { fetchRun, toMessages, type RunDetail } from './chat/runs'
 import { knock, type Door } from './chat/session'
 
 // The atelier is closed without a Pocket ID session (MEM-60): the page asks
@@ -39,6 +39,18 @@ function startFresh() {
   current.value = { key: `fresh-${fresh}`, messages: [] }
 }
 
+/** Back from the comparison to the original run's conversation. */
+async function backToOriginal() {
+  const original = divergent.value?.leftThreadId
+  divergent.value = null
+  if (!original) return
+  try {
+    openRun(await fetchRun(original))
+  } catch {
+    startFresh()
+  }
+}
+
 function onForked(originalThreadId: string, branchThreadId: string) {
   divergent.value = { leftThreadId: originalThreadId, rightThreadId: branchThreadId }
 }
@@ -56,10 +68,11 @@ function onForked(originalThreadId: string, branchThreadId: string) {
         @retry="checkDoor"
       />
       <template v-else-if="door === 'checking'" />
-      <div v-else-if="divergent" key="divergent">
+      <div v-else-if="divergent" key="divergent" class="flex min-h-0 flex-1 flex-col">
         <DivergentScene
           :left-thread-id="divergent.leftThreadId"
           :right-thread-id="divergent.rightThreadId"
+          @back="backToOriginal"
         />
       </div>
       <ChatPanel

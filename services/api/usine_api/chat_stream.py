@@ -112,8 +112,8 @@ def readable_error(error: BaseException) -> str:
         # The demo (MEM-24) answers one recorded brief: say so, rather than
         # blaming an internal error for a question nobody recorded.
         return (
-            "Cette démonstration rejoue un run enregistré : elle ne connaît que "
-            "son brief. Branchez un modèle pour poser une autre question."
+            "Aucun modèle n'est branché : ce run rejoue des réponses enregistrées "
+            "et ne connaît que son brief. Branchez un modèle pour poser une autre question."
         )
     return "Le run a échoué sur une erreur interne. Elle est journalisée."
 
@@ -271,7 +271,9 @@ async def run_stream(
         logger.exception("chat run failed (thread %s)", thread_id)
         # The scene marks the nodes still running as failed from this event:
         # a failure on screen is paid for by an event, like everything else.
-        yield event(RunEventKind.RUN_FINISHED, outcome="error")
+        # The reason travels in the event too: the stream is the archive, and a
+        # replayed or compared run must say why it failed (CLAUDE.md, rule 2).
+        yield event(RunEventKind.RUN_FINISHED, outcome="error", error=readable_error(error))
         close_turn("", "error")
         yield sse({"type": "error", "errorText": readable_error(error)})
         yield sse({"type": "finish", "finishReason": "error"})
