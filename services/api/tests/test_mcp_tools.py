@@ -190,7 +190,10 @@ async def test_the_agent_uses_a_tool_and_reports_it(tmp_path: Path) -> None:
         },
     ]
 
-    def gateway(_request: httpx.Request) -> httpx.Response:
+    sent: list[dict] = []
+
+    def gateway(request: httpx.Request) -> httpx.Response:
+        sent.append(json.loads(request.content))
         return httpx.Response(200, json=replies.pop(0) if len(replies) > 1 else replies[0])
 
     settings = ModelSettings(base_url="http://litellm.test/v1", api_key="sk-test", model="lab-fast")
@@ -213,6 +216,11 @@ async def test_the_agent_uses_a_tool_and_reports_it(tmp_path: Path) -> None:
     assert output.tools == ("docs__search",)
     assert output.tool_calls == 1
     assert output.tokens == 20  # 7 + 13, from the two model calls
+    # Next to the task, not only in the system prompt: in production the model
+    # wrote a proposed issue as text and nothing reached the human gate.
+    task_message = next(m for m in sent[0]["messages"] if m["role"] == "user")
+    assert task_message["content"].startswith("cherche les portes")
+    assert "l'appel de l'outil qui la fait" in task_message["content"]
     assert [
         call["params"]["name"] for call in transport.calls if call["method"] == "tools/call"
     ] == ["search"]

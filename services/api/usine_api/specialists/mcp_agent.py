@@ -39,6 +39,16 @@ INSTRUCTIONS = (
     "Un outil marqué irréversible ne fait que proposer : une personne décide."
 )
 
+# Measured in production on 16 November 2026: with the same rule in the system
+# prompt only, the model wrote the issue as text, three runs out of three, and
+# nothing reached the human gate. Next to the task, it called issue_write.
+ACTION_REMINDER = (
+    "\n\nSi ta sous-tâche propose une action (une issue, par exemple), ta réponse "
+    "est l'appel de l'outil qui la fait, avec ses arguments complets, pas un texte : "
+    "une proposition écrite seulement dans ta réponse n'arrive jamais devant la "
+    "personne qui décide."
+)
+
 
 def _tokens(messages: list[BaseMessage]) -> int:
     total = 0
@@ -91,7 +101,7 @@ class McpAgentSpecialist:
             session_id=current_session_id(),
         )
         agent = create_agent(model, box.tools, system_prompt=INSTRUCTIONS)
-        result: Any = await agent.ainvoke({"messages": [HumanMessage(task.task)]})
+        result: Any = await agent.ainvoke({"messages": [HumanMessage(task.task + ACTION_REMINDER)]})
 
         messages: list[BaseMessage] = list(result.get("messages", []))
         answer = ""
