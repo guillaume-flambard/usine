@@ -52,8 +52,10 @@ class CountingSpecialist:
 
     async def run(self, task: SpecialistInput) -> SpecialistOutput:
         self.calls += 1
+        # The text ends with the sub-task; the brief, when it differs, comes first.
+        subtask = task.task.rsplit("\n", 1)[-1]
         return SpecialistOutput(
-            answer=f"fait : {task.task}", identity=IDENTITY, tokens=1, tool_calls=0
+            answer=f"fait : {subtask}", identity=IDENTITY, tokens=1, tool_calls=0
         )
 
 

@@ -17,9 +17,9 @@
       }
     },
     {
-      "digest": "507d61205c2be7a4c4217095ea0526777ef69732d8ed983e02a986e630ef9935",
+      "digest": "5cd35ea0a2f40cad55a6b349f9841b9d479303557c3b7339e028b092daa8cf98",
       "request": {
-        "body": "{\"model\":\"lab-fast\",\"stream\":false,\"messages\":[{\"content\":\"Tu es un spécialiste. Réponds en français à la sous-tâche reçue, et à elle seule, en citant ce sur quoi tu t'appuies.\",\"role\":\"system\"},{\"content\":\"Rédiger une annonce de sortie de la v2 de l'usine, structurée en trois points clés\",\"role\":\"user\"}],\"max_completion_tokens\":4000,\"enable_thinking\":false,\"litellm_session_id\":\"demo-recording\"}",
+        "body": "{\"model\":\"lab-fast\",\"stream\":false,\"messages\":[{\"content\":\"Tu es un spécialiste. Réponds en français à la sous-tâche reçue, et à elle seule, en citant ce sur quoi tu t'appuies.\",\"role\":\"system\"},{\"content\":\"Brief d'origine, pour les noms exacts (dépôt, propriétaire, fichier) :\\nPrépare une annonce de sortie pour la v2 de l'usine, en trois points\\n\\nTa sous-tâche, à laquelle tu réponds seule :\\nRédiger une annonce de sortie de la v2 de l'usine, structurée en trois points clés\",\"role\":\"user\"}],\"max_completion_tokens\":4000,\"enable_thinking\":false,\"litellm_session_id\":\"demo-recording\"}",
         "method": "POST",
         "path": "/v1/chat/completions"
       },

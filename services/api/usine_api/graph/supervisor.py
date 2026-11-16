@@ -20,7 +20,7 @@ the model call in flight; a sync node would keep its thread running to the end.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Annotated, Any, Protocol, TypedDict, cast
+from typing import Annotated, Any, NotRequired, Protocol, TypedDict, cast
 
 from langchain_core.runnables import ensure_config
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -106,6 +106,7 @@ class SubtaskState(TypedDict):
     """What a single specialist run receives through `Send`."""
 
     task: str
+    brief: NotRequired[str]
 
 
 # Measured on 16 November 2026: the tool agent reading one real README through
@@ -137,7 +138,13 @@ def build_graph(
         return {"subtasks": subtasks or [state["brief"]], "results": []}
 
     def dispatch(state: RunState) -> list[Send]:
-        return [Send(SPECIALIST, {"task": task}) for task in state["subtasks"]]
+        # The brief travels with each sub-task: specialists run in parallel and
+        # never see each other, and a planner that drops "guillaume-flambard/usine"
+        # from a sub-task made one invent a repository (production, 16 November
+        # 2026). The card still shows the sub-task alone.
+        return [
+            Send(SPECIALIST, {"task": task, "brief": state["brief"]}) for task in state["subtasks"]
+        ]
 
     # The Specialist contract's adapter (MEM-27) is generic over the state it
     # reads; the
