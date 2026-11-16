@@ -185,9 +185,13 @@ const seconds = (value: number) =>
         <li v-if="plan.length" class="beat" :class="{ now: step === 2 }" data-beat="plan">
           <p class="num" aria-hidden="true">2</p>
           <div>
-            <h2>
-              Il répartit le travail entre {{ plan.length }} agent{{ plan.length > 1 ? 's' : '' }}
-            </h2>
+            <h2>Le travail réparti</h2>
+            <p class="say">
+              Le chef d’équipe confie le travail à {{ plan.length }} agent{{
+                plan.length > 1 ? 's' : ''
+              }}
+              :
+            </p>
             <ul class="plain">
               <li v-for="(task, i) in plan" :key="i">
                 <span class="tag">Agent {{ i + 1 }}</span
@@ -202,7 +206,7 @@ const seconds = (value: number) =>
         <li v-if="agents.length" class="beat" :class="{ now: step === 3 }" data-beat="work">
           <p class="num" aria-hidden="true">3</p>
           <div>
-            <h2>Les agents vont chercher les faits</h2>
+            <h2>Les faits</h2>
             <ul class="plain">
               <li v-for="a in agents" :key="a.id" :data-agent-done="a.done || undefined">
                 <span class="tag">Agent {{ a.rank }}</span>
@@ -224,7 +228,7 @@ const seconds = (value: number) =>
         <li v-if="asked || decision" class="beat" :class="{ now: step === 4 }" data-beat="consent">
           <p class="num ink" aria-hidden="true">4</p>
           <div>
-            <h2>Il a trouvé, et il vous demande avant d’agir</h2>
+            <h2>Votre accord</h2>
             <p class="bubble bot">
               {{
                 tickets.length > 1
@@ -477,6 +481,10 @@ const seconds = (value: number) =>
 }
 .working {
   color: var(--color-muted);
+}
+.say {
+  margin-top: var(--space-xs);
+  font-size: var(--text-sm);
 }
 .why {
   margin-top: var(--space-sm);

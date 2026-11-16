@@ -214,8 +214,46 @@ def build_graph(
         failed = [result.failed for result in state["results"] if result.failed is not None]
         if not finished:
             raise NoSpecialistFinished(failed)
-        proposed = [action for result in finished for action in result.actions]
-        parts = [result.answer for result in finished]
+        # Several agents may propose the same write (three issues for one bug,
+        # 16 November 2026): approving would send them all. One proposal per
+        # target reaches the person; the answer says how many were set aside.
+        proposed: list[ProposedAction] = []
+        seen: set[tuple[str, str]] = set()
+        offered = 0
+        for result in finished:
+            for action in result.actions:
+                offered += 1
+                key = (action.kind, action.target)
+                if key not in seen:
+                    seen.add(key)
+                    proposed.append(action)
+        # The answer opens with what happens next, from the facts and not from
+        # the agents' prose: one run claimed "cette issue propose une solution"
+        # while nothing was proposed (16 November 2026). Each agent's findings
+        # follow under its own heading, instead of one wall of text.
+        if proposed:
+            n = len(proposed)
+            outcome = (
+                "1 action attend votre accord : rien ne part avant."
+                if n == 1
+                else f"{n} actions attendent votre accord : rien ne part avant."
+            )
+        else:
+            outcome = "Aucune action proposée : rien ne sera écrit."
+        if len(finished) == 1:
+            # One agent and nothing to approve: a plain question gets a plain
+            # answer, without a summary of itself.
+            parts = [f"**En bref** : {outcome}"] if proposed else []
+            parts.append(finished[0].answer)
+        else:
+            parts = [f"**En bref** : {len(finished)} agents ont terminé. {outcome}"]
+            parts += [f"**Agent {i}**\n\n{r.answer}" for i, r in enumerate(finished, 1)]
+        if offered > len(proposed):
+            parts.append(
+                f"*{offered} propositions pour {len(proposed)} action"
+                f"{'s' if len(proposed) > 1 else ''} : seule la première de chaque "
+                "action vous est soumise.*"
+            )
         if failed:
             total, n = len(state["results"]), len(failed)
             missing = (

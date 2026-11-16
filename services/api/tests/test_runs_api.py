@@ -153,6 +153,23 @@ def test_a_thread_is_never_continued_across_owners() -> None:
     assert not index.delete("t", "org-b")
 
 
+def test_a_run_cut_by_a_restart_is_marked_failed_at_startup() -> None:
+    # A run's stream lives in the process: after a restart nothing finishes it,
+    # and it used to stay "en cours" forever (16 November 2026). A run waiting
+    # at the gate resumes from its checkpoint, so it is left alone.
+    index = InMemoryThreadIndex()
+    index.start("cut", None, "coupé")
+    index.start("gate", None, "à la porte")
+    index.finish("gate", RunTurn(brief="à la porte", answer="", events=[]), "waiting")
+
+    with TestClient(create_app(planner=FakePlanner(), threads=index)):
+        pass
+
+    assert index.get("cut", None).status == "error"  # type: ignore[union-attr]
+    assert index.get("gate", None).status == "waiting"  # type: ignore[union-attr]
+    assert index.abandon_running() == 0
+
+
 def test_the_openapi_contract_is_served_and_versioned(client: TestClient) -> None:
     served = client.get("/api/openapi.json").json()
     for path in ("/api/runs", "/api/runs/{thread_id}", "/api/runs/{thread_id}/resume"):

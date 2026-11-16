@@ -187,14 +187,15 @@ def _proposal_tool(
     model = _model_of(tool, input_schema) or create_model("Arguments")
 
     async def propose(**arguments: Any) -> str:
+        given = _given(arguments)
         box.proposals.append(
             ProposedAction(
                 kind="external_write",
                 target=f"{server.name}/{tool}",
-                justification="l'agent a demandé un outil irréversible",
+                justification=_why(server.name, tool, given),
                 # The exact arguments, as JSON: what the person reads, may edit,
                 # and what the executor sends once approved (McpExecutor).
-                preview=json.dumps(_given(arguments), ensure_ascii=False, indent=2),
+                preview=json.dumps(given, ensure_ascii=False, indent=2),
             )
         )
         return (
@@ -211,6 +212,16 @@ def _proposal_tool(
         ),
         args_schema=model,
     )
+
+
+def _why(server: str, tool: str, arguments: dict[str, Any]) -> str:
+    """What the proposal would do, in words: « l'agent a demandé un outil
+    irréversible » justified nothing (review, 16 November 2026)."""
+    owner, repo = arguments.get("owner"), arguments.get("repo")
+    where = f" sur {owner}/{repo}" if owner and repo else ""
+    title = arguments.get("title")
+    what = f" : « {title} »" if isinstance(title, str) and title else ""
+    return f"{server}/{tool}{where}{what}"
 
 
 def _given(arguments: dict[str, Any]) -> dict[str, Any]:

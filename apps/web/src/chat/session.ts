@@ -47,7 +47,9 @@ export async function knock(fetchImpl: Fetch = call): Promise<Door> {
  */
 export function initialsOf(email: string | undefined): string {
   const local = email?.split('@')[0] ?? ''
-  const parts = local.split(/[._+-]+/).filter(Boolean)
+  // Letters only: an address that starts with digits drew « 6 » in the
+  // avatar (review, 16 November 2026); no letter, no initials.
+  const parts = local.split(/[._+-]+/).filter((part) => /^\p{L}/u.test(part))
   return parts
     .slice(0, 2)
     .map((part) => part[0]!.toUpperCase())

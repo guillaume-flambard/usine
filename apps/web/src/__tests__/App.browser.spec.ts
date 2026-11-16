@@ -77,7 +77,7 @@ describe('App shell', () => {
     expect(document.querySelector('[data-landing]')).not.toBeNull()
     await expect
       .element(screen.getByRole('heading', { level: 1 }))
-      .toHaveTextContent('Mes agents enquêtent. Je décide.')
+      .toHaveTextContent('Un assistant qui enquête sur votre projet, et vous demande avant d’agir.')
     // The first action is the public visit: a visitor without an account used
     // to stop at the sign-in (16 November 2026).
     const visit = screen.getByRole('link', { name: 'Voir un vrai run, sans compte' })

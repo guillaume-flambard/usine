@@ -15,6 +15,7 @@ mémoire (mêmes comportements que test_identity / test_runs).
 from __future__ import annotations
 
 import os
+import uuid
 from contextlib import contextmanager
 from typing import Any
 
@@ -355,3 +356,17 @@ def test_erasure_through_the_app_leaves_nothing(stores) -> None:  # type: ignore
     assert stores.identities.by_account(account_id) is None
     assert stores.audit.entries(org) == []
     assert _sessions_of(stores, account_id) == []
+
+
+def test_abandoning_running_threads_on_postgres(stores) -> None:  # type: ignore[no-untyped-def]
+    from usine_api.threads import RunTurn
+
+    suffix = uuid.uuid4().hex[:8]
+    cut, gate = f"cut-{suffix}", f"gate-{suffix}"
+    stores.threads.start(cut, None, "coupé")
+    stores.threads.start(gate, None, "à la porte")
+    stores.threads.finish(gate, RunTurn(brief="à la porte", answer="", events=[]), "waiting")
+
+    assert stores.threads.abandon_running() >= 1
+    assert stores.threads.get(cut, None).status == "error"
+    assert stores.threads.get(gate, None).status == "waiting"

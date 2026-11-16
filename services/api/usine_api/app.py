@@ -517,6 +517,11 @@ def create_app(
         # si une base est configurée, mémoire sinon. Le pool des stores est déjà
         # ouvert ; à l'arrêt, on le ferme proprement plutôt que de le laisser au
         # ramasse-miettes.
+        # Un run « en cours » au démarrage a perdu son flux avec le processus
+        # précédent : personne ne le finira plus, on le dit en échec.
+        abandoned = index.abandon_running()
+        if abandoned:
+            logger.warning("%d run(s) coupé(s) par le redémarrage, marqué(s) en échec", abandoned)
         async with open_checkpointer(db_url if stores_needed else "") as saver:
             app_.state.checkpointer = saver
             # Le graphe du chat (MEM-14) vit le temps du service, sur le même

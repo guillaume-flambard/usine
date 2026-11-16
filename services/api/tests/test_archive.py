@@ -146,10 +146,11 @@ def test_an_unfinished_run_is_not_exported() -> None:
     from usine_api.threads import InMemoryThreadIndex
 
     index = InMemoryThreadIndex()
-    index.start("chat-r", None, "en cours")
     with TestClient(
         create_app(planner=CountingPlanner(), specialist=CountingSpecialist(), threads=index)
     ) as c:
+        # Opened after startup: a run still running at startup is marked failed.
+        index.start("chat-r", None, "en cours")
         reply = c.get("/api/runs/chat-r/export")
         assert reply.status_code == 409
         assert c.get("/api/runs/nope/export").status_code == 404
