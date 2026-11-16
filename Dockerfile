@@ -42,6 +42,10 @@ COPY --from=api /opt/venv /opt/venv
 COPY --from=api /src/services/api /src/services/api
 COPY config /src/config
 COPY --from=web /src/apps/web/dist /src/web
+# The VPS builder checks out with umask 077, so copied files arrive root 0600
+# and the non-root user could not read config/: the service crashed at start
+# (16 November 2026). Readable by all, writable by root only.
+RUN chmod -R a+rX,go-w /src
 ENV PATH=/opt/venv/bin:$PATH \
     PYTHONUNBUFFERED=1 \
     USINE_WEB_DIR=/src/web \
