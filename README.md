@@ -1,191 +1,93 @@
-# usine
+# Usine
 
-**Memo Labs — L'usine agentique.** Un besoin écrit en clair, et une usine qui
-n'existe pas encore. Un modèle décide quels agents doivent exister ; ces agents
-en créent d'autres, s'interrogent entre eux, écrivent le code de leurs outils et
-le chargent à chaud. Une porte humaine tranche, puis le produit — une fonction
-que personne n'avait nommée — s'exécute dans la page sur ce que vous tapez.
+Un assistant qui enquête sur votre projet, et vous demande avant d'agir.
 
-Sans clé branchée, le site rejoue des réponses préparées et le dit à l'écran :
-un modèle est ce qui fait naître les agents, et rien ne prétend le contraire.
+On lui pose une question sur un dépôt GitHub. Un agent chef découpe le travail,
+plusieurs agents le font en parallèle avec de vrais outils (le serveur MCP
+officiel de GitHub, en lecture seule), puis une synthèse rassemble ce qu'ils ont
+trouvé. Si une action irréversible est proposée, par exemple ouvrir un ticket,
+elle s'arrête devant une porte : une personne lit exactement ce qui partirait, et
+décide.
 
-Le code est en anglais ; l'interface, la narration et les prompts sont en
-français.
+- Le site : <https://usine.memolabs.dev>
+- La visite, sans compte : <https://usine.memolabs.dev/visite> rejoue un vrai
+  run enregistré, sans appeler de modèle.
 
-Planification : `_bmad-output/planning-artifacts/` (PRD, architecture, UX, epics).
-Cadrage : `docs/`.
+## Comment c'est fait
 
-## Recommended IDE Setup
+```
+question
+  └─ superviseur ──┬─ agent ─┐
+                   ├─ agent ─┼─ synthèse ─ porte humaine ─ action
+                   └─ agent ─┘
+```
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+- **Orchestration** : LangGraph. Chaque étape est un checkpoint en base, ce qui
+  permet de reprendre un run, de revenir à une étape et d'en partir sur une
+  autre branche. La porte est un `interrupt()`.
+- **Agents** : LangChain v1, interchangeables derrière un même contrat.
+- **Outils** : MCP. Les outils en lecture sont libres ; une écriture (ouvrir un
+  ticket) devient une proposition, jamais un appel direct.
+- **Modèles** : une passerelle LiteLLM ; le service ne lit aucune clé de
+  fournisseur.
+- **Interface** : Vue 3, Nuxt UI 4 et le Vercel AI SDK. Le flux d'événements
+  d'un run est son format d'archive : un run exporté se rejoue à l'identique,
+  sans modèle.
 
-## Recommended Browser Setup
+Deux limites, dites franchement :
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
+- revenir en arrière restaure l'état de l'agent, pas le monde extérieur. Un
+  ticket ouvert reste ouvert ; c'est pour ça que la porte est **avant** l'action ;
+- l'usine ne prétend pas être une plateforme de fiabilité : elle tient une
+  seule idée, voir et décider avant que ça parte.
 
-## Type Support for `.vue` Imports in TS
-
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
+## Démarrer
 
 ```sh
-pnpm install   # Node (apps/web)
-uv sync        # Python (services/api, espace de travail uv)
+pnpm install && uv sync   # Node (apps/web) et Python (services/api)
+cp .env.example .env      # puis renseigner POSTGRES_PASSWORD
+docker compose up -d --wait
+pnpm dev                  # http://localhost:5173, /api proxifié vers le port 8000
 ```
 
-### Compile and Hot-Reload for Development
+Sans passerelle de modèles configurée, l'interface le dit et rejoue un run
+enregistré.
+
+## Vérifier
 
 ```sh
-pnpm dev
+pnpm test:all         # tests du front (node et navigateur) et de l'API
+pnpm e2e              # bout en bout : vraie page, vraie API, modèles scriptés
+./scripts/verify.sh   # la liste complète, celle qui garde la mise en ligne
 ```
 
-### Type-Check, Compile and Minify for Production
+Les hooks git (lefthook) lancent le formatage et la recherche de secrets au
+commit, et `verify.sh` au push.
+
+## L'usine comme serveur MCP
+
+L'usine expose aussi ses propres runs en MCP : un client (Claude Code, Cursor,
+l'inspecteur MCP) peut lister les runs, en ouvrir un, voir ses points de reprise
+et ouvrir une branche. Ouvrir seulement : la branche est créée arrêtée, devant
+la porte.
 
 ```sh
-pnpm build
+USINE_MCP_TOKEN=<jeton> USINE_INTERNAL_SECRET=<secret partagé avec l'API> \
+  uv run python -m usine_api.mcp_server
 ```
 
-### Lint with [ESLint](https://eslint.org/)
+Un jeton se crée depuis l'API (`POST /api/mcp/tokens`, portée `read` ou
+`read_fork`) ; seul son hachage est stocké, et il se révoque. Sans jeton, le
+serveur répond 401.
 
-```sh
-pnpm lint
-```
+## Organisation du dépôt
 
-### Tests
+| Dossier | Contenu |
+|---|---|
+| `apps/web` | l'interface (Vue 3, Vite, Nuxt UI 4) |
+| `services/api` | le service FastAPI, le graphe LangGraph, les agents |
+| `deployment` | comment le site est construit et servi |
+| `docs/adr` | les décisions et leurs raisons |
 
-```sh
-pnpm --filter @usine/web exec playwright install chromium   # une fois, après un clone
-
-pnpm test          # tests node du front
-pnpm test:browser  # tests navigateur du front, dans un vrai Chromium
-pnpm test:api      # tests Python de services/api (uv run pytest)
-pnpm test:all      # les trois
-```
-
-Les promesses d'interface — la page qui ne défile jamais, le parcours critique
-au clavier, aucun état porté par la seule couleur, le mouvement réduit — ne se
-vérifient que dans un navigateur réel. Elles ont leur propre projet de tests.
-
-### Déploiement
-
-Les images v2 (`web`, `api`) sont reconstruites dans MEM-57 : il n'y a plus
-d'image racine sur la branche `v2`. La chaîne réelle et la cible sont dans
-`deployment/README.md`.
-
-Voir `deployment/README.md`. La politique de sécurité servie autorise
-`unsafe-eval` — et rien d'autre : les agents écrivent le code de leurs outils,
-et ce code doit tourner. Le code est affiché avant de s'exécuter, la porte
-humaine reste devant la livraison, et deux tests tiennent la politique.
-
-### L'usine comme serveur MCP
-
-L'usine expose ses primitives en MCP (MEM-39) : un client (Claude Code, Cursor,
-l'inspecteur MCP) peut lister les runs, en ouvrir un, voir ses points de fork et
-**ouvrir** une branche. Ouvrir, pas exécuter : `fork_run` demande à l'API une
-branche amorcée mais arrêtée, et la porte humaine reste devant.
-
-```sh
-# stdio, pour un client local ; l'API doit tourner
-uv run python -m usine_api.mcp_server
-
-# ou en HTTP
-USINE_MCP_TRANSPORT=streamable-http uv run python -m usine_api.mcp_server
-```
-
-Variables : `USINE_API_URL` (défaut `http://127.0.0.1:8000`),
-`USINE_MCP_TRANSPORT` (`stdio` par défaut, ou `streamable-http`).
-
-Configuration côté client (Claude Code, `~/.claude.json` ou le projet) :
-
-```json
-{
-  "mcpServers": {
-    "usine": {
-      "command": "uv",
-      "args": ["run", "python", "-m", "usine_api.mcp_server"],
-      "cwd": "/chemin/vers/lab/services/usine/services/api",
-      "env": { "USINE_API_URL": "http://127.0.0.1:8000" }
-    }
-  }
-}
-```
-
-Outils exposés : `list_runs`, `get_run`, `list_checkpoints`, `list_specialists`
-et `fork_run`. Leurs descriptions disent ce qu'ils font et leurs limites ;
-`tests/test_mcp_server.py` les appelle contre l'API réelle en mémoire, et la
-vérification par un client externe (`/mcp` dans Claude Code, ou l'inspecteur)
-reste une manipulation à faire à la main : une imitation de client ne
-prouverait rien de plus.
-
-#### Authentification (MEM-40)
-
-Le serveur MCP ne répond jamais sans jeton. Deux portées existent :
-
-- `read` : lecture seule (`list_runs`, `get_run`, `list_checkpoints`,
-  `list_specialists`) ;
-- `read_fork` : lecture plus ouverture de branche (`fork_run`, qui n'exécute
-  jamais une action irréversible : il ouvre une branche arrêtée).
-
-Un jeton est révocable, étiqueté, et son hachage (jamais le jeton en clair) est
-stocké dans la base (`mcp_tokens`, migration `0008`). Le jeton en clair n'est
-rendu qu'au moment de sa création.
-
-Créer un jeton (nécessite d'être connecté à l'API) :
-
-```sh
-curl -X POST http://127.0.0.1:8000/api/mcp/tokens \
-  -H "Content-Type: application/json" \
-  -d '{"label": "mon client", "scope": "read_fork"}'
-```
-
-Révoquer un jeton :
-
-```sh
-curl -X DELETE http://127.0.0.1:8000/api/mcp/tokens/<id>
-```
-
-Côté serveur MCP, le jeton s'injecte par variable d'environnement :
-
-```sh
-USINE_MCP_TOKEN=<le-jeton-en-clair> \
-USINE_INTERNAL_SECRET=<cle-partagee-avec-l-api> \
-uv run python -m usine_api.mcp_server
-```
-
-Variables : `USINE_API_URL` (défaut `http://127.0.0.1:8000`),
-`USINE_MCP_TRANSPORT` (`stdio` par défaut, ou `streamable-http`),
-`USINE_MCP_TOKEN`, `USINE_INTERNAL_SECRET`.
-
-Configuration côté client (Claude Code, `~/.claude.json` ou le projet) :
-
-```json
-{
-  "mcpServers": {
-    "usine": {
-      "command": "uv",
-      "args": ["run", "python", "-m", "usine_api.mcp_server"],
-      "cwd": "/chemin/vers/lab/services/usine/services/api",
-      "env": {
-        "USINE_API_URL": "http://127.0.0.1:8000",
-        "USINE_MCP_TOKEN": "<le-jeton-en-clair>",
-        "USINE_INTERNAL_SECRET": "<cle-partagee-avec-l-api>"
-      }
-    }
-  }
-}
-```
-
-L'authentification de ce serveur est MEM-40 : aujourd'hui il parle à une API
-locale, protégé par un jeton porteur. Un appel sans jeton donne 401 ; un jeton
-`read` ne peut pas forker (403). Chaque appel d'outil est journalisé (qui, quoi,
-quand, aucun secret).
+Le code est en anglais ; l'interface, la narration et les consignes envoyées
+aux modèles sont en français.
