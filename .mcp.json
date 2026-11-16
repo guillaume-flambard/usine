@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "nuxt-ui": {
+      "type": "http",
+      "url": "https://ui.nuxt.com/mcp"
+    },
+    "docs-langchain": {
+      "type": "http",
+      "url": "https://docs.langchain.com/mcp"
+    }
+  }
+}
