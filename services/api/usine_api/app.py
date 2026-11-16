@@ -99,7 +99,7 @@ from .mcp_auth import (
     McpTokenRequest,
     scope_allows,
 )
-from .mcp_registry import Registry, RegistryRefusal
+from .mcp_registry import Registry, RegistryRefusal, tools_reachable
 from .memory import MAX_FACT, Fact, InMemoryMemory, Memory
 from .models import ModelSettings, model_settings
 from .oidc import (
@@ -477,6 +477,18 @@ def create_app(
                     http_client=cassette_client,
                 ),
             )
+        # L'agent outillé devient le spécialiste par défaut dès qu'un serveur
+        # d'outils est réellement joignable (son jeton est posé, ou il n'en
+        # demande pas) : sans outils, un agent ne peut pas lire le dépôt et
+        # répond à côté. Un spécialiste injecté (tests) et le rejeu d'une
+        # cassette gardent le leur : une cassette n'enregistre qu'un agent.
+        if (
+            specialist is None
+            and cassette is None
+            and "mcp-agent" in wired
+            and tools_reachable(whitelist, os.environ)
+        ):
+            chat_specialist = wired["mcp-agent"]
     site_origin = origin or os.environ.get("USINE_ORIGIN", "https://usine.memolabs.dev")
     if not api_key:
         # Un déploiement dégradé doit se remarquer, pas servir un rejeu en silence.
@@ -1066,7 +1078,12 @@ def create_app(
                         "identity": instance.identity.model_dump(mode="json"),
                     }
                     for name, instance in sorted(wired.items())
-                ]
+                ],
+                # Le spécialiste d'un run qui n'en épingle aucun.
+                "default": next(
+                    (name for name, instance in wired.items() if instance is chat_specialist),
+                    None,
+                ),
             }
         )
 

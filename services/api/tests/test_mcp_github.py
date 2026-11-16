@@ -349,3 +349,45 @@ def test_a_server_with_the_labs_token_never_answers_an_anonymous_visitor(
         )
     assert reply.status_code == 401
     assert _GitHubLikeHandler.calls == []
+
+
+def test_tools_are_reachable_only_once_their_token_is_set() -> None:
+    from usine_api.mcp_registry import tools_reachable
+
+    registry = _registry("http://127.0.0.1:1/mcp/")
+    assert tools_reachable(registry, {}) is False
+    assert tools_reachable(registry, {"USINE_TEST_GITHUB_TOKEN": TOKEN}) is True
+    keyless = Registry(
+        {
+            "docs": Registered(
+                name="docs",
+                url="http://127.0.0.1:1/mcp/",
+                description="d",
+                token_env=None,
+                tools=(),
+            )
+        }
+    )
+    assert tools_reachable(keyless, {}) is True
+
+
+@pytest.mark.parametrize(("token", "default"), [(TOKEN, "mcp-agent"), (None, "chat-model")])
+def test_the_tool_agent_is_the_default_once_github_is_reachable(
+    monkeypatch: pytest.MonkeyPatch, token: str | None, default: str
+) -> None:
+    """Without tools an agent cannot read the repository: it answers beside the point."""
+    from fastapi.testclient import TestClient
+
+    from usine_api.app import create_app
+
+    monkeypatch.setenv("LITELLM_BASE_URL", "http://127.0.0.1:1/v1")
+    monkeypatch.setenv("LITELLM_API_KEY", "test-key-not-a-secret")
+    monkeypatch.delenv("USINE_CASSETTE", raising=False)
+    if token:
+        monkeypatch.setenv("USINE_TEST_GITHUB_TOKEN", token)
+    else:
+        monkeypatch.delenv("USINE_TEST_GITHUB_TOKEN", raising=False)
+    app = create_app(registry=_registry("http://127.0.0.1:1/mcp/"), open_atelier=True)
+    with TestClient(app) as client:
+        body = client.get("/api/specialists").json()
+    assert body["default"] == default
