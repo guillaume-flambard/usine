@@ -44,7 +44,7 @@ const RUN = {
                 kind: 'external_write',
                 target: 'github/issue_write',
                 justification: 'proposée',
-                preview: '{"title": "CI"}',
+                preview: '{"title": "CI bloquée", "body": "## Problème\\n\\nLe build attend."}',
               },
             ],
             notice: 'Revenir en arrière restaure l’état du run, pas le monde.',
@@ -66,18 +66,19 @@ describe('the public visit', () => {
     })
     await render(VisitPage, { global: { plugins: [ui] } })
 
-    // The one sentence says what the tool does, before anything moves.
-    expect(document.querySelector('h1')?.textContent).toContain('rien ne part sans votre accord')
+    // One sentence says what the tool does, before anything moves.
+    expect(document.querySelector('h1')?.textContent).toContain('vous demande avant d’agir')
+    // The story reaches the request for consent, with the ticket readable.
     await expect
-      .poll(() => document.querySelector('[data-visit-steps] [aria-current="step"]')?.textContent, {
-        timeout: 5000,
+      .poll(() => document.querySelector('[data-visit-ticket]')?.textContent ?? '', {
+        timeout: 6000,
       })
-      .toContain('Votre accord')
-    await expect.poll(() => document.querySelector('[data-gate-approve]')).not.toBeNull()
+      .toContain('CI bloquée')
+    expect(document.querySelector('[data-beat="plan"]')?.textContent).toContain('1 agent')
 
-    await userEvent.click(document.querySelector('[data-gate-approve]') as HTMLElement)
+    await userEvent.click(document.querySelector('[data-visit-open]') as HTMLElement)
     await expect
-      .poll(() => document.querySelector('[data-visit-sandbox]')?.textContent ?? '')
+      .poll(() => document.querySelector('[data-visit-outcome]')?.textContent ?? '')
       .toContain('rien n’est parti')
     // No account, no model, no service: the recorded run is the only fetch.
     expect(calls).toEqual(['/visite/run.json'])
