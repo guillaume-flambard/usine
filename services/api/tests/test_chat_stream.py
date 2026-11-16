@@ -298,3 +298,51 @@ async def test_a_gate_stops_the_stream_waiting_for_a_decision() -> None:
     assert kinds[-1] == "gate-opened"
     assert "run-finished" not in kinds
     assert parts[-1] == {"type": "finish", "finishReason": "other"}
+
+
+class SometimesFailingSpecialist:
+    """Fails on the sub-task « b » only, like one model call past its timeout."""
+
+    identity = IDENTITY
+
+    async def run(self, task: SpecialistInput) -> SpecialistOutput:
+        if task.task.endswith("b"):
+            response = httpx.Response(429, request=httpx.Request("POST", "http://litellm.test/v1"))
+            raise openai.RateLimitError("rate limited", response=response, body=None)
+        return SpecialistOutput(answer="fait : a", identity=IDENTITY, tokens=1, tool_calls=0)
+
+
+async def test_one_failed_specialist_does_not_stop_the_others() -> None:
+    # Production, 16 November 2026: one timeout on the free gateway stopped the
+    # whole run, human gate included.
+    graph = build_graph(FakePlanner(["a", "b"]), SometimesFailingSpecialist())
+    body = await collect(graph, request("deux choses"))
+    check_fixture("partial-failure.sse", body)
+    parts = chunks(body)
+
+    assert parts[-1] == {"type": "finish", "finishReason": "stop"}
+    finished = [
+        p["data"]
+        for p in parts
+        if p.get("type") == "data-run-event"
+        and p["data"]["kind"] == "node-finished"
+        and p["data"]["node"] == "specialist"
+    ]
+    failures = [s.get("failed") for e in finished for s in e["data"]["specialists"]]
+    assert sorted(failures, key=str) == [
+        "Le modèle est saturé pour le moment (429). Réessayez dans une minute.",
+        None,
+    ]
+    answer = "".join(p["delta"] for p in parts if p.get("type") == "text-delta")
+    assert "fait : a" in answer
+    assert "1 sur 2 sous-tâches n'ont pas abouti" in answer
+    assert "litellm.test" not in answer
+
+
+async def test_when_every_specialist_fails_the_run_says_so() -> None:
+    graph = build_graph(FakePlanner(["a", "b"]), FailingSpecialist())
+    parts = chunks(await collect(graph, request("deux choses")))
+
+    error = next(p for p in parts if p["type"] == "error")
+    assert error["errorText"].startswith("Aucun spécialiste n'a abouti")
+    assert parts[-1] == {"type": "finish", "finishReason": "error"}

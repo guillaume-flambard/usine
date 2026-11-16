@@ -211,6 +211,9 @@ function place(node: RunNode) {
         >
           <h3 class="card-head">{{ title(node) }}</h3>
           <p v-if="task(node)" class="card-task">{{ task(node) }}</p>
+          <p v-if="node.failure" class="card-failure text-error" data-node-failure>
+            {{ node.failure }}
+          </p>
           <p v-if="meta(node).length" class="card-meta">
             <template v-for="(line, i) in meta(node)" :key="i"
               >{{ line }}<br v-if="i < meta(node).length - 1"
@@ -306,6 +309,15 @@ function place(node: RunNode) {
   margin: 0;
   color: var(--tt);
   font: 600 var(--text-sm) / 1.2 var(--font-sans);
+}
+.card-failure {
+  display: -webkit-box;
+  margin-top: var(--space-xs);
+  overflow: hidden;
+  font: 500 var(--text-xs) / 1.35 var(--font-sans);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 .card-task {
   display: -webkit-box;

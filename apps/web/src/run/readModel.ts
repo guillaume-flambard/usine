@@ -22,7 +22,16 @@ export interface RunNode {
   /** What the supervisor planned. */
   subtasks?: string[]
   /** Specialist identities and tokens, once finished. */
-  specialists?: { name: string; framework: string; tokens: number; tools?: string[] }[]
+  specialists?: {
+    name: string
+    framework: string
+    tokens: number
+    tools?: string[]
+    /** Why it did not finish; the others went on without it. */
+    failed?: string
+  }[]
+  /** Why this node did not finish, as the service worded it for a person. */
+  failure?: string
   /** Reasoning started and settled inside this node (reasoning events). */
   reasoning: { started: number; settled: number }
 }
@@ -116,16 +125,21 @@ export function reduceRun(model: RunReadModel, event: RunEventPayload): RunReadM
       return { ...base, nodes, edges: edgesFor(nodes) }
     }
     case 'node-finished': {
+      const specialists = Array.isArray(data.specialists)
+        ? (data.specialists as NonNullable<RunNode['specialists']>)
+        : undefined
+      // A specialist that failed while the others went on (16 November 2026):
+      // its card says so, with the reason the service gave.
+      const failure = specialists?.find((s) => typeof s.failed === 'string')?.failed
       const nodes = model.nodes.map((n): RunNode => {
         if (n.id !== id) return n
         return {
           ...n,
-          state: 'finished',
+          state: failure ? 'failed' : 'finished',
           finishedAt: event.at,
           ...(Array.isArray(data.subtasks) ? { subtasks: data.subtasks as string[] } : {}),
-          ...(Array.isArray(data.specialists)
-            ? { specialists: data.specialists as RunNode['specialists'] }
-            : {}),
+          ...(specialists ? { specialists } : {}),
+          ...(failure ? { failure } : {}),
         }
       })
       return { ...base, nodes }
