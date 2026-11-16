@@ -7,8 +7,9 @@ vivent ici.
 Seuls la racine et les fichiers qui existent dans le dossier construit sont
 servis, avant le verrou de l'atelier : la page est publique, c'est elle qui
 propose de se connecter. Tout autre chemin continue vers l'API et son verrou.
-L'application n'a pas de routes côté client (`createMemoryHistory`), donc pas
-de repli sur `index.html` pour un chemin inconnu.
+L'application n'a pas de routes côté client (`createMemoryHistory`) : seules
+les adresses de `PAGE_ROUTES` (la visite publique) rendent la page, un chemin
+inconnu n'a pas de repli sur `index.html`.
 """
 
 from __future__ import annotations
@@ -29,12 +30,18 @@ PAGE_POLICY = (
 )
 
 
+#: The page's own public addresses, served as the page itself. The visit
+#: replays a recorded run with no account (16 November 2026): without this it
+#: fell through to the atelier's lock and answered 401 to every visitor.
+PAGE_ROUTES: frozenset[str] = frozenset({"/visite"})
+
+
 def page_file(root: Path, path: str) -> Path | None:
     """The built file this path names, or None. Never outside `root`."""
     if "\x00" in path:
         # `Path.resolve` raises on a NUL byte: a 500 without the headers.
         return None
-    if path == "/":
+    if path == "/" or path.rstrip("/") in PAGE_ROUTES:
         candidate = root / "index.html"
     else:
         candidate = (root / path.lstrip("/")).resolve()
