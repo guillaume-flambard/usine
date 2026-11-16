@@ -1,70 +1,70 @@
 {
-  "thread_id": "mdk4Gl1kepEL5IFN",
+  "thread_id": "dNJtY0kiJ7PqO4VM",
   "title": "Lis deployment/README.md du dépôt guillaume-flambard/usine, explique pourquoi l…",
-  "status": "done",
-  "created_at": "2026-11-16T14:06:55Z",
-  "turns": 2,
+  "status": "waiting",
+  "created_at": "2026-11-16T16:14:59Z",
+  "turns": 1,
   "history": [
     {
       "brief": "Lis deployment/README.md du dépôt guillaume-flambard/usine, explique pourquoi la production ne se mettait plus à jour, et propose une issue pour le suivre.",
-      "answer": "```json\n{\n  \"assignees\": [\n    \"guillaume-flambard\"\n  ],\n  \"body\": \"La production ne se mettait plus à jour car le script de déploiement n'était pas configuré pour vérifier les mises à jour du dépôt GitHub. Le script a été mis à jour pour inclure cette vérification.\",\n  \"labels\": [\n    \"bug\",\n    \"deployment\"\n  ],\n  \"method\": \"create\",\n  \"owner\": \"guillaume-flambard\",\n  \"repo\": \"usine\",\n  \"state\": \"open\",\n  \"title\": \"Mettre à jour le script de déploiement pour vérifier les mises à jour du dépôt GitHub\"\n}\n```\n\n*2 sur 3 sous-tâches n'ont pas abouti : Un spécialiste a dépassé son budget (durée) : 180.034 pour une limite de 180.0. Rien n'a été exécuté au-delà. ; Un spécialiste a dépassé son budget (durée) : 180.002 pour une limite de 180.0. Rien n'a été exécuté au-delà.*",
+      "answer": "J'ai lu le fichier `deployment/README.md` du dépôt `guillaume-flambard/usine`. Voici le contenu pertinent et l'explication du blocage.\n\n---\n\n### Pourquoi la production ne se mettait plus à jour\n\nSelon le README (section « La chaîne est arrêtée depuis le 2 novembre 2026 ») :\n\n1. Le commit `f52872e` (« push straight to main, no PR gate ») a basculé le workflow `.github/workflows/verify.yml` en déclenchement **manuel seul** (`workflow_dispatch`).\n2. Le builder de confiance (`usine-build-controller.timer`, rôle `ansible/roles/usine-builder` de `lab-infra`) exige un run `verify.yml` **réussi, sur le SHA exact de `main`, avec l'événement `push` sur `main`**.\n3. Comme aucun run `push` n'existe plus pour un SHA de `main`, le builder attend indéfiniment :\n\n```\nusine-build-controller: WAIT: CI main not successful for f52872efad639cc4f66f00cca92b8f770a1e5504\n```\n\n**État actuel (14 novembre 2026) :**\n- L'image servie en production date du 2026-10-20 (révision `0439b39`, PR #48).\n- Le seul commit de `main` non déployé ne touche que `verify.yml`, donc aucune fonctionnalité ne manque aujourd'hui.\n- Mais tout correctif futur poussé sur `main` resterait bloqué au même endroit.\n\nContexte supplémentaire : le runner GitHub auto-hébergé du VPS et le workflow `build.yml` ont été retirés le 2026-10-13 (PR #45 et #47) pour des raisons de sécurité. Il n'y a plus de runner GitHub sur le VPS.\n\n---\n\n### Issue proposée\n\nJ'ai préparé la création d'une issue pour suivre ce blocage. Comme l'outil d'écriture d'issue est marqué irréversible et ne fait que **proposer**, la demande est en attente de validation par une personne. Voici ce qui a été proposé :\n\n**Titre :** Déploiement bloqué : verify.yml ne se déclenche plus sur push vers main\n\n**Labels :** `bug`, `deployment`, `production`, `ci/cd`\n\n**Contenu :** description du problème, extrait des logs du builder, état actuel de la production, étapes à suivre (restaurer un déclenchement `push` sur `verify.yml` pour `main`, vérifier la publication et le redéploiement via `autodeploy.timer`), et commandes de vérification.\n\nUne personne doit maintenant décider si cette issue est créée dans le dépôt.\n\nVoici pourquoi la production ne se mettait plus à jour, d'après `deployment/README.md` :\n\n## Cause\n\nLe commit `f52872e` (« push straight to main, no PR gate ») a passé le workflow `.github/workflows/verify.yml` en déclenchement manuel seul (`workflow_dispatch`). Il n’existe donc plus aucun run `verify.yml` déclenché par un `push` sur `main` pour un SHA donné.\n\nLe builder de production (`usine-build-controller.timer`, rôle `ansible/roles/usine-builder` de `lab-infra`) tourne toutes les 2 minutes et exige, avant de construire et publier une nouvelle image :\n\n1. un run `verify.yml` **réussi**,\n2. sur le SHA exact de `main`,\n3. avec l’événement `push` sur `main`.\n\nComme ce run n’existe plus, le builder attend indéfiniment :\n\n```\nusine-build-controller: WAIT: CI main not successful for f52872efad639cc4f66f00cca92b8f770a1e5504\n```\n\n## Conséquence\n\n- L’image en production date du 2026-10-20 (révision `0439b39`, PR #48).\n- Le seul commit de `main` non déployé ne touche que `verify.yml`, donc aucune fonctionnalité ne manque aujourd’hui.\n- Mais **tout correctif poussé sur `main` resterait bloqué au même endroit**.\n\n## Action proposée\n\nJ’ai proposé la création d’une issue GitHub pour suivre ce blocage. L’outil `github__issue_write` étant irréversible, l’appel n’a pas été exécuté directement ; une personne doit décider de valider la création de cette issue dans le dépôt `guillaume-flambard/usine`.\n\nTitre proposé : *« Production bloquée : le builder attend un run verify.yml push sur main qui n’existe plus »*.\n\nSi vous validez, je pourrai relancer l’appel avec les arguments complets (titre, corps, labels `bug`, `déploiement`, `production`, `ci/cd`).\n\nLa proposition d'issue a été transmise via l'outil de création GitHub (en attente de validation humaine).\n\n**Résumé de la proposition :**\n\n| Champ | Contenu |\n|-------|---------|\n| **Titre** | `[Production] Mise à jour bloquée : verify.yml ne se déclenche plus sur push vers main` |\n| **Dépôt** | `guillaume-flambard/usine` |\n| **Étiquettes** | `bug`, `production`, `deployment`, `ci-cd`, `bloquant` |\n\n**Problème identifié (d'après `deployment/README.md`) :**  \nDepuis le commit `f52872e`, le workflow `verify.yml` ne se déclenche plus sur `push` vers `main` (seulement `workflow_dispatch`). Le builder `usine-build-controller` exige un run `push` réussi sur le SHA exact de `main`, donc il attend indéfiniment. La production est figée sur la révision `0439b39` (20 octobre 2026).\n\n**Résolution proposée :**  \nSoit rétablir le déclencheur `push` sur `main` dans `verify.yml`, soit adapter le builder pour accepter un run `workflow_dispatch` réussi sur le SHA exact — en attendant la bascule vers la v2 (MEM-65), qui corrige définitivement ce point de rupture.\n\nL'issue contient le diagnostic complet, l'état actuel de la production, les commandes de vérification, les étapes de résolution suggérées et les références aux PR et mémos concernés.",
       "events": [
         {
-          "at": 0.004,
-          "data": { "threadId": "mdk4Gl1kepEL5IFN" },
+          "at": 0.015,
+          "data": { "threadId": "dNJtY0kiJ7PqO4VM" },
           "kind": "run-started",
           "node": null
         },
-        { "at": 0.151, "data": { "taskId": "t1" }, "kind": "node-started", "node": "supervisor" },
+        { "at": 0.171, "data": { "taskId": "t1" }, "kind": "node-started", "node": "supervisor" },
         {
-          "at": 2.304,
+          "at": 22.014,
           "data": {
             "taskId": "t1",
             "subtasks": [
-              "Lire le fichier deployment/README.md du dépôt guillaume-flambard/usine.",
-              "Analyser le contenu du fichier pour identifier la cause de l'arrêt de la mise à jour de la production.",
-              "Proposer une issue pour suivre le problème identifié."
+              "Lire le fichier deployment/README.md du dépôt guillaume-flambard/usine et en restituer le contenu pertinent.",
+              "À partir du contenu du README, expliquer pourquoi la production ne se mettait plus à jour.",
+              "Rédiger une proposition d'issue GitHub complète (titre, description, étapes, étiquettes) pour suivre ce problème de mise à jour en production."
             ]
           },
           "kind": "node-finished",
           "node": "supervisor"
         },
         {
-          "at": 2.304,
+          "at": 22.016,
           "data": {
-            "task": "Lire le fichier deployment/README.md du dépôt guillaume-flambard/usine.",
+            "task": "Lire le fichier deployment/README.md du dépôt guillaume-flambard/usine et en restituer le contenu pertinent.",
             "taskId": "t2"
           },
           "kind": "node-started",
           "node": "specialist"
         },
         {
-          "at": 2.304,
+          "at": 22.018,
           "data": {
-            "task": "Analyser le contenu du fichier pour identifier la cause de l'arrêt de la mise à jour de la production.",
+            "task": "À partir du contenu du README, expliquer pourquoi la production ne se mettait plus à jour.",
             "taskId": "t3"
           },
           "kind": "node-started",
           "node": "specialist"
         },
         {
-          "at": 2.305,
+          "at": 22.018,
           "data": {
-            "task": "Proposer une issue pour suivre le problème identifié.",
+            "task": "Rédiger une proposition d'issue GitHub complète (titre, description, étapes, étiquettes) pour suivre ce problème de mise à jour en production.",
             "taskId": "t4"
           },
           "kind": "node-started",
           "node": "specialist"
         },
         {
-          "at": 7.142,
+          "at": 46.141,
           "data": {
             "taskId": "t4",
             "specialists": [
               {
-                "name": "mcp-agent:lab-fast",
-                "tools": ["github__issue_write"],
-                "tokens": 5795,
+                "name": "mcp-agent:lab-agent",
+                "tools": ["github__get_file_contents", "github__issue_write"],
+                "tokens": 21144,
                 "framework": "langchain"
               }
             ]
@@ -73,32 +73,14 @@
           "node": "specialist"
         },
         {
-          "at": 182.349,
-          "data": {
-            "taskId": "t3",
-            "specialists": [
-              {
-                "name": "mcp-agent:lab-fast",
-                "tools": [],
-                "failed": "Un spécialiste a dépassé son budget (durée) : 180.002 pour une limite de 180.0. Rien n'a été exécuté au-delà.",
-                "tokens": 0,
-                "framework": "langchain"
-              }
-            ]
-          },
-          "kind": "node-finished",
-          "node": "specialist"
-        },
-        {
-          "at": 182.35,
+          "at": 46.722,
           "data": {
             "taskId": "t2",
             "specialists": [
               {
-                "name": "mcp-agent:lab-fast",
-                "tools": [],
-                "failed": "Un spécialiste a dépassé son budget (durée) : 180.034 pour une limite de 180.0. Rien n'a été exécuté au-delà.",
-                "tokens": 0,
+                "name": "mcp-agent:lab-agent",
+                "tools": ["github__get_file_contents", "github__issue_write"],
+                "tokens": 20517,
                 "framework": "langchain"
               }
             ]
@@ -106,16 +88,32 @@
           "kind": "node-finished",
           "node": "specialist"
         },
-        { "at": 182.35, "data": { "taskId": "t5" }, "kind": "node-started", "node": "synthesize" },
         {
-          "at": 182.354,
-          "data": { "taskId": "t5", "proposed": 1 },
+          "at": 47.614,
+          "data": {
+            "taskId": "t3",
+            "specialists": [
+              {
+                "name": "mcp-agent:lab-agent",
+                "tools": ["github__get_file_contents", "github__issue_write"],
+                "tokens": 20221,
+                "framework": "langchain"
+              }
+            ]
+          },
+          "kind": "node-finished",
+          "node": "specialist"
+        },
+        { "at": 47.615, "data": { "taskId": "t5" }, "kind": "node-started", "node": "synthesize" },
+        {
+          "at": 47.62,
+          "data": { "taskId": "t5", "proposed": 3 },
           "kind": "node-finished",
           "node": "synthesize"
         },
-        { "at": 182.354, "data": { "taskId": "t6" }, "kind": "node-started", "node": "human_gate" },
+        { "at": 47.62, "data": { "taskId": "t6" }, "kind": "node-started", "node": "human_gate" },
         {
-          "at": 182.357,
+          "at": 47.624,
           "data": {
             "gate": {
               "notice": "Revenir en arrière restaure l'état du run, pas le monde : une action déjà exécutée (un envoi, une écriture, une PR) n'est pas défaite.",
@@ -123,7 +121,19 @@
                 {
                   "kind": "external_write",
                   "target": "github/issue_write",
-                  "preview": "{\n  \"assignees\": [\n    \"guillaume-flambard\"\n  ],\n  \"body\": \"La production ne se mettait plus à jour car le script de déploiement n'était pas configuré pour vérifier les mises à jour du dépôt GitHub. Le script a été mis à jour pour inclure cette vérification.\",\n  \"labels\": [\n    \"bug\",\n    \"deployment\"\n  ],\n  \"method\": \"create\",\n  \"owner\": \"guillaume-flambard\",\n  \"repo\": \"usine\",\n  \"state\": \"open\",\n  \"title\": \"Mettre à jour le script de déploiement pour vérifier les mises à jour du dépôt GitHub\"\n}",
+                  "preview": "{\n  \"body\": \"## Problème\\n\\nLa production de `https://usine.memolabs.dev` ne se met plus à jour depuis le **2 novembre 2026**.\\n\\nLe commit `f52872e` (« push straight to main, no PR gate ») a basculé `.github/workflows/verify.yml` en déclenchement manuel seul (`workflow_dispatch`). Il n’existe plus aucun run `push` sur un SHA de `main`, donc le builder de confiance (`usine-build-controller.timer`, rôle `ansible/roles/usine-builder` de `lab-infra`) attend indéfiniment :\\n\\n```\\nusine-build-controller: WAIT: CI main not successful for f52872efad639cc4f66f00cca92b8f770a1e5504\\n```\\n\\n### État actuel (14 novembre 2026)\\n\\n| Élément | Valeur |\\n|---|---|\\n| Image conteneur `usine-usine-1` | `sha256:2299d930…`, révision `0439b39` (PR #48), construite le 2026-10-20 |\\n| `published.sha` du builder | `0439b39c8fc1e4ed822ea6b12a1d1e6919d6d3fb` |\\n| `https://usine.memolabs.dev/` | 200 |\\n| `https://usine.memolabs.dev/api/health` | 200 (relais Node) |\\n| `https://usine.memolabs.dev/api/runs` | 404 : `services/api` n’est pas servi |\\n\\nLe seul commit de `main` non déployé ne touche que `verify.yml`, donc la production ne manque d’aucune fonctionnalité aujourd’hui. Mais **tout correctif poussé sur `main` resterait bloqué au même endroit**.\\n\\n## Contexte (extrait de `deployment/README.md`)\\n\\n- Le runner GitHub auto-hébergé du VPS (`lab-usine`) et le workflow `build.yml` ont été retirés le 2026-10-13 (PR #45 et #47) pour des raisons de sécurité.\\n- La chaîne actuelle : vérification sur GitHub (`ubuntu-24.04`) → construction sur le VPS par le builder de confiance → déploiement via `autodeploy.timer`.\\n- Le builder exige un run `verify.yml` **réussi, sur le SHA exact de `main`, avec l’événement `push` sur `main`**.\\n\\n## Ce qu’il faut faire\\n\\n1. Restaurer un déclenchement `push` (ou un équivalent automatique) sur `.github/workflows/verify.yml` pour la branche `main`, de façon à ce que le builder puisse valider un SHA de `main`.\\n2. Vérifier que le builder publie ensuite l’image et que `autodeploy.timer` redéploie.\\n3. Documenter la régression pour éviter qu’un futur commit ne désactive à nouveau le gate `push`.\\n\\n## Comment vérifier\\n\\n```sh\\nssh lab 'journalctl -u usine-build-controller.service -n 3 --no-pager'\\nssh lab \\\"docker inspect usine-usine-1 --format '{{index .Config.Labels \\\\\\\"org.opencontainers.image.revision\\\\\\\"}}'\\\"\\ncurl -o /dev/null -w \\\"%{http_code}\\\\n\\\" https://usine.memolabs.dev/api/runs\\n```\\n\\nRéférence : `deployment/README.md`, section « La chaîne est arrêtée depuis le 2 novembre 2026 ».\",\n  \"labels\": [\n    \"bug\",\n    \"deployment\",\n    \"production\",\n    \"ci/cd\"\n  ],\n  \"method\": \"create\",\n  \"owner\": \"guillaume-flambard\",\n  \"repo\": \"usine\",\n  \"title\": \"Déploiement bloqué : verify.yml ne se déclenche plus sur push vers main\"\n}",
+                  "justification": "l'agent a demandé un outil irréversible"
+                },
+                {
+                  "kind": "external_write",
+                  "target": "github/issue_write",
+                  "preview": "{\n  \"body\": \"## Problème\\n\\nLa production (`usine.memolabs.dev`) ne se met plus à jour depuis le 2 novembre 2026.\\n\\n## Cause racine\\n\\nLe commit `f52872e` (« push straight to main, no PR gate ») a passé `.github/workflows/verify.yml` en déclenchement manuel seul (`workflow_dispatch`). Aucun run `push` n'existe plus pour un SHA de `main`.\\n\\nOr le builder de production (`usine-build-controller.timer`, rôle `ansible/roles/usine-builder` de `lab-infra`) passe toutes les 2 minutes et exige :\\n\\n- un run `verify.yml` **réussi**,\\n- sur le SHA exact de `main`,\\n- avec l'événement `push` sur `main`.\\n\\nComme ce run n'existe plus, le builder reste bloqué en attente indéfinie :\\n\\n```\\nusine-build-controller: WAIT: CI main not successful for f52872efad639cc4f66f00cca92b8f770a1e5504\\n```\\n\\n## État actuel\\n\\n- Image en production : `sha256:2299d930…`, révision `0439b39` (PR #48), construite le 2026-10-20\\n- `published.sha` du builder : `0439b39c8fc1e4ed822ea6b12a1d1e6919d6d3fb`\\n- Le seul commit de `main` non déployé ne touche que `verify.yml`, donc la production ne manque d'aucune fonctionnalité aujourd'hui.\\n- Mais tout correctif poussé sur `main` resterait bloqué au même endroit.\\n\\n## Ce qu'il faut faire\\n\\nRétablir un run `verify.yml` déclenché par `push` sur `main` (ou adapter le builder pour accepter le nouveau mode de CI) afin que le déploiement automatique puisse reprendre sur `main`.\\n\\nContexte détaillé : `deployment/README.md` (section « La chaîne est arrêtée depuis le 2 novembre 2026 »).\",\n  \"labels\": [\n    \"bug\",\n    \"déploiement\",\n    \"production\",\n    \"ci/cd\"\n  ],\n  \"method\": \"create\",\n  \"owner\": \"guillaume-flambard\",\n  \"repo\": \"usine\",\n  \"title\": \"Production bloquée : le builder attend un run verify.yml push sur main qui n'existe plus\"\n}",
+                  "justification": "l'agent a demandé un outil irréversible"
+                },
+                {
+                  "kind": "external_write",
+                  "target": "github/issue_write",
+                  "preview": "{\n  \"body\": \"## Contexte\\n\\nLa production (`https://usine.memolabs.dev`) ne se met plus à jour depuis le **2 novembre 2026**.\\n\\nLe dernier commit de `main` non déployé est `f52872e` (« push straight to main, no PR gate »). Ce commit ne modifie que `.github/workflows/verify.yml` pour passer ce workflow en déclenchement **manuel seul** (`workflow_dispatch`).\\n\\n## Pourquoi (diagnostic)\\n\\nSelon `deployment/README.md`, la chaîne de déploiement réelle est :\\n\\n1. `verify.yml` tourne sur GitHub-hosted runners (`ubuntu-24.04`).\\n2. Le timer `usine-build-controller.timer` (rôle `ansible/roles/usine-builder` de `lab-infra`) passe toutes les 2 minutes. Il lit le SHA de `main` via l'API GitHub, puis exige un run `verify.yml` **réussi, sur ce SHA exact, avec l'événement `push` sur `main`**.\\n3. Si condition remplie : clone, build, pousse `127.0.0.1:5000/usine:<sha>` puis `:latest`, et `autodeploy.timer` déploie.\\n\\nComme `verify.yml` ne se déclenche plus sur `push` vers `main`, aucun run `push` n'existe pour un SHA de `main`. Le builder est donc bloqué indéfiniment :\\n\\n```\\nusine-build-controller: WAIT: CI main not successful for f52872efad639cc4f66f00cca92b8f770a1e5504\\n```\\n\\n### État actuel (14 novembre 2026)\\n\\n| Élément | Valeur |\\n|---|---|\\n| Image conteneur `usine-usine-1` | `sha256:2299d930…`, révision `0439b39` (PR #48), construite le 2026-10-20 |\\n| `published.sha` du builder | `0439b39c8fc1e4ed822ea6b12a1d1e6919d6d3fb` |\\n| `https://usine.memolabs.dev/` | 200 |\\n| `https://usine.memolabs.dev/api/health` | 200 |\\n| `https://usine.memolabs.dev/api/runs` | 404 (`services/api` n'est pas servi) |\\n| Commit `main` non déployé | `f52872e` (ne touche que `verify.yml`) |\\n\\n> La production ne manque d'aucune fonctionnalité pour l'instant, car le seul commit en attente ne touche que la CI. Mais **tout correctif poussé sur `main` resterait bloqué au même endroit**.\\n\\n## Comment vérifier soi-même\\n\\n```sh\\nssh lab 'journalctl -u usine-build-controller.service -n 3 --no-pager'\\nssh lab \\\"docker inspect usine-usine-1 --format '{{index .Config.Labels \\\\\\\"org.opencontainers.image.revision\\\\\\\"}}'\\\"\\ncurl -o /dev/null -w \\\"%{http_code}\\\\n\\\" https://usine.memolabs.dev/api/runs\\n```\\n\\n## Proposition de résolution\\n\\nLa v2 (branche `v2`, MEM-65) corrige ce point de rupture : le builder de `lab-infra` vérifiera les têtes de PR et de branches, publiera le statut `usine/verify`, et `.github/workflows/verify.yml` restera un secours manuel (`workflow_dispatch`) lançant le même `scripts/verify.sh`.\\n\\nJusqu'à la bascule vers la v2, il faut rétablir un run `verify.yml` réussi sur `push` vers `main` (ou adapter le builder pour accepter un run `workflow_dispatch` réussi sur le SHA exact de `main`).\\n\\n## Étapes suggérées\\n\\n1. [ ] Confirmer que `verify.yml` ne tourne plus sur `push` vers `main` (vérifier les déclencheurs du workflow).\\n2. [ ] Décider : rétablir `push` sur `main` dans `verify.yml`, OU modifier le builder `usine-build-controller` pour accepter un statut `workflow_dispatch` réussi.\\n3. [ ] Appliquer la correction via PR sur `main` (ou sur `lab-infra` si c'est le builder qui change).\\n4. [ ] Vérifier que le builder publie la nouvelle image (`f52872e`) et que `autodeploy` déploie.\\n5. [ ] Vérifier `https://usine.memolabs.dev/` et `/api/health` après déploiement.\\n\\n## Étiquettes suggérées\\n\\n`bug`, `production`, `deployment`, `ci-cd`, `bloquant`\\n\\n## Références\\n\\n- `deployment/README.md` (dépôt `guillaume-flambard/usine`)\\n- Commit `f52872e`\\n- PR #45, #47 (suppression du runner GitHub auto-hébergé et du workflow `build.yml`)\\n- PR #48 (dernière révision déployée : `0439b39`)\\n- MEM-6 (décision CI dans le builder du VPS), MEM-58, MEM-59, MEM-60, MEM-65 (v2)\",\n  \"labels\": [\n    \"bug\",\n    \"production\",\n    \"deployment\",\n    \"ci-cd\",\n    \"bloquant\"\n  ],\n  \"method\": \"create\",\n  \"owner\": \"guillaume-flambard\",\n  \"repo\": \"usine\",\n  \"title\": \"[Production] Mise à jour bloquée : verify.yml ne se déclenche plus sur push vers main\"\n}",
                   "justification": "l'agent a demandé un outil irréversible"
                 }
               ],
@@ -134,36 +144,6 @@
           "kind": "gate-opened",
           "node": "human_gate"
         }
-      ]
-    },
-    {
-      "brief": "Lis deployment/README.md du dépôt guillaume-flambard/usine, explique pourquoi la production ne se mettait plus à jour, et propose une issue pour le suivre.",
-      "answer": "",
-      "events": [
-        {
-          "at": 0.001,
-          "data": { "resumed": true, "threadId": "mdk4Gl1kepEL5IFN" },
-          "kind": "run-started",
-          "node": null
-        },
-        {
-          "at": 0.005,
-          "data": { "taskId": "rb7cd29-1" },
-          "kind": "node-started",
-          "node": "human_gate"
-        },
-        {
-          "at": 0.009,
-          "data": {
-            "reason": "Corps inexact : la cause réelle est le commit f52872e (verify.yml en déclenchement manuel), pas un script non configuré.",
-            "taskId": "rb7cd29-1",
-            "actions": null,
-            "decision": "reject"
-          },
-          "kind": "gate-decided",
-          "node": "human_gate"
-        },
-        { "at": 0.01, "data": { "outcome": "ok" }, "kind": "run-finished", "node": null }
       ]
     }
   ]
