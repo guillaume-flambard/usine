@@ -24,12 +24,19 @@ def readable_error(error: BaseException) -> str:
     if isinstance(error, openai.APIStatusError):
         return f"Le modèle a refusé la requête (erreur {error.status_code})."
     if isinstance(error, BudgetExceeded):
+        # Short enough for a graph card (three lines), and rounded: a duration
+        # read "180.003 pour une limite de 180.0" (16 November 2026).
+        unit = " s" if error.kind == "durée" else ""
+        of = "d’" if error.kind[:1] in "aeéiou" else "de "
+        limit = f"{round(float(error.limit), 1):g}{unit}"
+        # A timeout stops right at the limit: "180 s pour 180 s" read as nonsense.
+        measured = f"limite {limit}" if unit else f"{round(float(error.actual), 1):g} pour {limit}"
         return (
-            f"Un spécialiste a dépassé son budget ({error.kind}) : {error.actual} "
-            f"pour une limite de {error.limit}. Rien n'a été exécuté au-delà."
+            f"Budget {of}{error.kind.replace(chr(39), '’')} dépassé ({measured}). "
+            "Rien n’est parti au-delà."
         )
     if isinstance(error, CassetteMiss):
-        # The demo (MEM-24) answers one recorded brief: say so, rather than
+        # The showcase (MEM-24) answers one recorded brief: say so, rather than
         # blaming an internal error for a question nobody recorded.
         return (
             "Aucun modèle n'est branché : ce run rejoue des réponses enregistrées "

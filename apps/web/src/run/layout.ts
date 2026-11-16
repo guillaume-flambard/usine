@@ -11,7 +11,9 @@ export const NODE_WIDTH = 206
 export const NODE_HEIGHT = 168
 /** A node with nothing but its name and state (the synthesis, the action). */
 export const SHORT_HEIGHT = 96
-export const GATE_WIDTH = 232
+// Wide enough for the longest gate question in Instrument Serif at 20 px
+// ("Je laisse partir cette action ?", 183 px): it was cut at 232 (audit, 16 Nov).
+export const GATE_WIDTH = 280
 export const GATE_HEIGHT = 72
 
 export interface Box {
@@ -93,5 +95,8 @@ export function layoutRun(nodes: readonly RunNode[], edges: readonly RunEdge[]):
     return [{ from: edge.from, to: edge.to, d: threadPath(from, to, offset, targetOffset) }]
   })
   const size = graph.graph()
-  return { boxes, links, width: size.width ?? 0, height: size.height ?? 0 }
+  // dagre gives -Infinity for an empty graph: an SVG width of -Infinity logged
+  // an error at the start of every run (audit, 16 November 2026).
+  const finite = (value: number | undefined) => (Number.isFinite(value) ? (value as number) : 0)
+  return { boxes, links, width: finite(size.width), height: finite(size.height) }
 }

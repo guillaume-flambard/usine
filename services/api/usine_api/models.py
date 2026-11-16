@@ -63,7 +63,7 @@ class ModelSettings:
 
 
 def model_settings(env: Mapping[str, str] | None = None) -> ModelSettings | None:
-    """The settings, or None when no LiteLLM is configured (replayed demo)."""
+    """The settings, or None when no LiteLLM is configured (replayed showcase)."""
     env = os.environ if env is None else env
     base_url = env.get("LITELLM_BASE_URL", "").rstrip("/")
     if not base_url:

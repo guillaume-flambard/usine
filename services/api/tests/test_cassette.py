@@ -213,7 +213,7 @@ def test_the_key_ignores_what_changes_between_runs() -> None:
 
 async def test_a_cassette_carries_no_secret(tmp_path: Path) -> None:
     recorded = Cassette()
-    path = tmp_path / "demo.json"
+    path = tmp_path / "vitrine.json"
 
     def with_auth(request: httpx.Request) -> httpx.Response:
         # The model carries the key, as in production.
@@ -245,45 +245,45 @@ async def test_a_cassette_carries_no_secret(tmp_path: Path) -> None:
     assert Cassette.load(path).entries
 
 
-def demo_cassette() -> Cassette:
+def showcase_cassette() -> Cassette:
     from usine_api.app import _api_dir
 
-    return Cassette.load(_api_dir() / "cassettes" / "demo.json")
+    return Cassette.load(_api_dir() / "cassettes" / "vitrine.json")
 
 
-def test_the_shipped_demo_still_matches_its_prompts() -> None:
-    """The demo cassette is part of the product: it must still replay.
+def test_the_shipped_showcase_still_matches_its_prompts() -> None:
+    """The showcase cassette is part of the product: it must still replay.
 
     Its keys are content-addressed, so editing a prompt without re-recording
-    the demo (services/api/scripts/record-cassette.py) breaks this test, which
+    the showcase (services/api/scripts/record-cassette.py) breaks this test, which
     is exactly when the showcase would go silent.
     """
-    cassette = demo_cassette()
+    cassette = showcase_cassette()
     assert cassette.brief
-    assert cassette.entries, "the demo cassette is empty"
-    assert "sk-" not in Path("services/api/cassettes/demo.json").read_text(encoding="utf-8")
+    assert cassette.entries, "the showcase cassette is empty"
+    assert "sk-" not in Path("services/api/cassettes/vitrine.json").read_text(encoding="utf-8")
 
 
-async def test_a_keyless_service_replays_the_demo(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_a_keyless_service_replays_the_showcase(monkeypatch: pytest.MonkeyPatch) -> None:
     from fastapi.testclient import TestClient
 
     from usine_api.app import create_app
 
     monkeypatch.delenv("LITELLM_BASE_URL", raising=False)
-    monkeypatch.setenv("USINE_CASSETTE", "cassettes/demo.json")
+    monkeypatch.setenv("USINE_CASSETTE", "cassettes/vitrine.json")
     monkeypatch.setenv("USINE_CASSETTE_MODE", "replay")
 
-    cassette = demo_cassette()
+    cassette = showcase_cassette()
     with TestClient(create_app(key="")) as client:
         health = client.get("/health").json()
-        assert health["demo"] is True
-        assert health["demoBrief"] == cassette.brief
+        assert health["replay"] is True
+        assert health["replayBrief"] == cassette.brief
         assert health["ready"] is False
 
         reply = client.post(
             "/api/chat",
             json={
-                "id": "chat-demo",
+                "id": "chat-vitrine",
                 "messages": [{"role": "user", "parts": [{"type": "text", "text": cassette.brief}]}],
             },
         )
@@ -307,7 +307,7 @@ def test_a_cassette_mode_that_does_not_exist_is_a_startup_error(
 ) -> None:
     from usine_api.app import create_app
 
-    monkeypatch.setenv("USINE_CASSETTE", "cassettes/demo.json")
+    monkeypatch.setenv("USINE_CASSETTE", "cassettes/vitrine.json")
     monkeypatch.setenv("USINE_CASSETTE_MODE", "rejouer")
     with pytest.raises(ValueError, match="USINE_CASSETTE_MODE"):
         create_app(key="")

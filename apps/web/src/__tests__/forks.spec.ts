@@ -25,7 +25,7 @@ describe('checkpoints', () => {
     // The input checkpoint is the entry point, not "step 0".
     expect(
       checkpointLabel({ checkpoint_id: 'c0', step: -1, source: 'input', next: ['__start__'] }),
-    ).toBe("Point d'entrée")
+    ).toBe('Point d’entrée')
   })
 
   it('only offers a fork where something is left to run', () => {

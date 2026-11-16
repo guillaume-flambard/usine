@@ -10,6 +10,7 @@
  */
 import { computed } from 'vue'
 import type { RunReadModel } from '../run/readModel'
+import { firstDivergence } from '../run/divergence'
 import { nodeName } from '../run/names'
 import { secondsText } from '../run/gate'
 
@@ -38,26 +39,6 @@ const DIVERGENCE_LABELS = {
   node: (name: string) => `Premier point de divergence : ${nodeName(name)}.`,
   state: (name: string, state: string) =>
     `Premier point de divergence : ${nodeName(name)}, ${STATE_LABELS[state] ?? state} sur la branche.`,
-}
-
-function firstDivergence(
-  left: RunReadModel,
-  right: RunReadModel,
-): { kind: 'node' | 'state'; name: string; state?: string } | null {
-  const leftById = new Map(left.nodes.map((n) => [n.id, n]))
-  const rightById = new Map(right.nodes.map((n) => [n.id, n]))
-
-  for (const node of left.nodes) {
-    const other = rightById.get(node.id)
-    if (!other) return { kind: 'node', name: node.name }
-    if (node.name !== other.name) return { kind: 'node', name: node.name }
-    if (node.state !== other.state) return { kind: 'state', name: node.name, state: other.state }
-    if (node.task !== other.task) return { kind: 'node', name: node.name }
-  }
-  for (const node of right.nodes) {
-    if (!leftById.has(node.id)) return { kind: 'node', name: node.name }
-  }
-  return null
 }
 
 const divergence = computed(() => firstDivergence(props.left, props.right))

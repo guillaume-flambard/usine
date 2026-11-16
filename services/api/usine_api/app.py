@@ -188,7 +188,7 @@ def _cassette_path() -> Path:
     rejoue sans clé.
     """
     raw = os.environ.get("USINE_CASSETTE", "")
-    path = Path(raw) if raw else _api_dir() / "cassettes" / "demo.json"
+    path = Path(raw) if raw else _api_dir() / "cassettes" / "vitrine.json"
     if not path.is_absolute():
         path = _api_dir() / path
     return path
@@ -197,7 +197,7 @@ def _cassette_path() -> Path:
 def _cassette_setting() -> tuple[Cassette | None, str]:
     """La cassette demandée par la configuration, et son mode.
 
-    Aucune cassette n'est active par défaut, même avec `cassettes/demo.json` sur
+    Aucune cassette n'est active par défaut, même avec `cassettes/vitrine.json` sur
     le disque : un déploiement qui n'a plus de modèle doit le dire, pas se
     rabattre en silence sur un run enregistré. `USINE_CASSETTE` l'active.
     """
@@ -509,7 +509,7 @@ def create_app(
     site_origin = origin or os.environ.get("USINE_ORIGIN", "https://usine.memolabs.dev")
     if not api_key:
         # Un déploiement dégradé doit se remarquer, pas servir un rejeu en silence.
-        logger.warning("aucune clé fournisseur configurée : la page rejouera une démonstration")
+        logger.warning("aucune clé fournisseur configurée : la page rejouera le run enregistré")
 
     @asynccontextmanager
     async def lifespan(app_: FastAPI) -> AsyncIterator[None]:
@@ -1117,11 +1117,11 @@ def create_app(
                 "model": chosen_model,
                 "remaining": {"visitor": left.visitor, "global": left.site},
                 "callsPerRun": bounds.calls_per_run,
-                # A recorded demo runs a real graph with recorded answers
+                # A recorded showcase runs a real graph with recorded answers
                 # (MEM-24): the page has to say so, and knows which brief it can
                 # answer.
-                "demo": cassette is not None,
-                "demoBrief": cassette.brief if cassette is not None else None,
+                "replay": cassette is not None,
+                "replayBrief": cassette.brief if cassette is not None else None,
             }
         )
 
@@ -1379,7 +1379,7 @@ def create_app(
     @app.post("/runs")
     async def store_run(request: Request) -> JSONResponse:
         # Conserver un run exige une identité : un run appartient à une org.
-        # Un visiteur anonyme fait tourner la démo mais ne persiste rien
+        # Un visiteur anonyme fait tourner la vitrine mais ne persiste rien
         # (dégradation sûre, spec authorization).
         who = identity_of(request)
         if who is None:

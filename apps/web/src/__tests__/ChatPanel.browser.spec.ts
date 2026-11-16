@@ -202,12 +202,13 @@ describe('ChatPanel when the service itself fails', () => {
   })
 })
 
-describe('the recorded demo (MEM-24)', () => {
+describe('the recorded showcase run (MEM-24)', () => {
   it('prefills the recorded brief and says it is a recording', async () => {
-    const demo = 'Prépare une annonce de sortie pour la v2'
+    const brief = 'Prépare une annonce de sortie pour la v2'
     const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
-      if (url === '/health') return Response.json({ ready: false, demo: true, demoBrief: demo })
+      if (url === '/health')
+        return Response.json({ ready: false, replay: true, replayBrief: brief })
       return new Response('not found', { status: 404 })
     })
 
@@ -216,18 +217,18 @@ describe('the recorded demo (MEM-24)', () => {
       global: { plugins: [createAppRouter(), ui] },
     })
 
-    const note = () => document.querySelector('[data-demo]') as HTMLElement | null
+    const note = () => document.querySelector('[data-replay]') as HTMLElement | null
     await expect.poll(note).not.toBeNull()
     expect(note()!.textContent).toContain('Run enregistré')
     const prompt = document.querySelector('[data-composer] textarea') as HTMLTextAreaElement
-    expect(prompt.value).toBe(demo)
+    expect(prompt.value).toBe(brief)
     spy.mockRestore()
   })
 
   it('leaves the composer empty when the service has a model', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) =>
       String(input) === '/health'
-        ? Response.json({ ready: true, demo: false, demoBrief: null })
+        ? Response.json({ ready: true, replay: false, replayBrief: null })
         : new Response('not found', { status: 404 }),
     )
 
@@ -237,7 +238,7 @@ describe('the recorded demo (MEM-24)', () => {
     })
     await new Promise((r) => setTimeout(r, 100))
 
-    expect(document.querySelector('[data-demo]')).toBeNull()
+    expect(document.querySelector('[data-replay]')).toBeNull()
     const prompt = document.querySelector('[data-composer] textarea') as HTMLTextAreaElement
     expect(prompt.value).toBe('')
   })

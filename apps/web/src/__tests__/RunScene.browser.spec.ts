@@ -62,8 +62,7 @@ describe('RunScene', () => {
   })
 
   it('shows why one specialist failed while the run went on', async () => {
-    const reason =
-      'Un spécialiste a dépassé son budget (durée) : 180.0 pour une limite de 180.0. Rien n’a été exécuté au-delà.'
+    const reason = 'Budget de durée dépassé (limite 180 s). Rien n’est parti au-delà.'
     await mount(
       replay([
         { kind: 'run-started', at: 0, data: {} },
@@ -114,7 +113,12 @@ describe('RunScene', () => {
         parseFloat(style.lineHeight)
       expect(Math.abs(lines - Math.round(lines))).toBeLessThan(0.05)
     }
-    expect(document.querySelector('[data-scene-status]')?.textContent).not.toContain('en erreur')
+    expect(document.querySelector('[data-scene-status]')?.textContent).toContain(
+      'Run terminé, 1 spécialiste en erreur',
+    )
+    // The whole reason is readable: three lines leave room for the longest one.
+    const shown = document.querySelector('[data-node-failure]') as HTMLElement
+    expect(shown.scrollHeight - shown.clientHeight).toBeLessThanOrEqual(1)
   })
 
   it('draws a waiting gate as the black knot, with its question', async () => {
@@ -142,7 +146,7 @@ describe('RunScene', () => {
     )
     await expect.poll(() => nodeText('waiting')[0] ?? '').toContain('en attente')
     expect(document.querySelector('[data-scene-status]')?.textContent).toContain(
-      'En attente de votre décision',
+      'À la porte, en attente de décision',
     )
     const knot = document.querySelector('[data-node="human_gate"]') as HTMLElement
     expect(knot.tagName).toBe('BUTTON')

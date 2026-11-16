@@ -54,7 +54,23 @@ const DONE: Record<string, string> = {
   edit: 'Approuvé, dans la version corrigée.',
   reject: 'Rejeté. Rien n’est parti, le run s’arrête ici.',
 }
+// The choice is only sent until the run says it was taken (gate-decided). A
+// refused request used to leave "Approuvé" on screen beside a failed run
+// (audit, 16 November 2026): when the request ends with no decision in the
+// run, the choice is given back and the gate asks again.
+const pending = computed(() => sent.value !== null && !props.gate.decision)
+const refused = ref(false)
+watch(
+  () => props.busy,
+  (now, before) => {
+    if (before && !now && sent.value && !props.gate.decision) {
+      sent.value = null
+      refused.value = true
+    }
+  },
+)
 const doneText = computed(() => {
+  if (pending.value) return 'Décision envoyée, en attente du run.'
   const text = DONE[decision.value ?? ''] ?? ''
   const why = props.gate.reason ?? sent.value?.reason
   return decision.value === 'reject' && why ? `${text} Motif : ${why}` : text
@@ -62,6 +78,7 @@ const doneText = computed(() => {
 
 function decide(input: GateDecisionInput) {
   if (decided.value || props.busy) return
+  refused.value = false
   sent.value = input
   mode.value = 'choose'
   emit('decide', input)
@@ -145,7 +162,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     <div
       ref="card"
       class="gate"
-      :class="{ decided, tight: decision === 'approve' || decision === 'edit' }"
+      :class="{
+        decided,
+        tight: !pending && (decision === 'approve' || decision === 'edit'),
+      }"
       tabindex="-1"
       :aria-labelledby="`${uid}-q`"
       data-gate-card
@@ -245,7 +265,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           </button>
         </template>
       </div>
-      <p class="done" aria-live="polite" data-gate-done>{{ decided ? doneText : '' }}</p>
+      <p class="done" aria-live="polite" data-gate-done>
+        {{
+          decided
+            ? doneText
+            : refused
+              ? 'La décision n’est pas partie : rien n’a changé. Vous pouvez décider à nouveau.'
+              : ''
+        }}
+      </p>
     </div>
   </div>
 </template>
@@ -360,6 +388,16 @@ textarea.json:focus-visible,
   border-radius: var(--radius-card);
   background: var(--color-surface);
   box-shadow: inset 0 0 0 1.5px var(--color-ink);
+}
+/* One ring when the card takes focus on opening: the global focus outline on
+   top of the inset ink edge drew two (audit, 16 November 2026). */
+.gate:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 4px;
+  box-shadow: none;
+}
+.gate:focus:not(:focus-visible) {
+  outline: none;
 }
 .gate.decided {
   animation: settle 0.9s var(--ease-out);

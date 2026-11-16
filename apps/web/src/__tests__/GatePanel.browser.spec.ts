@@ -65,13 +65,15 @@ const resumeStream = (decision: string) => [
   { type: 'finish', finishReason: 'stop' },
 ]
 
-function stubApi() {
+function stubApi(options: { refuseGate?: boolean } = {}) {
   const gateBodies: Record<string, unknown>[] = []
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
     const url = String(input)
     // A signed-in visitor: the door (App.vue) lets them in.
     if (url === '/auth/session') return Response.json({ authenticated: true })
     if (url === '/api/chat') return sse(GATE_STREAM)
+    if (url.endsWith('/gate') && options.refuseGate)
+      return Response.json({ detail: 'Connexion requise pour décider.' }, { status: 401 })
     if (url.endsWith('/gate')) {
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>
       gateBodies.push(body)
@@ -111,6 +113,21 @@ describe('human gate, inline in the inspector', () => {
     expect(q('[data-gate-notice]').textContent).toContain('pas le monde')
     expect(card()!.textContent).toContain('J’envoie ce message')
     expect(q('[data-status]').textContent).toContain('À la porte')
+  })
+
+  it('gives the choice back when the decision is refused, never says « Approuvé »', async () => {
+    // Audit, 16 November 2026: a 401 on the gate left « Approuvé » on screen
+    // beside a failed run and a waiting scene.
+    stubApi({ refuseGate: true })
+    await openGate()
+    await userEvent.click(q('[data-gate-approve]'))
+
+    await expect
+      .poll(() => q('[data-gate-done]').textContent ?? '')
+      .toContain('La décision n’est pas partie')
+    expect(q('[data-gate-done]').textContent).not.toContain('Approuvé')
+    expect(q('[data-gate-approve]')).not.toBeNull()
+    expect(q('[data-chat-error]').textContent).toContain('reconnectez-vous')
   })
 
   it('approves, and the run resumes in the same scene', async () => {

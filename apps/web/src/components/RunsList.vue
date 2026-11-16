@@ -23,7 +23,7 @@ const failure = ref('')
 const query = ref('')
 
 const STATUS: Record<RunSummary['status'], string> = {
-  running: 'interrompu ou en cours',
+  running: 'en cours ou coupé',
   waiting: 'à la porte',
   deciding: 'décision en cours',
   done: 'terminé',

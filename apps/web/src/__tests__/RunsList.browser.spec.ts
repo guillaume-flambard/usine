@@ -41,7 +41,7 @@ function stubApi(page: RunPage) {
   const calls: string[] = []
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
     const url = String(input)
-    // The panel asks /health on mount for the recorded demo (MEM-24): not the
+    // The panel asks /health on mount for the recorded showcase run (MEM-24): not the
     // subject here.
     if (url !== '/health' && url !== '/auth/session') calls.push(url)
     // A signed-in visitor: the door (App.vue) lets them in.

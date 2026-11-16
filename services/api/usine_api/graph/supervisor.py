@@ -211,11 +211,13 @@ def build_graph(
         proposed = [action for result in finished for action in result.actions]
         parts = [result.answer for result in finished]
         if failed:
-            parts.append(
-                f"*{len(failed)} sur {len(state['results'])} sous-tâches n'ont pas abouti : "
-                + " ; ".join(dict.fromkeys(failed))
-                + "*"
+            total, n = len(state["results"]), len(failed)
+            missing = (
+                f"1 sous-tâche sur {total} n’a pas abouti"
+                if n == 1
+                else f"{n} sous-tâches sur {total} n’ont pas abouti"
             )
+            parts.append(f"*{missing} : " + " ; ".join(dict.fromkeys(failed)) + "*")
         return {
             "answer": "\n\n".join(parts),
             "proposed": proposed,

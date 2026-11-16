@@ -335,7 +335,7 @@ async def test_one_failed_specialist_does_not_stop_the_others() -> None:
     ]
     answer = "".join(p["delta"] for p in parts if p.get("type") == "text-delta")
     assert "fait : a" in answer
-    assert "1 sur 2 sous-tâches n'ont pas abouti" in answer
+    assert "1 sous-tâche sur 2 n’a pas abouti" in answer
     assert "litellm.test" not in answer
 
 

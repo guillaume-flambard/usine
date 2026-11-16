@@ -29,7 +29,7 @@ const STATES: Record<NodeState, string> = {
 const RUN_STATUS: Record<RunReadModel['status'], string> = {
   idle: 'Aucun run',
   running: 'Run en cours',
-  waiting: 'En attente de votre décision',
+  waiting: 'À la porte, en attente de décision',
   finished: 'Run terminé',
   failed: 'Run en erreur',
 }
@@ -123,7 +123,12 @@ const description = computed(() => {
 
 const statusLine = computed(() => {
   const n = props.model.nodes.length
-  return `${RUN_STATUS[props.model.status]}, ${n} nœud${n > 1 ? 's' : ''}, ${secondsText(props.model.at)}`
+  // A run that went on without a failed specialist says so: "Run terminé"
+  // alone hid it (audit, 16 November 2026).
+  const failed =
+    props.model.status === 'failed' ? 0 : props.model.nodes.filter((x) => x.failure).length
+  const partial = failed ? `, ${failed} spécialiste${failed > 1 ? 's' : ''} en erreur` : ''
+  return `${RUN_STATUS[props.model.status]}${partial}, ${n} nœud${n > 1 ? 's' : ''}, ${secondsText(props.model.at)}`
 })
 
 const question = computed(() => gateQuestion(props.model.gate))
@@ -318,8 +323,12 @@ function place(node: RunNode) {
   flex-shrink: 0;
 }
 .card.failed .card-task {
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+}
+.card.failed .card-failure {
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
 }
 .card-failure {
   display: -webkit-box;
@@ -363,7 +372,7 @@ function place(node: RunNode) {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  width: 232px;
+  width: 280px;
   height: 72px;
   padding: var(--space-sm) var(--space-md) var(--space-sm) var(--space-sm);
   border: 0;

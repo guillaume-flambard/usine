@@ -83,15 +83,18 @@ const stopped = ref(false)
 // The recorded run (MEM-24): without a model, the service replays a run and
 // says which brief it can answer. The page shows it rather than letting a
 // visitor ask a question nobody recorded.
-const demoBrief = ref('')
+const replayBrief = ref('')
 const forkOpen = ref(false)
 
 onMounted(async () => {
   try {
-    const health = (await (await fetch('/health')).json()) as { demo?: boolean; demoBrief?: string }
-    if (health.demo && health.demoBrief) {
-      demoBrief.value = health.demoBrief
-      input.value = health.demoBrief
+    const health = (await (await fetch('/health')).json()) as {
+      replay?: boolean
+      replayBrief?: string
+    }
+    if (health.replay && health.replayBrief) {
+      replayBrief.value = health.replayBrief
+      input.value = health.replayBrief
     }
   } catch {
     // No service, or no recording: the composer stays as it is.
@@ -167,7 +170,7 @@ const STATUS_LABELS: Record<string, string> = {
 /** The pill says where the run is, in words: the gate outranks "ready". */
 const statusText = computed(() => {
   if (state.value === 'ready' && run.value.status === 'waiting') {
-    return 'À la porte, j’attends ma décision'
+    return 'À la porte, en attente de décision'
   }
   if (state.value === 'ready' && run.value.status === 'finished') return 'Run terminé'
   if (state.value === 'ready' && run.value.status === 'failed') return 'Run en erreur'
@@ -368,7 +371,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
         <footer class="composer" data-composer>
           <p v-if="error" class="alert" role="alert" data-chat-error>{{ error.message }}</p>
-          <p v-if="demoBrief" class="note" data-demo>
+          <p v-if="replayBrief" class="note" data-replay>
             Run enregistré : aucun modèle n'est branché, le service rejoue des réponses
             enregistrées. Il ne connaît que ce brief.
           </p>
@@ -542,9 +545,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   overflow: auto;
   padding: var(--space-lg) var(--space-20) 0;
 }
+/* The scene never shrinks: the canvas scrolls instead. With overflow-x the
+   wrap became its own vertical scroller, squeezed by the flex column, and at
+   1440 x 900 the gate knot sat under the sticky dock, out of reach
+   (audit, 16 November 2026). The bottom padding keeps room for the dock. */
 .scene-wrap {
+  flex: none;
   overflow-x: auto;
-  padding-bottom: var(--space-xs);
+  overflow-y: hidden;
+  padding-bottom: calc(44px + var(--space-2xs) * 2 + var(--space-md) * 2);
 }
 .composer :deep(textarea:focus-visible) {
   outline: 0;

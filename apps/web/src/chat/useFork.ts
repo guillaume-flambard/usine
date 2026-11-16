@@ -15,11 +15,15 @@ import {
   type Specialist,
 } from './forks'
 
+export const DEFAULT_SPECIALIST = 'default'
+
 export function useFork(threadId: Ref<string>, open: Ref<boolean>) {
   const checkpoints = ref<Checkpoint[]>([])
   const specialists = ref<Specialist[]>([])
   const chosen = ref('')
-  const specialist = ref('')
+  // 'default' is the select's own value for "the service's default": an empty
+  // string left the select blank (audit, 16 November 2026).
+  const specialist = ref(DEFAULT_SPECIALIST)
   const busy = ref(false)
   const failure = ref('')
 
@@ -32,8 +36,13 @@ export function useFork(threadId: Ref<string>, open: Ref<boolean>) {
       ])
       checkpoints.value = points
       specialists.value = available
-      // The entry point is the useful default: the fork that replans.
-      chosen.value = points.find(isForkable)?.checkpoint_id ?? ''
+      // The useful default is the point before the specialists: the branch keeps
+      // the same plan and reruns its work with another specialist. The first
+      // forkable point was the one before the synthesis, which gave a one-node
+      // branch with nothing to compare (audit, 16 November 2026).
+      const before = points.find((p) => isForkable(p) && p.next.includes('specialist'))
+      const entry = points.find((p) => isForkable(p) && p.source === 'input')
+      chosen.value = (before ?? entry ?? points.find(isForkable))?.checkpoint_id ?? ''
     } catch (error) {
       failure.value = (error as Error).message
     }
@@ -46,7 +55,7 @@ export function useFork(threadId: Ref<string>, open: Ref<boolean>) {
     (value) => {
       if (!value) return
       checkpoints.value = []
-      specialist.value = ''
+      specialist.value = DEFAULT_SPECIALIST
       void load()
     },
     { immediate: true },
@@ -62,7 +71,10 @@ export function useFork(threadId: Ref<string>, open: Ref<boolean>) {
     try {
       return await forkRun(threadId.value, {
         checkpointId: chosen.value,
-        specialist: specialist.value || undefined,
+        specialist:
+          specialist.value && specialist.value !== DEFAULT_SPECIALIST
+            ? specialist.value
+            : undefined,
       })
     } catch (error) {
       failure.value = (error as Error).message

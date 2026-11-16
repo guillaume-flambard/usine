@@ -88,7 +88,7 @@ const STATUS: Record<RunReadModel['status'], string> = {
   idle: 'Le run n’a pas commencé.',
   running: 'Le run travaille. Une action qui sortirait du système s’arrêtera ici, à la porte.',
   waiting: '',
-  finished: 'Le run est terminé sans action à faire sortir du système.',
+  finished: 'Run terminé, aucune action ne sort du système.',
   failed: 'Le run s’est arrêté sur une erreur, rien n’est sorti du système.',
 }
 </script>
@@ -166,7 +166,8 @@ const STATUS: Record<RunReadModel['status'], string> = {
 }
 .seg button {
   flex: 1;
-  height: 36px;
+  /* 44 px: the touch target floor (ui-check, 16 November 2026). */
+  height: 44px;
   border: 0;
   border-radius: var(--radius-pill);
   background: transparent;

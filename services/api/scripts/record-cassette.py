@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 """Enregistre une cassette depuis la passerelle de modèles du lab (MEM-24).
 
-C'est ainsi que `cassettes/demo.json` a été produite : un vrai run, un vrai
+C'est ainsi que `cassettes/vitrine.json` a été produite : un vrai run, un vrai
 modèle, et la réponse gardée telle quelle. Un run rejoué plus tard ne coûte
 rien, ne dépend de personne, et reste ce que le modèle a réellement dit.
 
     LITELLM_BASE_URL=... LITELLM_API_KEY=... \\
     uv run python services/api/scripts/record-cassette.py \\
-        --brief "..." --out services/api/cassettes/demo.json
+        --brief "..." --out services/api/cassettes/vitrine.json
 
 À relancer quand on veut une démo plus fraîche ; le fichier est du JSON lisible,
 donc relisible en revue.
@@ -58,7 +58,7 @@ def main() -> None:
     parser.add_argument(
         "--out",
         type=Path,
-        default=Path("services/api/cassettes/demo.json"),
+        default=Path("services/api/cassettes/vitrine.json"),
         help="fichier cassette",
     )
     arguments = parser.parse_args()
