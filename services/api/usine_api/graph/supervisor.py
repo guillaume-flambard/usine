@@ -111,7 +111,12 @@ class SubtaskState(TypedDict):
 # Measured on 16 November 2026: the tool agent reading one real README through
 # GitHub's MCP server spent 6 488 tokens (the file comes back into its context).
 # At 4 000, every real tool run stopped on the budget.
-DEFAULT_BUDGET = Budget(max_tokens=16_000, max_seconds=60, max_tool_calls=8)
+#
+# Time, measured the same day in production: the lab gateway serves lab-fast from
+# free tiers (Groq at 30 requests a minute, then a fallback chain). Three
+# specialists in parallel hit the rate limit, and one model call waited 31 s for
+# 176 tokens. At 60 s, two real runs out of two stopped on the time budget.
+DEFAULT_BUDGET = Budget(max_tokens=16_000, max_seconds=180, max_tool_calls=8)
 
 
 def build_graph(
