@@ -108,7 +108,10 @@ class SubtaskState(TypedDict):
     task: str
 
 
-DEFAULT_BUDGET = Budget(max_tokens=4_000, max_seconds=60, max_tool_calls=8)
+# Measured on 16 November 2026: the tool agent reading one real README through
+# GitHub's MCP server spent 6 488 tokens (the file comes back into its context).
+# At 4 000, every real tool run stopped on the budget.
+DEFAULT_BUDGET = Budget(max_tokens=16_000, max_seconds=60, max_tool_calls=8)
 
 
 def build_graph(

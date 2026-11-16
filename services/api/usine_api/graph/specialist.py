@@ -19,6 +19,10 @@ from usine_api.models import ModelSettings, chat_model, current_session_id, retr
 from usine_api.observability import Prompts, chat_template
 from usine_api.specialists import register
 
+#: The longest answer asked of the model. The budget counts the whole run
+#: (prompt, tool results, answer); this caps only what the model writes.
+MAX_ANSWER_TOKENS = 4_000
+
 
 @register("chat-model")
 class ChatModelSpecialist:
@@ -42,7 +46,7 @@ class ChatModelSpecialist:
         text, linked = self._prompts.get(SPECIALIST_TASK)
         model = chat_model(
             self._settings, http_client=self._client, session_id=current_session_id()
-        ).bind(max_tokens=task.budget.max_tokens)
+        ).bind(max_tokens=min(task.budget.max_tokens, MAX_ANSWER_TOKENS))
         chain: Any = (chat_template(text, linked) | model).with_retry(
             **retry_kwargs(self._settings)
         )
