@@ -1,5 +1,5 @@
 /**
- * Earlier runs (MEM-18): the sheet lists them, and opening one brings back its
+ * Earlier runs (MEM-18): the sidebar lists them, and opening one brings back its
  * conversation and replays its scene. Only `fetch` is replaced, with answers in
  * the shapes of services/api/openapi.json.
  */
@@ -64,9 +64,9 @@ describe('earlier runs', () => {
       .poll(() => document.querySelector('[data-shell]')?.getAttribute('data-door'))
       .toBe('in')
 
-    await userEvent.click(document.querySelector('[data-runs-trigger]') as HTMLElement)
+    // The sidebar lists the runs as soon as the atelier opens.
     await expect.poll(() => document.querySelector('[data-run="chat-1"]')).not.toBeNull()
-    expect(calls[0]).toBe('/api/runs?limit=20')
+    expect(calls).toContain('/api/runs?limit=20')
     const item = document.querySelector('[data-run="chat-1"]') as HTMLElement
     expect(item.textContent).toContain('relire les portes')
     expect(item.textContent).toContain('terminé')
@@ -89,7 +89,18 @@ describe('earlier runs', () => {
     await expect
       .poll(() => document.querySelector('[data-shell]')?.getAttribute('data-door'))
       .toBe('in')
-    await userEvent.click(document.querySelector('[data-runs-trigger]') as HTMLElement)
     await expect.poll(() => document.querySelector('[data-runs-empty]')).not.toBeNull()
+  })
+
+  it('filters the runs by title', async () => {
+    stubApi({
+      items: [RUN, { ...RUN, thread_id: 'chat-2', title: 'annonce v2' }],
+      next_cursor: null,
+    })
+    await render(App, { global: { plugins: [createAppRouter(), ui] } })
+    await expect.poll(() => document.querySelectorAll('[data-run]').length).toBe(2)
+    await userEvent.fill(document.querySelector('[data-runs-search]') as HTMLElement, 'annonce')
+    await expect.poll(() => document.querySelectorAll('[data-run]').length).toBe(1)
+    expect(document.querySelector('[data-run="chat-2"]')).not.toBeNull()
   })
 })

@@ -11,7 +11,7 @@ import { computed, ref, watch } from 'vue'
 import { fetchRun, type RunDetail } from '../chat/runs'
 import { replay, EMPTY_RUN, type RunReadModel } from '../run/readModel'
 import RunScene from './RunScene.vue'
-import GateDialog, { type GateDecisionInput } from './GateDialog.vue'
+import GatePanel, { type GateDecisionInput } from './GatePanel.vue'
 import ComparisonBanner from './ComparisonBanner.vue'
 import AnswerMarkdown from './AnswerMarkdown'
 
@@ -27,13 +27,12 @@ type Side = 'left' | 'right'
 interface Panel {
   run: RunDetail | null
   failure: string
-  gateOpen: boolean
   deciding: boolean
 }
 
 const panels = ref<Record<Side, Panel>>({
-  left: { run: null, failure: '', gateOpen: false, deciding: false },
-  right: { run: null, failure: '', gateOpen: false, deciding: false },
+  left: { run: null, failure: '', deciding: false },
+  right: { run: null, failure: '', deciding: false },
 })
 
 const threadOf = (side: Side) => (side === 'left' ? props.leftThreadId : props.rightThreadId)
@@ -81,17 +80,6 @@ function specialistOf(side: Side): string {
   return [...names].join(', ')
 }
 
-// A gate opens by itself when a branch waits for a decision.
-for (const side of ['left', 'right'] as const) {
-  watch(
-    () => models.value[side].status === 'waiting',
-    (waiting) => {
-      if (waiting) panels.value[side].gateOpen = true
-    },
-    { immediate: true },
-  )
-}
-
 /**
  * Sends the whole decision (a rejection carries its reason, an edit its
  * actions), waits for the resumed run to finish streaming, then reloads the
@@ -112,7 +100,6 @@ async function decide(side: Side, decision: GateDecisionInput) {
       throw new Error(detail?.detail ?? `Le service a répondu ${response.status}.`)
     }
     await response.text()
-    panel.gateOpen = false
     await load(side)
   } catch (error) {
     panel.failure = (error as Error).message
@@ -128,70 +115,53 @@ const SIDES: { side: Side; title: string }[] = [
 </script>
 
 <template>
-  <section class="flex min-h-0 flex-1 flex-col overflow-y-auto" data-divergent-scene>
-    <header class="flex items-center justify-between gap-2 px-4 py-3">
-      <h1 class="text-lg font-semibold">L'usine agentique</h1>
-      <UButton
-        color="neutral"
-        variant="outline"
-        size="sm"
-        icon="i-lucide-arrow-left"
-        label="Retour à la conversation"
-        :ui="{ base: 'min-h-11 sm:min-h-8' }"
-        data-divergent-back
-        @click="emit('back')"
-      />
+  <section class="divergent" data-divergent-scene>
+    <header class="bar">
+      <h1 class="title">Comparaison des deux futurs</h1>
+      <button type="button" class="btn btn-line back" data-divergent-back @click="emit('back')">
+        <UIcon name="i-lucide-arrow-left" class="size-4" aria-hidden="true" />Retour au run
+      </button>
     </header>
 
     <ComparisonBanner :left="models.left" :right="models.right" />
 
-    <div class="flex flex-col gap-4 px-4 pb-4 lg:flex-row">
+    <div class="branches">
       <article
         v-for="{ side, title } in SIDES"
         :key="side"
-        class="flex min-w-0 flex-1 flex-col rounded-lg border border-default bg-elevated"
+        class="branch"
         :aria-label="title"
         :data-branch="side"
       >
-        <header
-          class="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 border-b border-default px-3 py-2"
-        >
-          <h2 class="text-sm font-semibold">{{ title }}</h2>
-          <p v-if="specialistOf(side)" class="text-xs text-muted">{{ specialistOf(side) }}</p>
+        <header class="branch-head">
+          <h2>{{ title }}</h2>
+          <p v-if="specialistOf(side)" class="who">{{ specialistOf(side) }}</p>
         </header>
 
-        <div class="flex flex-col gap-3 p-3">
-          <p v-if="panels[side].failure" class="text-sm text-error" role="alert">
+        <div class="branch-body">
+          <p v-if="panels[side].failure" class="alert" role="alert">
             {{ panels[side].failure }}
           </p>
-          <div class="overflow-x-auto">
-            <RunScene
-              v-if="panels[side].run"
-              :model="models[side]"
-              @decide="panels[side].gateOpen = true"
-            />
+          <div class="scene-wrap">
+            <RunScene v-if="panels[side].run" :model="models[side]" />
           </div>
           <p
             v-if="models[side].status === 'failed' && models[side].error"
-            class="text-sm text-error"
+            class="alert"
             role="alert"
             data-branch-error
           >
             {{ models[side].error }}
           </p>
-          <div
-            v-if="answerOf(side)"
-            class="max-h-96 overflow-y-auto border-t border-default pt-3 text-sm"
-            data-branch-answer
-          >
+          <div v-if="answerOf(side)" class="answer" data-branch-answer>
             <Suspense>
               <AnswerMarkdown :value="answerOf(side)" />
             </Suspense>
           </div>
-          <GateDialog
+          <GatePanel
             v-if="panels[side].run && models[side].gate"
-            v-model:open="panels[side].gateOpen"
             :gate="models[side].gate!"
+            :busy="panels[side].deciding"
             @decide="(decision) => decide(side, decision)"
           />
         </div>
@@ -199,3 +169,100 @@ const SIDES: { side: Side; title: string }[] = [
     </div>
   </section>
 </template>
+
+<style scoped>
+.divergent {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--color-paper);
+}
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  min-height: 64px;
+  padding: var(--space-xs) var(--space-20);
+  border-bottom: 1px solid var(--color-rule);
+  background: var(--color-surface);
+}
+.title {
+  font: 600 var(--text-lg) / 1.2 var(--font-sans);
+  letter-spacing: -0.01em;
+}
+.back {
+  min-height: 44px;
+  padding: 0 var(--space-md);
+  font-size: var(--text-sm);
+}
+.branches {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-md);
+  padding: 0 var(--space-20) var(--space-lg);
+}
+@media (min-width: 64rem) {
+  .branches {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+.branch {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-2);
+}
+.branch-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2xs) var(--space-sm);
+  padding: var(--space-md) var(--space-20) var(--space-sm);
+  border-bottom: 1px solid var(--color-rule);
+}
+.branch-head h2 {
+  font: 600 var(--text-md) / 1.2 var(--font-sans);
+}
+.who {
+  color: var(--color-muted);
+  font: 400 12px / 1.4 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+.branch-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+  padding: var(--space-md) var(--space-20) var(--space-20);
+}
+.scene-wrap {
+  min-width: 0;
+  overflow-x: auto;
+}
+.answer {
+  max-height: 24rem;
+  overflow-y: auto;
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-rule);
+  font-size: var(--text-sm);
+}
+.alert {
+  color: var(--color-error);
+  font-size: var(--text-sm);
+}
+@media (max-width: 40rem) {
+  .bar,
+  .branches {
+    padding-inline: var(--space-sm);
+  }
+  .branch-body,
+  .branch-head {
+    padding-inline: var(--space-sm);
+  }
+}
+</style>

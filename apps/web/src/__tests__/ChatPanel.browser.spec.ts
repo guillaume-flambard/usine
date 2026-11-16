@@ -87,7 +87,7 @@ describe('ChatPanel states', () => {
     expect(suggestions.length).toBeGreaterThan(0)
     await userEvent.click(suggestions[0]!)
     const prompt = document.querySelector('[data-composer] textarea') as HTMLTextAreaElement
-    await expect.poll(() => prompt.value).toBe(suggestions[0]!.textContent?.trim())
+    await expect.poll(() => prompt.value).toBe(suggestions[0]!.dataset.brief)
     expect(requests).toHaveLength(0)
     expect(state()).toBe('ready')
   })

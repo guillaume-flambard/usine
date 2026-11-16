@@ -1,22 +1,278 @@
-/* Nuxt UI defaults, no theme yet. The product declares no colour, font or
-   radius of its own; customisation is decided later on a clean base. */
+/* The identity "Le fil", version F (MEM-86). Every agent owns a coloured
+   thread, every thread ties into one black knot: the person at the gate.
+
+   Nuxt UI keeps its components; this file gives them F's tokens through the
+   library's own CSS variables (https://ui.nuxt.com/docs/getting-started/theme/css-variables).
+   F is light only, so the app is light only: the Vite plugin runs with
+   `colorMode: false`, which leaves `.dark` off whatever the OS prefers. */
 @import 'tailwindcss';
 @import '@nuxt/ui';
 
-/* Accessibility, not taste: the library's default primary (green-500) gives
-   2.22:1 under white text. One shade per theme keeps 4.5:1 (measured in v1:
-   green-700 on white 4.94, green-400 on slate-900 10.05). */
-:root {
-  --ui-primary: var(--ui-color-primary-700);
-  /* Same reason, measured on the gate's soft error button (MEM-21): the
-     library's red-500 text on its own 10 % tint measures 3.3:1, under AA
-     for a 16 px label. */
-  --ui-error: var(--ui-color-error-700);
+/* Fonts as Tailwind theme values: Nuxt UI's body uses `font-sans`. The files
+   are served by the app itself (@fontsource, imported in main.ts), because the
+   page policy allows `font-src 'self'` only. */
+@theme {
+  --font-sans: 'Onest', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Instrument Serif', ui-serif, Georgia, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-.dark {
-  --ui-primary: var(--ui-color-primary-400);
-  --ui-error: var(--ui-color-error-400);
+:root {
+  /* Spacing, type and motion, from F's tokens.css. */
+  --space-3xs: 2px;
+  --space-2xs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-20: 20px;
+  --space-lg: 24px;
+  --space-28: 28px;
+  --space-32: 32px;
+  --space-xl: 40px;
+  --space-48: 48px;
+  --space-2xl: 64px;
+  --space-3xl: 96px;
+  --text-xs: 0.8125rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5625rem;
+  --text-2xl: 1.953rem;
+  --text-display: clamp(3rem, 5vw + 1rem, 5.5rem);
+  --text-section: clamp(2.25rem, 2.5vw + 1rem, 3.25rem);
+  --text-lead: clamp(1.125rem, 0.35vw + 1rem, 1.3125rem);
+  --text-voice: clamp(1.375rem, 0.6vw + 1.1rem, 1.625rem);
+  --text-question: clamp(2.25rem, 2.2vw + 1rem, 3rem);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --dur-long: 420ms;
+  --container: 1440px;
+  --gutter: 64px;
+  --section-gap-s: 120px;
+  --section-gap: 144px;
+  --z-raised: 10;
+
+  /* The ground, the surfaces, the human ink. */
+  --color-paper: oklch(96.1% 0.003 106);
+  --color-paper-2: oklch(97.6% 0.003 106);
+  --color-paper-3: oklch(93.9% 0.004 106);
+  --color-paper-4: oklch(91.2% 0.005 107);
+  --color-surface: oklch(100% 0 0);
+  --color-ink: oklch(20.9% 0.004 264);
+  --color-ink-hover: oklch(29.3% 0.008 264);
+  --color-ink-key: oklch(32.9% 0.009 268);
+  --color-on-ink: oklch(97.6% 0.003 106);
+  --color-on-ink-2: oklch(86% 0.006 264);
+  --color-ink-2: oklch(43.1% 0.011 264);
+  --color-muted: oklch(51% 0.012 267);
+  --color-rule: oklch(92.4% 0.005 107);
+  --color-rule-2: oklch(88.1% 0.007 107);
+  --color-thread-sup: oklch(69.5% 0.009 265);
+  --color-select: oklch(91% 0.04 246);
+  --color-error: oklch(52% 0.19 27);
+  --color-success: oklch(50% 0.12 150);
+
+  /* The threads: a stroke tone, a text tone at 4.5:1 or better, a soft tint. */
+  --color-sky: oklch(63% 0.14 246);
+  --color-sky-ink: oklch(51.1% 0.122 248);
+  --color-sky-soft: oklch(96% 0.014 245);
+  --color-mag: oklch(61.9% 0.216 327);
+  --color-mag-ink: oklch(51.4% 0.189 328);
+  --color-mag-soft: oklch(95.7% 0.022 326);
+  --color-grn: oklch(62.1% 0.141 153);
+  --color-grn-ink: oklch(49.2% 0.114 153);
+  --color-grn-soft: oklch(95.8% 0.018 156);
+  --color-amb: oklch(69.9% 0.146 68);
+  --color-amb-ink: oklch(50.1% 0.108 67);
+  --color-amb-soft: oklch(96.2% 0.021 77);
+
+  --radius-card: 24px;
+  --radius-in: 12px;
+  --radius-key: 8px;
+  --radius-pill: 999px;
+  --shadow-1: 0 1px 2px oklch(20% 0.01 264 / 0.05), 0 6px 16px -8px oklch(20% 0.01 264 / 0.12);
+  --shadow-2: 0 2px 4px oklch(20% 0.01 264 / 0.04), 0 18px 40px -18px oklch(20% 0.01 264 / 0.18);
+  --shadow-3: 0 4px 8px oklch(20% 0.01 264 / 0.05), 0 28px 64px -24px oklch(20% 0.01 264 / 0.26);
+  --shadow-ink: 0 1px 1px oklch(10% 0 0 / 0.16), 0 6px 14px -8px oklch(20% 0.01 264 / 0.4);
+  --shadow-key: inset 0 -1px 0 var(--color-rule-2), 0 0 0 1px var(--color-rule);
+  --tracking-display: -0.035em;
+
+  /* Nuxt UI's tokens, mapped onto F. Primary is the ink: the one action
+     colour. Neutrals are F's warm greys. */
+  --ui-primary: var(--color-ink);
+  --ui-error: var(--color-error);
+  --ui-success: var(--color-success);
+  --ui-text-dimmed: var(--color-muted);
+  --ui-text-muted: var(--color-muted);
+  --ui-text-toned: var(--color-ink-2);
+  --ui-text: var(--color-ink);
+  --ui-text-highlighted: var(--color-ink);
+  --ui-text-inverted: var(--color-on-ink);
+  --ui-bg: var(--color-surface);
+  --ui-bg-muted: var(--color-paper-2);
+  --ui-bg-elevated: var(--color-paper-2);
+  --ui-bg-accented: var(--color-paper-3);
+  --ui-bg-inverted: var(--color-ink);
+  --ui-border: var(--color-rule);
+  --ui-border-muted: var(--color-rule);
+  --ui-border-accented: var(--color-rule-2);
+  --ui-border-inverted: var(--color-ink);
+  --ui-radius: 0.5rem;
+
+  color-scheme: light;
+}
+
+@media (max-width: 60rem) {
+  :root {
+    --gutter: 24px;
+    --section-gap-s: 80px;
+    --section-gap: 96px;
+  }
+}
+
+@media (max-width: 40rem) {
+  :root {
+    --gutter: 16px;
+    --section-gap-s: 56px;
+    --section-gap: 72px;
+  }
+}
+
+html,
+body {
+  overflow-x: clip;
+}
+
+body {
+  margin: 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  caret-color: var(--color-ink);
+}
+
+::selection {
+  background: var(--color-select);
+  color: var(--color-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
+
+code,
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Threads: each agent carries its colour as --t (stroke), --tt (text) and
+   --ts (tint). The mapping from node to thread is src/run/threads.ts. */
+[data-thread='sup'] {
+  --t: var(--color-thread-sup);
+  --tt: var(--color-ink-2);
+  --ts: var(--color-paper-3);
+}
+[data-thread='sky'] {
+  --t: var(--color-sky);
+  --tt: var(--color-sky-ink);
+  --ts: var(--color-sky-soft);
+}
+[data-thread='mag'] {
+  --t: var(--color-mag);
+  --tt: var(--color-mag-ink);
+  --ts: var(--color-mag-soft);
+}
+[data-thread='grn'] {
+  --t: var(--color-grn);
+  --tt: var(--color-grn-ink);
+  --ts: var(--color-grn-soft);
+}
+[data-thread='amb'] {
+  --t: var(--color-amb);
+  --tt: var(--color-amb-ink);
+  --ts: var(--color-amb-soft);
+}
+[data-thread='ink'] {
+  --t: var(--color-ink);
+  --tt: var(--color-ink);
+  --ts: var(--color-paper-3);
+}
+
+/* The two button recipes of F: ink (the one filled action) and line. */
+.btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: 48px;
+  padding: 0 var(--space-lg);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  font: 500 var(--text-md) / 1 var(--font-sans);
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-short) var(--ease-out),
+    border-color var(--dur-short) var(--ease-out),
+    transform var(--dur-micro) var(--ease-out);
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+.btn-ink {
+  background: var(--color-ink);
+  color: var(--color-on-ink);
+  box-shadow: var(--shadow-ink);
+}
+.btn-ink:hover:not(:disabled) {
+  background: var(--color-ink-hover);
+}
+.btn-line {
+  background: transparent;
+  color: var(--color-ink);
+  border-color: var(--color-rule-2);
+}
+.btn-line:hover:not(:disabled) {
+  background: var(--color-surface);
+  border-color: var(--color-muted);
+}
+.kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 var(--space-2xs);
+  border-radius: 7px;
+  background: var(--color-surface);
+  color: var(--color-ink-2);
+  font: 500 12px / 1 var(--font-mono);
+  box-shadow: var(--shadow-key);
+}
+.btn-ink .kbd {
+  background: var(--color-ink-key);
+  color: var(--color-on-ink-2);
+  box-shadow: none;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -28,106 +284,4 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-}
-
-/* The scene's graph (MEM-17). SVG takes no utility class for fill and stroke
-   here, so its few rules live in this file, on the library's own tokens. The
-   state is also written in each node: colour is never the only signal. */
-.scene-graph {
-  flex-shrink: 0;
-}
-
-.scene-link {
-  fill: none;
-  stroke: var(--ui-border-accented);
-  stroke-width: 1.5;
-}
-
-.scene-node rect {
-  fill: var(--ui-bg-elevated);
-  stroke: var(--ui-border-accented);
-  stroke-width: 1.5;
-}
-
-.scene-node[data-node-state='running'] rect {
-  stroke: var(--ui-primary);
-  stroke-width: 2;
-}
-
-.scene-node[data-node-state='waiting'] rect {
-  stroke: var(--ui-warning);
-  stroke-width: 2;
-  stroke-dasharray: 6 4;
-}
-
-.scene-node[data-node-state='failed'] rect {
-  stroke: var(--ui-error);
-  stroke-width: 2;
-}
-
-.scene-title {
-  fill: var(--ui-text-highlighted);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-/* Toned, not muted: muted measured 4.35:1 on the elevated node in light mode,
-   under AA for 12 px text (2026-11-14). */
-.scene-state,
-.scene-detail {
-  fill: var(--ui-text-toned);
-  font-size: 12px;
-}
-
-/* Scène divergente (MEM-25) : deux panneaux côte à côte. Sur mobile ils
-   s'empilent ; sur desktop ils partagent la largeur. Aucun défilement
-   horizontal à aucune des largeurs cibles (375 / 768 / 1024 / 1440 px). */
-[data-divergent-scene] > div {
-  display: flex;
-  flex-direction: column;
-}
-
-@media (min-width: 640px) {
-  [data-divergent-scene] > div {
-    flex-direction: row;
-  }
-}
-
-[data-divergent-scene] > div > div {
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-[data-divergent-scene] [data-scene] {
-  overflow: auto;
-  min-height: 0;
-}
-
-/* Le graphe SVG ne doit jamais déborder de son panneau : il se réduit pour
-   tenir, et le panneau défile verticalement si besoin. */
-[data-divergent-scene] .scene-graph {
-  max-width: 100%;
-  height: auto;
-  display: block;
-}
-
-/* Bandeau de comparaison. */
-[data-comparison-banner] {
-  flex-shrink: 0;
-}
-
-[data-divergence] {
-  display: grid;
-  gap: 1;
-}
-
-[data-divergence] > p:first-child {
-  font-weight: 600;
-}
-
-/* Le bouton "forker ici" dans la ligne du temps reste petit et lisible. */
-[data-fork-here] {
-  font-size: 0.75rem;
-  padding: 0.25rem 0.5rem;
 }

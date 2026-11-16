@@ -234,29 +234,33 @@ stack agents 2026.
 
 ## L'interface
 
-Quatre zones, et **pas une de plus** : marque + ligne d'état, conversation,
-composeur, scène. L'erreur déjà commise une fois — et à ne pas refaire — est
-d'attribuer un bloc visible à chaque nouvelle fonctionnalité ; on est monté à
-quatorze avant de refondre.
+**La mise en page « Le fil » (MEM-86, 16 novembre 2026) remplace la règle des
+quatre zones.** Un visiteur non connecté voit la page publique
+(`LandingPage.vue`). Connecté, l'atelier a quatre parties, et pas une de plus :
+la barre (nœud, fil d'Ariane, état en mots), la colonne de gauche (runs, étapes
+par checkpoint), le canevas (graphe, conversation, dock, compositeur) et
+l'inspecteur (l'action et sa porte). La comparaison des deux futurs remplace
+l'atelier le temps de la lire. L'erreur déjà commise une fois, à ne pas refaire,
+est d'attribuer un bloc visible à chaque nouvelle fonctionnalité : on était monté
+à quatorze avant de refondre.
 
-> **Cible atelier (`docs/7`) :** la scène accueillera **deux panneaux divergents
-> côte à côte** (les deux futurs), chacun avec **sa porte** (valide/rejette la
-> branche) et un bandeau de comparaison de branches. La divergence se montre
-> *dans* la scène, pas dans une cinquième zone.
+**L'identité, depuis le 2026-11-16 : « Le fil », version F.** Chaque agent a son
+fil de couleur (`src/run/threads.ts` : superviseur gris, spécialistes ciel, magenta
+puis vert, synthèse ambre, porte à l'encre), et tous se nouent dans la porte
+noire. Les jetons sont dans `src/assets/main.css`, et y sont reliés à ceux de
+Nuxt UI (`--ui-*`). Les polices (Onest, Instrument Serif, JetBrains Mono)
+viennent de `@fontsource`, servies par l'application elle-même, car la politique
+de la page n'autorise que `font-src 'self'`. Le thème est clair seulement :
+`colorMode: false` dans `vite.config.ts`. Toute couleur et toute police passent
+par un jeton.
 
-**La stack UI, depuis le 2026-09-07 : Nuxt UI v4 en mode Vue, dans ses défauts.**
-Le produit ne déclare ni couleur, ni police, ni rayon — la bibliothèque les
-porte, et les composants s'habillent avec ses classes utilitaires
-(`text-muted`, `bg-elevated`, `border-default`). Aucune police n'est chargée :
-la pile système est le défaut réel de la bibliothèque, `Public Sans` étant la
-police de son site de doc et non du paquet. `src/assets/app.css` ne garde que
-ce qu'aucune classe ne dit : le plein écran, la scène et ses feuilles du bas,
-et le SVG du graphe. La personnalisation reste à décider, et se décidera sur
-cette base propre. Les tests visent des attributs `data-*`, jamais une classe
-de présentation.
+**La stack UI : Nuxt UI v4 en mode Vue**, habillé par les jetons de « Le fil »
+plutôt que combattu. Les composants gardent leurs classes utilitaires
+(`text-muted`, `bg-elevated`) et leur prop `ui`. Les tests visent des attributs
+`data-*`, jamais une classe de présentation.
 
-`_bmad-output/planning-artifacts/ux-designs/ux-usine-2026-08-20/DESIGN.md` porte
-les jetons, les composants et les règles d'honnêteté : chaque élément à l'écran
+`_bmad-output/planning-artifacts/ux-designs/ux-usine-2026-08-20/DESIGN.md` (v1)
+garde les règles d'honnêteté, toujours valables : chaque élément à l'écran
 doit être payé par un événement réel du run. Aucun squelette, aucune barre de
 progression.
 

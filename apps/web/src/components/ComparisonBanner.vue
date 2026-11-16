@@ -11,6 +11,7 @@
 import { computed } from 'vue'
 import type { RunReadModel } from '../run/readModel'
 import { nodeName } from '../run/names'
+import { secondsText } from '../run/gate'
 
 const props = defineProps<{
   left: RunReadModel
@@ -68,46 +69,75 @@ const divergenceText = computed(() => {
   return DIVERGENCE_LABELS.node(d.name)
 })
 
-const leftFinished = computed(() => props.left.status === 'finished')
-const rightFinished = computed(() => props.right.status === 'finished')
-
-const leftDuration = computed(() => props.left.at.toFixed(1))
-const rightDuration = computed(() => props.right.at.toFixed(1))
+const sides = computed(() => [
+  { key: 'left', title: 'Run original', model: props.left },
+  { key: 'right', title: 'Branche', model: props.right },
+])
 </script>
 
 <template>
-  <section class="flex flex-col gap-3 px-4 py-3" data-comparison-banner>
-    <div class="rounded-md border border-default bg-elevated p-3 text-sm" data-divergence>
-      <p class="font-medium">Comparaison des deux futurs</p>
-      <p data-divergence-text>{{ divergenceText }}</p>
-      <div class="flex flex-col sm:flex-row gap-3 pt-2">
-        <div class="flex flex-col gap-1">
-          <span class="text-toned text-xs uppercase tracking-wider">Run original</span>
-          <span
-            class="text-sm"
+  <section class="banner" data-comparison-banner>
+    <div class="box" data-divergence>
+      <p class="text" data-divergence-text>{{ divergenceText }}</p>
+      <dl class="sides">
+        <div v-for="side in sides" :key="side.key">
+          <dt>{{ side.title }}</dt>
+          <dd
             :class="{
-              'text-success': leftFinished,
-              'text-error': props.left.status === 'failed',
+              ok: side.model.status === 'finished',
+              bad: side.model.status === 'failed',
             }"
           >
-            {{ RUN_LABELS[props.left.status] }}
-            · {{ leftDuration }} s
-          </span>
+            {{ RUN_LABELS[side.model.status] }}, {{ secondsText(side.model.at) }}
+          </dd>
         </div>
-        <div class="flex flex-col gap-1">
-          <span class="text-toned text-xs uppercase tracking-wider">Branche</span>
-          <span
-            class="text-sm"
-            :class="{
-              'text-success': rightFinished,
-              'text-error': props.right.status === 'failed',
-            }"
-          >
-            {{ RUN_LABELS[props.right.status] }}
-            · {{ rightDuration }} s
-          </span>
-        </div>
-      </div>
+      </dl>
     </div>
   </section>
 </template>
+
+<style scoped>
+.banner {
+  padding: var(--space-md) var(--space-20);
+}
+.box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm) var(--space-xl);
+  padding: var(--space-md) var(--space-20);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-1);
+}
+.text {
+  font: 400 var(--text-voice) / 1.3 var(--font-serif);
+}
+.sides {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-xl);
+  margin: 0;
+}
+dt {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+}
+dd {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.ok {
+  color: var(--color-success);
+}
+.bad {
+  color: var(--color-error);
+}
+@media (max-width: 40rem) {
+  .banner {
+    padding-inline: var(--space-sm);
+  }
+}
+</style>

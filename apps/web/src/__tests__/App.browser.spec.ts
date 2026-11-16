@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render } from 'vitest-browser-vue'
+import { page } from 'vitest/browser'
 import ui from '@nuxt/ui/vue-plugin'
 import App from '../App.vue'
 import { createAppRouter } from '../router'
@@ -19,25 +20,46 @@ function serve(session: { authenticated: boolean } | 'down', probeStatus = 200) 
   )
 }
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(async () => {
+  vi.unstubAllGlobals()
+  await page.viewport(1440, 900)
+})
 
 const mount = () => render(App, { global: { plugins: [createAppRouter(), ui] } })
 const door = () => document.querySelector('[data-shell]')?.getAttribute('data-door')
 
 describe('App shell', () => {
-  it('renders the brand, the status line, the conversation and the composer', async () => {
+  it('renders the atelier: bar, sidebar, canvas with conversation and composer', async () => {
     serve({ authenticated: true })
     const screen = await mount()
 
     await expect
-      .element(screen.getByRole('heading', { level: 1, name: "L'usine agentique" }))
-      .toBeVisible()
+      .element(screen.getByRole('heading', { level: 1, name: 'Atelier Usine' }))
+      .toBeInTheDocument()
     await expect.element(screen.getByRole('status')).toHaveTextContent('Prêt')
     await expect.element(screen.getByRole('region', { name: 'Conversation' })).toBeVisible()
+    expect(document.querySelector('[data-bar]')).not.toBeNull()
+    expect(document.querySelector('[data-sidebar]')).not.toBeNull()
+    expect(document.querySelector('[data-canvas]')).not.toBeNull()
     expect(document.querySelector('[data-composer] textarea')).not.toBeNull()
-    // Four zones and not one more (CLAUDE.md). The scene is the fourth, and
-    // it appears with the first run event (ChatPanel.browser.spec.ts).
+    // The scene and the inspector come with the first run event
+    // (ChatPanel.browser.spec.ts): nothing is drawn ahead of one.
     expect(document.querySelector('[data-scene]')).toBeNull()
+    expect(document.querySelector('[data-inspector]')).toBeNull()
+    expect(document.querySelector('[data-landing]')).toBeNull()
+  })
+
+  it('shows initials from the session e-mail', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) =>
+        String(input) === '/auth/session'
+          ? Response.json({ authenticated: true, email: 'guillaume.flambard@example.org' })
+          : Response.json({ items: [], next_cursor: null }),
+      ),
+    )
+    await mount()
+    await expect.poll(() => document.querySelector('[data-avatar]')?.textContent).toBe('GF')
   })
 
   it('opens on an atelier left open in development, without a session', async () => {
@@ -47,14 +69,22 @@ describe('App shell', () => {
     expect(document.querySelector('[data-composer]')).not.toBeNull()
   })
 
-  it('shows the door of a closed atelier, and nothing that would answer 401', async () => {
+  it('shows the public page to a signed-out visitor, and nothing that would answer 401', async () => {
     serve({ authenticated: false }, 401)
     const screen = await mount()
 
     await expect.poll(door).toBe('out')
-    const button = screen.getByRole('link', { name: 'Se connecter' })
+    expect(document.querySelector('[data-landing]')).not.toBeNull()
+    await expect
+      .element(screen.getByRole('heading', { level: 1 }))
+      .toHaveTextContent('Mes agents enquêtent. Je décide.')
+    const button = screen.getByRole('link', { name: 'Se connecter pour lancer un run' })
     await expect.element(button).toHaveAttribute('href', '/auth/oidc/login')
+    expect(document.querySelector('[data-nav-sign-in]')?.getAttribute('href')).toBe(
+      '/auth/oidc/login',
+    )
     expect(document.querySelector('[data-composer]')).toBeNull()
+    expect(document.querySelector('[data-sidebar]')).toBeNull()
     const box = (
       document.querySelector('[data-sign-in-button]') as HTMLElement
     ).getBoundingClientRect()
@@ -71,5 +101,22 @@ describe('App shell', () => {
     serve({ authenticated: true })
     await screen.getByRole('button', { name: 'Réessayer' }).click()
     await expect.poll(door).toBe('in')
+  })
+
+  it.each([
+    ['the public page', { authenticated: false }, 401, '[data-landing]'],
+    ['the atelier', { authenticated: true }, 200, '[data-composer]'],
+  ] as const)('does not scroll sideways at 390 px: %s', async (_name, session, status, marker) => {
+    await page.viewport(390, 844)
+    serve(session, status)
+    await mount()
+    await expect.poll(() => document.querySelector(marker)).not.toBeNull()
+    const root = document.documentElement
+    expect(root.scrollWidth).toBeLessThanOrEqual(root.clientWidth + 1)
+    for (const element of document.querySelectorAll<HTMLElement>('[data-shell] *')) {
+      const box = element.getBoundingClientRect()
+      if (box.width === 0) continue
+      expect(box.right, element.className).toBeLessThanOrEqual(root.clientWidth + 1)
+    }
   })
 })

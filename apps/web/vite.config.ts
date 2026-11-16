@@ -10,7 +10,19 @@ export default defineConfig({
   // calls api.iconify.design at runtime, which the page's policy
   // (connect-src 'self') blocks, so the buttons lost their icons. `scan`
   // adds the icons the app names itself (i-lucide-history…).
-  plugins: [vue(), ui({ prose: true, icon: { clientBundle: { scan: true } } })],
+  //
+  // The identity "Le fil" (MEM-86) is light only: `colorMode: false` turns off
+  // the @vueuse color mode, so the OS preference never adds `.dark`. Primary
+  // and neutral are warm greys here; main.css points `--ui-primary` at the ink.
+  plugins: [
+    vue(),
+    ui({
+      prose: true,
+      colorMode: false,
+      ui: { colors: { primary: 'stone', neutral: 'stone' } },
+      icon: { clientBundle: { scan: true } },
+    }),
+  ],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

@@ -14,17 +14,42 @@ export const SIGN_IN_URL = '/auth/oidc/login'
 type Fetch = typeof fetch
 const call: Fetch = (...args) => globalThis.fetch(...args)
 
-export async function knock(fetchImpl: Fetch = call): Promise<Door> {
+/** Who is in, as the session says: the door, and the account's e-mail if any. */
+export interface Visit {
+  door: Door
+  email?: string
+}
+
+export async function visit(fetchImpl: Fetch = call): Promise<Visit> {
   try {
     const session = await fetchImpl('/auth/session', { credentials: 'same-origin' })
     if (session.ok) {
-      const body = (await session.json()) as { authenticated?: boolean }
-      if (body.authenticated) return 'in'
+      const body = (await session.json()) as { authenticated?: boolean; email?: unknown }
+      if (body.authenticated) {
+        return typeof body.email === 'string' ? { door: 'in', email: body.email } : { door: 'in' }
+      }
     }
     const probe = await fetchImpl('/api/specialists', { credentials: 'same-origin' })
-    if (probe.status === 401) return 'out'
-    return probe.ok ? 'in' : 'unreachable'
+    if (probe.status === 401) return { door: 'out' }
+    return { door: probe.ok ? 'in' : 'unreachable' }
   } catch {
-    return 'unreachable'
+    return { door: 'unreachable' }
   }
+}
+
+export async function knock(fetchImpl: Fetch = call): Promise<Door> {
+  return (await visit(fetchImpl)).door
+}
+
+/**
+ * Initials for the avatar, from the e-mail's local part (guillaume.flambard
+ * gives GF). No e-mail, no initials: the bar then shows no avatar.
+ */
+export function initialsOf(email: string | undefined): string {
+  const local = email?.split('@')[0] ?? ''
+  const parts = local.split(/[._+-]+/).filter(Boolean)
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0]!.toUpperCase())
+    .join('')
 }

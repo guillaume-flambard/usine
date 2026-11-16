@@ -1,27 +1,32 @@
 <script setup lang="ts">
 /**
- * The conversation and the composer (MEM-15), on `POST /api/chat` (MEM-14).
+ * The atelier (MEM-15, laid out as "Le fil" in MEM-86): a top bar, then the
+ * sidebar (runs, checkpoints), the canvas (the run graph, the dock and the
+ * composer) and the inspector (the conversation, the action and its gate).
  *
  * Wiring as documented by Nuxt UI 4 for AI SDK v7 (https://ui.nuxt.com/docs/components/chat):
- * `useChat` from @ai-sdk/vue@4.0.165 gives messages, status, error, stop and
+ * `useChat` from @ai-sdk/vue gives messages, status, error, stop and
  * regenerate; UChatMessages, UChatPrompt and UChatPromptSubmit take them as is.
  * An assistant's text parts are rendered as Markdown (AnswerMarkdown, no
- * `v-html`), a person's as plain text; the run
- * events travel as `data-run-event` parts and feed the scene (MEM-17): the
- * latest assistant message's events, replayed into the read model.
+ * `v-html`), a person's as plain text; the run events travel as
+ * `data-run-event` parts and feed the scene (MEM-17): the latest run's events,
+ * replayed into the read model.
  */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useChat } from '@ai-sdk/vue'
 import type { ChatTransport, UIMessage } from 'ai'
 import { chatTransport } from '../chat/transport'
 import type { RunEventPayload } from '../contracts/ui-stream'
 import { replay } from '../run/readModel'
-import AnswerMarkdown from './AnswerMarkdown'
+import { fetchRun, runDate, type RunDetail } from '../chat/runs'
+import { initialsOf } from '../chat/session'
+import ConversationThread from './ConversationThread.vue'
 import RunScene from './RunScene.vue'
-import RunsSheet from './RunsSheet.vue'
+import RunsList from './RunsList.vue'
+import StepsList from './StepsList.vue'
 import ForkPanel from './ForkPanel.vue'
-import GateDialog, { type GateDecisionInput } from './GateDialog.vue'
-import type { RunDetail } from '../chat/runs'
+import InspectorPanel from './InspectorPanel.vue'
+import type { GateDecisionInput } from './GatePanel.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -29,13 +34,29 @@ const props = withDefaults(
     /** A reopened run: its thread id and its turns as messages (MEM-18). */
     chatId?: string
     initialMessages?: UIMessage[]
+    /** The reopened run's title and creation date, as the API lists it. */
+    title?: string
+    createdAt?: string
+    /** The account's e-mail, for the avatar's initials. */
+    email?: string
+    /** A branch of this run exists: the dock can compare the two futures. */
+    comparable?: boolean
   }>(),
-  { transport: () => chatTransport(), chatId: undefined, initialMessages: () => [] },
+  {
+    transport: () => chatTransport(),
+    chatId: undefined,
+    initialMessages: () => [],
+    title: undefined,
+    createdAt: undefined,
+    email: undefined,
+    comparable: false,
+  },
 )
 const emit = defineEmits<{
   open: [run: RunDetail]
   fresh: []
   forked: [originalThreadId: string, branchThreadId: string]
+  compare: []
 }>()
 
 const input = ref('')
@@ -45,27 +66,25 @@ const input = ref('')
  * and its README tells why production stopped updating on 2 November.
  */
 const SUGGESTED_BRIEFS = [
-  'Lis deployment/README.md du dépôt guillaume-flambard/usine, explique pourquoi la production ne se mettait plus à jour, et propose une issue pour le suivre.',
-  "Prépare une annonce de sortie pour la v2 de l'usine, en trois points.",
-  'Compare LangGraph et CrewAI pour orchestrer un agent de support client, en cinq lignes.',
+  {
+    label: 'Pourquoi la production ne bouge plus\u202f?',
+    text: 'Lis deployment/README.md du dépôt guillaume-flambard/usine, explique pourquoi la production ne se mettait plus à jour, et propose une issue pour le suivre.',
+  },
+  {
+    label: 'L’annonce de la v2',
+    text: "Prépare une annonce de sortie pour la v2 de l'usine, en trois points.",
+  },
+  {
+    label: 'LangGraph ou CrewAI',
+    text: 'Compare LangGraph et CrewAI pour orchestrer un agent de support client, en cinq lignes.',
+  },
 ]
 const stopped = ref(false)
-// The recorded demo (MEM-24): without a model, the service replays a run and
+// The recorded run (MEM-24): without a model, the service replays a run and
 // says which brief it can answer. The page shows it rather than letting a
 // visitor ask a question nobody recorded.
 const demoBrief = ref('')
-// Forking needs a run: the button only exists once this chat has a thread.
 const forkOpen = ref(false)
-const forkFailure = ref('')
-
-async function onForked(branch: string) {
-  try {
-    const original = threadId.value
-    if (original) emit('forked', original, branch)
-  } catch (error) {
-    forkFailure.value = (error as Error).message
-  }
-}
 
 onMounted(async () => {
   try {
@@ -75,9 +94,10 @@ onMounted(async () => {
       input.value = health.demoBrief
     }
   } catch {
-    // No service, or no demo: the composer stays as it is.
+    // No service, or no recording: the composer stays as it is.
   }
 })
+
 const { messages, status, error, sendMessage, regenerate, stop } = useChat({
   transport: props.transport,
   // The chat id is the LangGraph thread: a new message on a reopened run
@@ -89,39 +109,26 @@ const { messages, status, error, sendMessage, regenerate, stop } = useChat({
 const isDecision = (m: UIMessage) =>
   m.role === 'user' && (m.metadata as { gate?: string } | undefined)?.gate !== undefined
 
-/**
- * The latest run: every assistant message since the last brief, in stream
- * order. A gate decision (MEM-21) is not a new brief: the run it resumes
- * continues in the same scene.
- */
-const run = computed(() => {
+/** Where the latest brief starts: a gate decision (MEM-21) is not a new brief. */
+const runStart = computed(() => {
   const all = messages.value
-  let start = 0
   for (let i = all.length - 1; i >= 0; i--) {
     const m = all[i]!
-    if (m.role === 'user' && !isDecision(m)) {
-      start = i + 1
-      break
-    }
+    if (m.role === 'user' && !isDecision(m)) return i
   }
-  const events = all
-    .slice(start)
+  return -1
+})
+
+/** The latest run: every assistant message since the last brief, in stream order. */
+const run = computed(() => {
+  const events = messages.value
+    .slice(runStart.value + 1)
     .filter((m) => m.role === 'assistant')
     .flatMap((m) => m.parts)
     .filter((part) => part.type === 'data-run-event')
     .map((part) => (part as { data: RunEventPayload }).data)
   return replay(events)
 })
-
-// The gate opens by itself when the stream announces it, and can be reopened
-// from the scene.
-const gateOpen = ref(false)
-watch(
-  () => run.value.status === 'waiting' && Boolean(run.value.gate),
-  (waiting) => {
-    if (waiting) gateOpen.value = true
-  },
-)
 
 const DECISION_TEXT: Record<GateDecisionInput['decision'], string> = {
   approve: 'Décision : approuver.',
@@ -147,6 +154,7 @@ const threadId = computed(() => {
 
 /** One word for the whole panel, read by tests and assistive tech alike. */
 const state = computed(() => (stopped.value && status.value === 'ready' ? 'stopped' : status.value))
+const busy = computed(() => state.value === 'submitted' || state.value === 'streaming')
 
 const STATUS_LABELS: Record<string, string> = {
   ready: 'Prêt',
@@ -156,6 +164,16 @@ const STATUS_LABELS: Record<string, string> = {
   stopped: 'Arrêté à votre demande',
 }
 
+/** The pill says where the run is, in words: the gate outranks "ready". */
+const statusText = computed(() => {
+  if (state.value === 'ready' && run.value.status === 'waiting') {
+    return 'À la porte, j’attends ma décision'
+  }
+  if (state.value === 'ready' && run.value.status === 'finished') return 'Run terminé'
+  if (state.value === 'ready' && run.value.status === 'failed') return 'Run en erreur'
+  return STATUS_LABELS[state.value]
+})
+
 const SUBMIT_LABELS: Record<string, string> = {
   ready: 'Envoyer',
   stopped: 'Envoyer',
@@ -163,6 +181,35 @@ const SUBMIT_LABELS: Record<string, string> = {
   streaming: 'Arrêter',
   error: 'Relancer',
 }
+
+// The title and date come from the API: a reopened run brings them, a fresh
+// one is read back once the service has indexed it.
+const indexed = ref<{ title: string; created_at: string } | null>(null)
+const refresh = ref(0)
+watch(state, async (now, before) => {
+  if (now !== 'ready' || (before !== 'streaming' && before !== 'submitted')) return
+  refresh.value += 1
+  const id = threadId.value
+  if (!id || props.title) return
+  try {
+    const detail = await fetchRun(id)
+    indexed.value = { title: detail.title, created_at: detail.created_at }
+  } catch {
+    // Not indexed (no database in development): the brief stands in.
+  }
+})
+
+const firstBrief = computed(() => {
+  const m = messages.value.find((x) => x.role === 'user' && !isDecision(x))
+  const part = m?.parts.find((p) => p.type === 'text') as { text: string } | undefined
+  return part?.text ?? ''
+})
+const runTitle = computed(() => props.title ?? indexed.value?.title ?? firstBrief.value)
+const runWhen = computed(() => {
+  const iso = props.createdAt ?? indexed.value?.created_at
+  return iso ? runDate(iso) : ''
+})
+const initials = computed(() => initialsOf(props.email))
 
 function onSubmit() {
   const text = input.value.trim()
@@ -181,110 +228,147 @@ function onReload() {
   stopped.value = false
   regenerate()
 }
+
+const canReplay = computed(() => messages.value.length > 0 && !busy.value)
+
+function replayRun() {
+  if (canReplay.value) onReload()
+}
+
+const inspector = ref<InstanceType<typeof InspectorPanel> | null>(null)
+
+// The dock's keys, as its keycaps say: ⌘ or Ctrl with R, K, D. Each takes
+// over the browser's own only when the action exists.
+function onKey(event: KeyboardEvent) {
+  if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return
+  const key = event.key.toLowerCase()
+  if (key === 'r' && canReplay.value) {
+    event.preventDefault()
+    replayRun()
+  } else if (key === 'k' && threadId.value) {
+    event.preventDefault()
+    forkOpen.value = true
+  } else if (key === 'd' && props.comparable) {
+    event.preventDefault()
+    emit('compare')
+  }
+}
+onMounted(() => window.addEventListener('keydown', onKey))
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </script>
 
 <template>
   <div
-    class="flex h-full min-h-0 flex-col"
+    class="atelier"
+    :class="{ 'has-run': run.events > 0 }"
     data-chat
     :data-chat-state="state"
     :data-thread-id="threadId"
   >
-    <header class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3">
-      <h1 class="text-lg font-semibold">L'usine agentique</h1>
-      <div class="flex items-center gap-2">
-        <p class="text-sm text-muted" role="status" aria-live="polite" data-status>
-          {{ STATUS_LABELS[state] }}
-        </p>
-        <UButton
-          v-if="threadId"
-          color="neutral"
-          variant="outline"
-          size="sm"
-          label="Forker"
-          data-fork-open
-          @click="forkOpen = true"
-        />
-        <RunsSheet @open="(run) => emit('open', run)" @fresh="emit('fresh')" />
+    <header class="bar" data-bar>
+      <h1 class="visually-hidden">Atelier Usine</h1>
+      <svg class="logo" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+        <path class="s-sky" d="M4.6 2.4C4.6 8.6 7.6 11.4 10.4 13.6" />
+        <path class="s-mag" d="M12 2.4V13" />
+        <path class="s-grn" d="M19.4 2.4C19.4 8.6 16.4 11.4 13.6 13.6" />
+        <circle class="f-ink" cx="12" cy="16.4" r="4.6" />
+        <path class="s-ink" d="M12 21v1.8" />
+      </svg>
+      <nav class="crumb" aria-label="Fil d’Ariane">
+        <span>Atelier</span>
+        <template v-if="runTitle">
+          <UIcon name="i-lucide-chevron-right" class="size-3 shrink-0" aria-hidden="true" />
+          <b :title="runTitle">{{ runTitle }}</b>
+        </template>
+      </nav>
+      <p class="state" role="status" aria-live="polite" data-status>{{ statusText }}</p>
+      <div class="me">
+        <span v-if="runWhen" class="when" data-run-when>{{ runWhen }}</span>
+        <span
+          v-if="initials"
+          class="avatar"
+          role="img"
+          :aria-label="`Connecté : ${email}`"
+          data-avatar
+          >{{ initials }}</span
+        >
       </div>
     </header>
 
-    <div class="flex min-h-0 flex-1 flex-col lg:flex-row">
-      <!-- The scene exists once the run has said something: no empty frame. -->
-      <!-- tabindex: a region that scrolls must be reachable by keyboard. -->
-      <aside
-        v-if="run.events > 0"
-        tabindex="0"
-        aria-label="Scène"
-        class="max-h-64 shrink-0 overflow-auto px-4 lg:order-last lg:max-h-none lg:w-[37rem]"
-      >
-        <RunScene :model="run" @decide="gateOpen = true" />
-        <GateDialog v-if="run.gate" v-model:open="gateOpen" :gate="run.gate" @decide="decide" />
-        <ForkPanel
-          v-if="threadId"
-          v-model:open="forkOpen"
-          :thread-id="threadId"
-          @forked="onForked"
+    <main class="grid">
+      <aside class="side" aria-label="Runs et étapes" data-sidebar>
+        <RunsList
+          :current="threadId"
+          :refresh="refresh"
+          @open="(r) => emit('open', r)"
+          @fresh="emit('fresh')"
         />
+        <StepsList v-if="threadId && run.events > 0" :thread-id="threadId" :refresh="refresh" />
       </aside>
-      <div class="flex min-h-0 flex-1 flex-col">
-        <section
-          aria-label="Conversation"
-          class="flex min-h-0 flex-1 flex-col overflow-y-auto px-4"
-          data-conversation
-        >
-          <div
-            v-if="messages.length === 0"
-            class="m-auto flex max-w-xl flex-col items-center gap-4 py-8 text-center"
-            data-empty
-          >
-            <p class="text-muted">
-              Décrivez une tâche. Le superviseur la découpe et confie chaque morceau à un
-              spécialiste.
-            </p>
-            <ul class="flex w-full flex-col gap-2" aria-label="Briefs proposés">
-              <li v-for="brief in SUGGESTED_BRIEFS" :key="brief">
-                <UButton
-                  color="neutral"
-                  variant="soft"
-                  size="lg"
-                  block
-                  :label="brief"
-                  :ui="{
-                    base: 'min-h-11 justify-start text-left whitespace-normal',
-                    label: 'whitespace-normal',
-                  }"
-                  data-suggestion
-                  @click="input = brief"
-                />
-              </li>
-            </ul>
-          </div>
-          <UChatMessages v-else :messages="messages" :status="status" should-auto-scroll>
-            <template #content="message">
-              <template v-for="(part, index) in message.parts" :key="index">
-                <!-- Comark parses asynchronously (async setup): Suspense waits for it. -->
-                <Suspense v-if="part.type === 'text' && message.role === 'assistant'">
-                  <AnswerMarkdown
-                    :value="part.text"
-                    :streaming="part.state === 'streaming'"
-                    data-answer
-                  />
-                </Suspense>
-                <p v-else-if="part.type === 'text'" class="whitespace-pre-wrap">{{ part.text }}</p>
-              </template>
-            </template>
-          </UChatMessages>
-        </section>
 
-        <footer class="flex flex-col gap-2 px-4 pt-2 pb-4" data-composer>
-          <p v-if="error" class="text-sm text-error" role="alert" data-chat-error>
-            {{ error.message }}
-          </p>
-          <p v-if="forkFailure" class="text-sm text-error" role="alert" data-fork-failure>
-            {{ forkFailure }}
-          </p>
-          <p v-if="demoBrief" class="text-sm text-toned" data-demo>
+      <div class="center">
+        <div class="canvas" data-canvas>
+          <!-- The scene exists once the run has said something: no empty frame. -->
+          <div v-if="run.events > 0" class="scene-wrap" tabindex="0" aria-label="Scène">
+            <RunScene :model="run" @decide="inspector?.focusGate()" />
+          </div>
+
+          <!-- Before the first event the conversation holds the canvas; after it,
+               the graph does, and the conversation moves to the inspector. -->
+          <ConversationThread
+            v-if="run.events === 0"
+            :messages="messages"
+            :status="status"
+            :briefs="SUGGESTED_BRIEFS"
+            @choose="(text) => (input = text)"
+          />
+
+          <div v-if="messages.length > 0" class="dock" role="toolbar" aria-label="Actions du run">
+            <button
+              type="button"
+              :disabled="!canReplay"
+              aria-keyshortcuts="Meta+R Control+R"
+              data-replay
+              @click="replayRun"
+            >
+              <UIcon name="i-lucide-rotate-ccw" class="size-4" aria-hidden="true" />Rejouer<span
+                class="kbd"
+                aria-hidden="true"
+                >⌘R</span
+              >
+            </button>
+            <button
+              v-if="threadId"
+              type="button"
+              aria-keyshortcuts="Meta+K Control+K"
+              data-fork-open
+              @click="forkOpen = true"
+            >
+              <UIcon name="i-lucide-git-fork" class="size-4" aria-hidden="true" />Forker<span
+                class="kbd"
+                aria-hidden="true"
+                >⌘K</span
+              >
+            </button>
+            <button
+              v-if="comparable"
+              type="button"
+              aria-keyshortcuts="Meta+D Control+D"
+              data-compare
+              @click="emit('compare')"
+            >
+              <UIcon name="i-lucide-columns-2" class="size-4" aria-hidden="true" />Comparer<span
+                class="kbd"
+                aria-hidden="true"
+                >⌘D</span
+              >
+            </button>
+          </div>
+        </div>
+
+        <footer class="composer" data-composer>
+          <p v-if="error" class="alert" role="alert" data-chat-error>{{ error.message }}</p>
+          <p v-if="demoBrief" class="note" data-demo>
             Run enregistré : aucun modèle n'est branché, le service rejoue des réponses
             enregistrées. Il ne connaît que ce brief.
           </p>
@@ -293,14 +377,15 @@ function onReload() {
             :status="status"
             :error="error"
             placeholder="Votre brief"
-            :ui="{ base: 'min-h-11 text-base' }"
+            variant="subtle"
+            :ui="{ root: 'rounded-[var(--radius-in)]', base: 'min-h-11 text-base' }"
             data-prompt
             @submit="onSubmit"
           >
             <UChatPromptSubmit
               :status="status"
               size="xl"
-              :ui="{ base: 'size-11 min-w-11 shrink-0 justify-center' }"
+              :ui="{ base: 'size-11 min-w-11 shrink-0 justify-center rounded-full' }"
               :aria-label="SUBMIT_LABELS[state]"
               data-submit
               @stop="onStop"
@@ -309,6 +394,302 @@ function onReload() {
           </UChatPrompt>
         </footer>
       </div>
-    </div>
+
+      <InspectorPanel
+        v-if="run.events > 0"
+        ref="inspector"
+        :model="run"
+        :busy="busy"
+        @decide="decide"
+      >
+        <ConversationThread
+          :messages="messages"
+          :status="status"
+          :briefs="SUGGESTED_BRIEFS"
+          @choose="(text) => (input = text)"
+        />
+      </InspectorPanel>
+    </main>
+
+    <ForkPanel
+      v-if="threadId"
+      v-model:open="forkOpen"
+      :thread-id="threadId"
+      @forked="(branch) => threadId && emit('forked', threadId, branch)"
+    />
   </div>
 </template>
+
+<style scoped>
+.atelier {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--color-surface);
+}
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  min-height: 64px;
+  padding: 0 var(--space-md) 0 var(--space-20);
+  border-bottom: 1px solid var(--color-rule);
+}
+.logo path {
+  fill: none;
+  stroke-width: 2.3;
+  stroke-linecap: round;
+}
+.s-sky {
+  stroke: var(--color-sky);
+}
+.s-mag {
+  stroke: var(--color-mag);
+}
+.s-grn {
+  stroke: var(--color-grn);
+}
+.s-ink {
+  stroke: var(--color-ink);
+}
+.f-ink {
+  fill: var(--color-ink);
+}
+.crumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+.crumb b {
+  overflow: hidden;
+  color: var(--color-ink);
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.state {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 var(--space-sm);
+  border-radius: var(--radius-pill);
+  background: var(--color-ink);
+  color: var(--color-on-ink);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+.me {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-left: auto;
+}
+.when {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-paper-3);
+  color: var(--color-ink-2);
+  font: 600 12px / 1 var(--font-sans);
+}
+
+.grid {
+  display: grid;
+  flex: 1;
+  grid-template-columns: 248px minmax(0, 1fr);
+  min-height: 0;
+}
+.has-run .grid {
+  grid-template-columns: 248px minmax(0, 1fr) 436px;
+}
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  min-width: 0;
+  overflow: auto;
+  padding: var(--space-md) var(--space-sm);
+  border-right: 1px solid var(--color-rule);
+}
+.center {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background-color: var(--color-paper-2);
+  background-image: radial-gradient(var(--color-rule-2) 1px, transparent 1.2px);
+  background-size: 20px 20px;
+}
+.canvas {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-lg);
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-lg) var(--space-20) 0;
+}
+.scene-wrap {
+  overflow-x: auto;
+  padding-bottom: var(--space-xs);
+}
+.composer :deep(textarea:focus-visible) {
+  outline: 0;
+}
+.dock {
+  position: sticky;
+  bottom: var(--space-md);
+  z-index: var(--z-raised);
+  display: flex;
+  align-self: center;
+  gap: var(--space-2xs);
+  margin-top: auto;
+  margin-bottom: var(--space-md);
+  padding: var(--space-2xs);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  box-shadow:
+    var(--shadow-3),
+    0 0 0 1px var(--color-rule);
+  white-space: nowrap;
+}
+.dock button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  height: 44px;
+  padding: 0 var(--space-sm) 0 var(--space-md);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-ink);
+  font: 500 var(--text-sm) / 1 var(--font-sans);
+  cursor: pointer;
+  transition: background-color var(--dur-short) var(--ease-out);
+}
+.dock button:hover:not(:disabled) {
+  background: var(--color-paper-2);
+}
+.dock button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.dock button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-20) var(--space-md);
+  border-top: 1px solid var(--color-rule);
+  background: var(--color-surface);
+}
+.alert {
+  color: var(--color-error);
+  font-size: var(--text-sm);
+}
+.note {
+  color: var(--color-ink-2);
+  font-size: var(--text-sm);
+}
+
+/* Wide screens: one screen, each column scrolls on its own. */
+@media (min-width: 77.5rem) {
+  .atelier {
+    height: 100dvh;
+  }
+}
+
+/* Below 1240 px the inspector goes under the canvas and the page scrolls. */
+@media (max-width: 77.49rem) {
+  .grid,
+  .has-run .grid {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+  .has-run .grid > :deep(.insp) {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--color-rule);
+    border-left: 0;
+  }
+  .canvas {
+    overflow: visible;
+  }
+  .composer {
+    position: sticky;
+    bottom: 0;
+    z-index: var(--z-raised);
+  }
+}
+
+/* Phones: one column, the sidebar reduced to its runs. */
+@media (max-width: 47.5rem) {
+  .bar {
+    flex-wrap: wrap;
+    gap: var(--space-xs) var(--space-sm);
+    padding: var(--space-sm);
+  }
+  .bar .crumb {
+    order: 3;
+    flex-basis: 100%;
+  }
+  .grid,
+  .has-run .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .side {
+    max-height: 18rem;
+    padding: var(--space-sm);
+    border-right: 0;
+    border-bottom: 1px solid var(--color-rule);
+  }
+  .side > :not(:first-child) {
+    display: none;
+  }
+  .canvas {
+    padding: var(--space-md) var(--space-sm) 0;
+    background-size: 18px 18px;
+  }
+  .dock {
+    position: static;
+    align-self: stretch;
+    justify-content: space-between;
+    padding: var(--space-2xs) var(--space-xs);
+    border-radius: var(--radius-card);
+  }
+  .dock button {
+    flex: 1;
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--space-2xs);
+    height: 56px;
+    padding: 0 var(--space-xs);
+    font-size: 12px;
+  }
+  .dock .kbd {
+    display: none;
+  }
+  .composer {
+    padding: var(--space-xs) var(--space-sm) var(--space-sm);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock button {
+    transition: none;
+  }
+}
+</style>
