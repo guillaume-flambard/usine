@@ -697,8 +697,11 @@ def create_app(
         if decision.decision == "edit":
             # Une modification change le contenu, jamais la nature ni la cible :
             # elle ne peut pas faire approuver une action que personne n'a proposée.
-            proposed = {(a["kind"], a["target"]) for a in waiting.interrupts[0].value["actions"]}
-            if any((a.kind, a.target) not in proposed for a in decision.actions or []):
+            # Action par action, à la même place : une modification ne peut pas
+            # non plus dupliquer une action approuvée (trois issues pour une).
+            proposed = [(a["kind"], a["target"]) for a in waiting.interrupts[0].value["actions"]]
+            edited = [(a.kind, a.target) for a in decision.actions or []]
+            if edited != proposed:
                 raise HTTPException(
                     status_code=422,
                     detail="Une modification garde le genre et la cible des actions proposées.",
@@ -1635,6 +1638,11 @@ def create_app(
                 whitelist.check_call(server_name, tool_name)
             except RegistryRefusal as refused:
                 return no_store({"error": refused.message}, refused.status)
+            # Un serveur qui porte le jeton du lab (token_env) ne répond qu'à une
+            # personne connectée, même atelier ouvert : sinon la route ferait
+            # de ce jeton un proxy public vers ce qu'il peut lire.
+            if whitelist.resolve(server_name).token_env and identity_of(request) is None:
+                return no_store({"error": "Connexion requise."}, 401)
 
         raw = await request.body()
         if len(raw) > bounds.max_body:

@@ -182,6 +182,14 @@ async def fork_run(
     chosen = choose(states, request.checkpoint_id)
     if not chosen.next:
         raise ForkRefused("Ce checkpoint a déjà terminé le run : rien à rejouer.")
+    if "act" in chosen.next:
+        # The decision is already in this state: forking here would run the
+        # approved action a second time, with no one asked (MEM-84 review).
+        # Fork before the gate to decide again.
+        raise ForkRefused(
+            "Ce checkpoint suit une décision de la porte : le forker relancerait "
+            "l'action approuvée. Forkez avant la porte pour décider à nouveau."
+        )
     as_node, values = seed_of(states, chosen, request.brief)
 
     branch = new_id or uuid.uuid4().hex

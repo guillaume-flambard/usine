@@ -282,3 +282,32 @@ def test_actions_cut_mid_execution_are_never_resumed_blindly() -> None:
         reply = client.post("/api/runs/run-crash/resume")
         assert reply.status_code == 409
         assert "deux fois" in reply.json()["detail"]
+
+
+def test_an_edit_cannot_duplicate_an_action(client: TestClient) -> None:
+    chat(client, "run-twice")
+    once = SEND.model_dump()
+    reply = client.post(
+        "/api/runs/run-twice/gate", json={"decision": "edit", "actions": [once, once, once]}
+    )
+    assert reply.status_code == 422
+
+
+def test_a_fork_after_the_decision_never_runs_the_action_again() -> None:
+    spy = SpyExecutor()
+    with signed_in(make_app(executor=spy)) as client:
+        chat(client, "run-once")
+        decided = client.post("/api/runs/run-once/gate", json={"decision": "approve"})
+        assert decided.status_code == 200
+        assert len(spy.executed) == 1
+
+        checkpoints = client.get("/api/runs/run-once/checkpoints").json()
+        after_gate = [c for c in checkpoints if "act" in c["next"]]
+        assert after_gate, checkpoints
+        reply = client.post(
+            "/api/runs/run-once/fork", json={"checkpoint_id": after_gate[0]["checkpoint_id"]}
+        )
+
+        assert reply.status_code == 409
+        assert "relancerait" in reply.json()["detail"]
+        assert len(spy.executed) == 1

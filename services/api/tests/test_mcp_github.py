@@ -331,3 +331,21 @@ async def test_pydantic_ai_discovers_the_github_tools_over_real_http(
 
     names = [getattr(t, "__name__", str(t)) for t in tools]
     assert "get_file_contents" in names
+
+
+def test_a_server_with_the_labs_token_never_answers_an_anonymous_visitor(
+    github_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Even with the atelier open (development), the token is not a public proxy."""
+    from fastapi.testclient import TestClient
+
+    from usine_api.app import create_app
+
+    monkeypatch.setenv("USINE_TEST_GITHUB_TOKEN", TOKEN)
+    app = create_app(registry=_registry(github_url), open_atelier=True)
+    with TestClient(app) as client:
+        reply = client.post(
+            "/tools/github/get_file_contents", json={"arguments": {"owner": "o", "repo": "r"}}
+        )
+    assert reply.status_code == 401
+    assert _GitHubLikeHandler.calls == []

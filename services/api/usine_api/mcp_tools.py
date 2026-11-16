@@ -279,7 +279,11 @@ class McpExecutor:
                 self._timeout,
             )
         except TimeoutError:
-            return f"échec : {action.target} n'a pas répondu en {self._timeout:.0f} s"
+            # The server may have acted before going silent: say what is known.
+            return (
+                f"état inconnu : {action.target} n'a pas répondu en {self._timeout:.0f} s, "
+                "vérifier avant de relancer"
+            )
         except McpRefusal as refused:
             return f"échec : {refused.message}"
         text = str(answer.get("text", ""))[:600]
