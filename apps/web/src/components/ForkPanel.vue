@@ -28,7 +28,7 @@ const options = computed(() =>
 )
 
 const specialistOptions = computed(() => [
-  { value: DEFAULT_SPECIALIST, label: 'Spécialiste par défaut du service' },
+  { value: DEFAULT_SPECIALIST, label: 'L’agent habituel' },
   ...specialists.value.map((item) => ({
     value: item.name,
     label: `${item.name} (${item.identity.framework})`,
@@ -46,13 +46,13 @@ async function onFork() {
 <template>
   <UModal
     v-model:open="open"
-    title="Forker ce run"
-    description="La branche rejoue le run depuis ce point, avec le spécialiste choisi. L’original n’est pas modifié."
+    title="Refaire avec un autre agent"
+    description="Une nouvelle version du travail repart de l’étape choisie, avec l’agent choisi. L’original ne change pas, et les deux se comparent côte à côte."
     :ui="{ content: 'max-w-xl' }"
   >
     <template #body>
       <div class="flex flex-col gap-4" data-fork-panel>
-        <UFormField label="Point de reprise" name="checkpoint">
+        <UFormField label="À partir de quelle étape" name="checkpoint">
           <USelect
             v-model="chosen"
             :items="options"
@@ -63,9 +63,9 @@ async function onFork() {
         </UFormField>
 
         <UFormField
-          label="Spécialiste de la branche"
+          label="Avec quel agent"
           name="specialist"
-          help="Changer de framework est le sujet du fork : la partie commune se rejoue depuis les cassettes."
+          help="Ce qui précède l’étape choisie est repris tel quel : seule la suite est refaite."
         >
           <USelect
             v-model="specialist"
@@ -96,7 +96,7 @@ async function onFork() {
           size="xl"
           :loading="busy"
           :disabled="!canFork"
-          :label="busy ? 'Bifurcation en cours' : 'Forker ici'"
+          :label="busy ? 'Nouvelle version en cours' : 'Refaire'"
           :ui="{ base: 'min-h-11' }"
           data-fork-confirm
           @click="onFork"

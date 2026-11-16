@@ -125,7 +125,13 @@ class SubtaskState(TypedDict):
 # free tiers (Groq at 30 requests a minute, then a fallback chain). Three
 # specialists in parallel hit the rate limit, and one model call waited 31 s for
 # 176 tokens. At 60 s, two real runs out of two stopped on the time budget.
-DEFAULT_BUDGET = Budget(max_tokens=16_000, max_seconds=180, max_tool_calls=8)
+#
+# Tokens, measured at 16:51 the same day: a tool agent's count adds every model
+# call, and each call resends the conversation with the README in it. Two agents
+# that read the file and answered spent 45 227 and 60 807 tokens, and stopped
+# on the 16 000 budget. 64 000 lets a few calls with the file through; the
+# answer itself stays capped (graph/specialist.py, MAX_ANSWER_TOKENS).
+DEFAULT_BUDGET = Budget(max_tokens=64_000, max_seconds=180, max_tool_calls=8)
 
 
 def build_graph(

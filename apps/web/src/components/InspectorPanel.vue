@@ -32,7 +32,7 @@ const proofs = computed(() => {
     return [
       {
         id: node.id,
-        title: `Spécialiste ${rank}`,
+        title: `Agent ${rank}`,
         thread: threads.get(node.id) ?? 'sky',
         task: node.task ?? '',
         duration:
@@ -86,7 +86,7 @@ function onTabKey(event: KeyboardEvent) {
 
 const STATUS: Record<RunReadModel['status'], string> = {
   idle: 'Le run n’a pas commencé.',
-  running: 'Le run travaille. Une action qui sortirait du système s’arrêtera ici, à la porte.',
+  running: 'Les agents travaillent. Rien ne sortira du système sans votre accord.',
   waiting: '',
   finished: 'Run terminé, aucune action ne sort du système.',
   failed: 'Le run s’est arrêté sur une erreur, rien n’est sorti du système.',

@@ -57,7 +57,7 @@ describe('RunScene', () => {
     )
     expect(threads).toEqual(['sup', 'sky', 'mag'])
     expect(document.querySelector('[data-scene-description]')?.textContent).toContain(
-      'Spécialiste (b) : en erreur',
+      'Agent (b) : en erreur',
     )
   })
 
@@ -114,7 +114,7 @@ describe('RunScene', () => {
       expect(Math.abs(lines - Math.round(lines))).toBeLessThan(0.05)
     }
     expect(document.querySelector('[data-scene-status]')?.textContent).toContain(
-      'Run terminé, 1 spécialiste en erreur',
+      'Run terminé, 1 agent en erreur',
     )
     // The whole reason is readable: three lines leave room for the longest one.
     const shown = document.querySelector('[data-node-failure]') as HTMLElement
@@ -146,12 +146,12 @@ describe('RunScene', () => {
     )
     await expect.poll(() => nodeText('waiting')[0] ?? '').toContain('en attente')
     expect(document.querySelector('[data-scene-status]')?.textContent).toContain(
-      'À la porte, en attente de décision',
+      'En attente de votre accord',
     )
     const knot = document.querySelector('[data-node="human_gate"]') as HTMLElement
     expect(knot.tagName).toBe('BUTTON')
     expect(knot.getAttribute('data-thread')).toBe('ink')
-    expect(knot.textContent).toContain('Porte humaine')
+    expect(knot.textContent).toContain('Votre accord')
     expect(knot.textContent).toContain('J’envoie ce message')
   })
 

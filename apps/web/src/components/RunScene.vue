@@ -29,7 +29,7 @@ const STATES: Record<NodeState, string> = {
 const RUN_STATUS: Record<RunReadModel['status'], string> = {
   idle: 'Aucun run',
   running: 'Run en cours',
-  waiting: 'À la porte, en attente de décision',
+  waiting: 'En attente de votre accord',
   finished: 'Run terminé',
   failed: 'Run en erreur',
 }
@@ -127,7 +127,7 @@ const statusLine = computed(() => {
   // alone hid it (audit, 16 November 2026).
   const failed =
     props.model.status === 'failed' ? 0 : props.model.nodes.filter((x) => x.failure).length
-  const partial = failed ? `, ${failed} spécialiste${failed > 1 ? 's' : ''} en erreur` : ''
+  const partial = failed ? `, ${failed} agent${failed > 1 ? 's' : ''} en erreur` : ''
   return `${RUN_STATUS[props.model.status]}${partial}, ${n} nœud${n > 1 ? 's' : ''}, ${secondsText(props.model.at)}`
 })
 
@@ -200,7 +200,7 @@ function place(node: RunNode) {
             </g>
           </svg>
           <span class="gate-text">
-            <b>Porte humaine, {{ STATES[node.state] }}</b>
+            <b>Votre accord, {{ STATES[node.state] }}</b>
             <i>{{ question }}</i>
           </span>
         </button>
@@ -369,6 +369,8 @@ function place(node: RunNode) {
   font-size: var(--text-xs);
 }
 .gate-node {
+  /* Clear of the dock (44 px buttons, its padding and margin) when scrolled to. */
+  scroll-margin-bottom: calc(44px + var(--space-2xs) * 2 + var(--space-md) * 2);
   display: flex;
   align-items: center;
   gap: var(--space-sm);

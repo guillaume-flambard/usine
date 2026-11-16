@@ -110,14 +110,14 @@ async function decide(side: Side, decision: GateDecisionInput) {
 
 const SIDES: { side: Side; title: string }[] = [
   { side: 'left', title: 'Run original' },
-  { side: 'right', title: 'Branche' },
+  { side: 'right', title: 'Nouvelle version' },
 ]
 </script>
 
 <template>
   <section class="divergent" data-divergent-scene>
     <header class="bar">
-      <h1 class="title">Comparaison des deux futurs</h1>
+      <h1 class="title">Original et nouvelle version</h1>
       <button type="button" class="btn btn-line back" data-divergent-back @click="emit('back')">
         <UIcon name="i-lucide-arrow-left" class="size-4" aria-hidden="true" />Retour au run
       </button>
@@ -240,9 +240,16 @@ const SIDES: { side: Side; title: string }[] = [
   min-width: 0;
   padding: var(--space-md) var(--space-20) var(--space-20);
 }
+/* The scene sits on the atelier's dotted paper, as in the atelier: white cards
+   on the white branch panel lost their edge (audit, 16 November 2026). */
 .scene-wrap {
   min-width: 0;
   overflow-x: auto;
+  padding: var(--space-md);
+  border-radius: var(--radius-in);
+  background-color: var(--color-paper-2);
+  background-image: radial-gradient(var(--color-rule-2) 1px, transparent 1.2px);
+  background-size: 20px 20px;
 }
 .answer {
   max-height: 24rem;

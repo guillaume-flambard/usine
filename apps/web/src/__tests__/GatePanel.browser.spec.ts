@@ -65,13 +65,17 @@ const resumeStream = (decision: string) => [
   { type: 'finish', finishReason: 'stop' },
 ]
 
+const calls: string[] = []
+
 function stubApi(options: { refuseGate?: boolean } = {}) {
+  calls.length = 0
   const gateBodies: Record<string, unknown>[] = []
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
     const url = String(input)
     // A signed-in visitor: the door (App.vue) lets them in.
     if (url === '/auth/session') return Response.json({ authenticated: true })
     if (url === '/api/chat') return sse(GATE_STREAM)
+    calls.push(url)
     if (url.endsWith('/gate') && options.refuseGate)
       return Response.json({ detail: 'Connexion requise pour décider.' }, { status: 401 })
     if (url.endsWith('/gate')) {
@@ -112,7 +116,7 @@ describe('human gate, inline in the inspector', () => {
     expect(q('[data-gate-preview]').textContent).toContain('La v2 est sortie.')
     expect(q('[data-gate-notice]').textContent).toContain('pas le monde')
     expect(card()!.textContent).toContain('J’envoie ce message')
-    expect(q('[data-status]').textContent).toContain('À la porte')
+    expect(q('[data-status]').textContent).toContain('En attente de votre accord')
   })
 
   it('gives the choice back when the decision is refused, never says « Approuvé »', async () => {
@@ -128,6 +132,21 @@ describe('human gate, inline in the inspector', () => {
     expect(q('[data-gate-done]').textContent).not.toContain('Approuvé')
     expect(q('[data-gate-approve]')).not.toBeNull()
     expect(q('[data-chat-error]').textContent).toContain('reconnectez-vous')
+    expect(q('[data-status]').textContent).toContain('En attente de votre accord')
+
+    // Retrying goes back to the gate, never to /api/chat as a new brief: the
+    // decision text once started a bogus run (review, 16 November 2026).
+    const chats = calls.filter((u) => u === '/api/chat').length
+    await userEvent.click(q('[data-submit]'))
+    await expect.poll(() => calls.filter((u) => u.endsWith('/gate')).length).toBe(2)
+    expect(calls.filter((u) => u === '/api/chat').length).toBe(chats)
+    // Deciding again shows the decision once, not twice.
+    await userEvent.click(q('[data-gate-approve]'))
+    await expect.poll(() => calls.filter((u) => u.endsWith('/gate')).length).toBe(3)
+    const decisions = [...document.querySelectorAll('[data-conversation]')].map(
+      (c) => (c.textContent ?? '').split('Décision : approuver.').length - 1,
+    )
+    expect(Math.max(...decisions)).toBe(1)
   })
 
   it('approves, and the run resumes in the same scene', async () => {

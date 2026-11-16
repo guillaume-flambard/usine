@@ -78,7 +78,11 @@ describe('App shell', () => {
     await expect
       .element(screen.getByRole('heading', { level: 1 }))
       .toHaveTextContent('Mes agents enquêtent. Je décide.')
-    const button = screen.getByRole('link', { name: 'Se connecter pour lancer un run' })
+    // The first action is the public visit: a visitor without an account used
+    // to stop at the sign-in (16 November 2026).
+    const visit = screen.getByRole('link', { name: 'Voir un vrai run, sans compte' })
+    await expect.element(visit).toHaveAttribute('href', '/visite')
+    const button = screen.getByRole('link', { name: 'Se connecter' }).first()
     await expect.element(button).toHaveAttribute('href', '/auth/oidc/login')
     expect(document.querySelector('[data-nav-sign-in]')?.getAttribute('href')).toBe(
       '/auth/oidc/login',

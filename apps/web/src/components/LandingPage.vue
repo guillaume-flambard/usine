@@ -5,9 +5,9 @@
  * page calls no model and no authenticated route.
  *
  * The hero's threads and the journal are a static illustration of one real
- * run, the 2 November case (PRODUCT.md, "Operating Context"). There is no
- * public replay route yet, so the primary action is the sign-in, not a
- * "Rejouer" button that would lead nowhere.
+ * run, the 2 November case (PRODUCT.md, "Operating Context"). The primary
+ * action is the public visit (/visite), a recorded run replayed with no
+ * account: visitors used to stop at the sign-in (16 November 2026).
  */
 import { SIGN_IN_URL } from '../chat/session'
 
@@ -200,16 +200,17 @@ const THREADS = [
               </button>
             </div>
             <div v-else class="actions">
-              <a class="btn btn-ink" :href="SIGN_IN_URL" data-sign-in-button>
-                <UIcon name="i-lucide-log-in" class="size-4" aria-hidden="true" />Se connecter pour
-                lancer un run
+              <a class="btn btn-ink" href="/visite" data-visit-button>
+                <UIcon name="i-lucide-play" class="size-4" aria-hidden="true" />Voir un vrai run,
+                sans compte
               </a>
-              <a class="btn btn-line" :href="REPO">
-                <UIcon name="i-lucide-code" class="size-4" aria-hidden="true" />Lire le code
+              <a class="btn btn-line" :href="SIGN_IN_URL" data-sign-in-button>
+                <UIcon name="i-lucide-log-in" class="size-4" aria-hidden="true" />Se connecter
               </a>
             </div>
             <p v-if="!unreachable" class="door">
-              L’atelier est réservé aux comptes du lab (Pocket ID).
+              La visite rejoue un run réel, enregistré : rien n’en sort. L’atelier lui-même est
+              réservé aux comptes du lab.
             </p>
           </div>
           <figure class="fil">
