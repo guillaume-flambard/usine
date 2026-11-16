@@ -81,8 +81,10 @@ from .mcp import (
     TIMEOUT_SECONDS,
     McpRefusal,
     Server,
+    auth_headers,
     call_tool,
     list_tools,
+    parse_body,
     remember_session,
     session_headers,
 )
@@ -205,13 +207,14 @@ async def http_rpc(url: str, payload: dict[str, Any]) -> dict[str, Any]:
         response = await client.post(
             url,
             json=payload,
-            headers={"accept": "application/json, text/event-stream", **session_headers(url)},
+            headers={
+                "accept": "application/json, text/event-stream",
+                **session_headers(url),
+                **auth_headers(url, os.environ),
+            },
         )
         remember_session(url, dict(response.headers))
-        try:
-            return response.json()
-        except ValueError:
-            return {}
+        return parse_body(response.headers.get("content-type", ""), response.text)
 
 
 async def http_fetch(url: str) -> tuple[int, str]:
@@ -362,6 +365,13 @@ def create_app(
     tool_servers: dict[str, Server] = servers or whitelist.servers()
     recollection: Memory = memory if memory is not None else InMemoryMemory()
     rpc = transport if transport is not None else http_rpc
+    # Une action approuvée à la porte s'exécute pour de vrai, par le serveur
+    # d'outils qui l'a proposée (McpExecutor). Sans serveur dans la liste
+    # blanche, rien n'est branché et le graphe le dit (DryRunExecutor).
+    if executor is None and whitelist.names():
+        from .mcp_tools import McpExecutor
+
+        executor = McpExecutor(whitelist, transport=rpc)
     # Le modèle passe par le LiteLLM du lab (MEM-13) : le service ne lit plus
     # aucune clé de fournisseur, seulement la sienne auprès de LiteLLM. Le choix
     # du modèle, le repli et le paramètre qui coupe le raisonnement suivent
@@ -687,8 +697,11 @@ def create_app(
         if decision.decision == "edit":
             # Une modification change le contenu, jamais la nature ni la cible :
             # elle ne peut pas faire approuver une action que personne n'a proposée.
-            proposed = {(a["kind"], a["target"]) for a in waiting.interrupts[0].value["actions"]}
-            if any((a.kind, a.target) not in proposed for a in decision.actions or []):
+            # Action par action, à la même place : une modification ne peut pas
+            # non plus dupliquer une action approuvée (trois issues pour une).
+            proposed = [(a["kind"], a["target"]) for a in waiting.interrupts[0].value["actions"]]
+            edited = [(a.kind, a.target) for a in decision.actions or []]
+            if edited != proposed:
                 raise HTTPException(
                     status_code=422,
                     detail="Une modification garde le genre et la cible des actions proposées.",
@@ -1625,6 +1638,11 @@ def create_app(
                 whitelist.check_call(server_name, tool_name)
             except RegistryRefusal as refused:
                 return no_store({"error": refused.message}, refused.status)
+            # Un serveur qui porte le jeton du lab (token_env) ne répond qu'à une
+            # personne connectée, même atelier ouvert : sinon la route ferait
+            # de ce jeton un proxy public vers ce qu'il peut lire.
+            if whitelist.resolve(server_name).token_env and identity_of(request) is None:
+                return no_store({"error": "Connexion requise."}, 401)
 
         raw = await request.body()
         if len(raw) > bounds.max_body:

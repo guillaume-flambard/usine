@@ -24,6 +24,7 @@ mentirait au modèle.
 from __future__ import annotations
 
 import asyncio
+import json
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -32,7 +33,7 @@ from pydantic import BaseModel, Field, create_model
 
 from usine_api.contracts import ProposedAction
 from usine_api.mcp import McpRefusal, Server, Transport, call_tool, list_tools
-from usine_api.mcp_registry import Registry
+from usine_api.mcp_registry import Registry, RegistryRefusal
 
 #: Per-call ceiling. The same number as the client's, applied here so a tool
 #: that hangs cannot hang the loop that called it.
@@ -81,9 +82,14 @@ def _model_of(name: str, schema: dict[str, Any]) -> type[BaseModel] | None:
             annotation = bool
         elif kind == "array" and (spec or {}).get("items", {}).get("type") == "string":
             annotation = list[str]
-        else:
-            # An object, a union, a nested array: not guessed.
+        elif key in required:
+            # A required object, union or nested array: not guessed.
             return None
+        else:
+            # An optional one is left out rather than losing the whole tool:
+            # GitHub's `issue_write` carries `issue_fields` (objects) that a
+            # plain issue never needs.
+            continue
         default = spec.get("default") if isinstance(spec, dict) else None
         if key in required:
             fields[key] = (annotation, Field(..., description=spec.get("description")))
@@ -154,7 +160,7 @@ def _callable_tool(
     async def run(**arguments: Any) -> str:
         try:
             answer = await asyncio.wait_for(
-                call_tool(server, found.name, arguments, transport=transport), timeout
+                call_tool(server, found.name, _given(arguments), transport=transport), timeout
             )
         except TimeoutError:
             return f"{server.name}/{found.name} n'a pas répondu en {timeout:.0f} s."
@@ -183,10 +189,12 @@ def _proposal_tool(
     async def propose(**arguments: Any) -> str:
         box.proposals.append(
             ProposedAction(
-                kind="send",
+                kind="external_write",
                 target=f"{server.name}/{tool}",
                 justification="l'agent a demandé un outil irréversible",
-                preview=_as_text(arguments),
+                # The exact arguments, as JSON: what the person reads, may edit,
+                # and what the executor sends once approved (McpExecutor).
+                preview=json.dumps(_given(arguments), ensure_ascii=False, indent=2),
             )
         )
         return (
@@ -203,6 +211,11 @@ def _proposal_tool(
         ),
         args_schema=model,
     )
+
+
+def _given(arguments: dict[str, Any]) -> dict[str, Any]:
+    """The arguments the agent set: an unset optional is not sent as null."""
+    return {key: value for key, value in arguments.items() if value is not None}
 
 
 def _as_text(payload: Any) -> str:
@@ -222,9 +235,59 @@ def _as_text(payload: Any) -> str:
             ]
             if parts:
                 return "\n".join(parts)
-    import json
-
     return json.dumps(payload, ensure_ascii=False)[:4000]
 
 
-__all__ = ["TOOL_TIMEOUT_SECONDS", "Toolbox", "Unavailable", "toolbox"]
+class McpExecutor:
+    """Carries out an action a person approved at the gate (MEM-20).
+
+    Only a tool the whitelist marks irreversible comes through here, and only
+    after the gate: the registry refuses those calls to an agent
+    (`Registry.check_call`), this is the one path that runs them. The arguments
+    are the preview the person read, or edited, at the gate.
+    """
+
+    def __init__(
+        self,
+        registry: Registry,
+        *,
+        transport: Transport,
+        timeout: float = TOOL_TIMEOUT_SECONDS,
+    ) -> None:
+        self._registry = registry
+        self._transport = transport
+        self._timeout = timeout
+
+    async def execute(self, action: ProposedAction) -> str:
+        name, _, tool = action.target.partition("/")
+        try:
+            registered = self._registry.resolve(name)
+            risk = registered.risk_of(tool)
+        except RegistryRefusal as refused:
+            return f"non exécutée : {refused.message}"
+        if risk != "irreversible":
+            return f"non exécutée : {action.target} ne passe pas par la porte"
+        try:
+            arguments = json.loads(action.preview)
+        except ValueError:
+            return "non exécutée : les arguments approuvés ne sont pas du JSON"
+        if not isinstance(arguments, dict):
+            return "non exécutée : les arguments approuvés ne sont pas un objet JSON"
+        try:
+            answer = await asyncio.wait_for(
+                call_tool(registered.server(), tool, arguments, transport=self._transport),
+                self._timeout,
+            )
+        except TimeoutError:
+            # The server may have acted before going silent: say what is known.
+            return (
+                f"état inconnu : {action.target} n'a pas répondu en {self._timeout:.0f} s, "
+                "vérifier avant de relancer"
+            )
+        except McpRefusal as refused:
+            return f"échec : {refused.message}"
+        text = str(answer.get("text", ""))[:600]
+        return f"échec : {text}" if answer.get("failed") else f"exécutée : {text}"
+
+
+__all__ = ["TOOL_TIMEOUT_SECONDS", "McpExecutor", "Toolbox", "Unavailable", "toolbox"]
