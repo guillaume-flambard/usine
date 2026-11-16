@@ -45,16 +45,23 @@ describe('RunScene', () => {
       ]),
     )
     await expect.poll(() => document.querySelectorAll('[data-node]').length).toBe(3)
-    expect(nodeText('finished').every((t) => t.includes('✓ terminé'))).toBe(true)
+    expect(nodeText('finished').every((t) => t.includes('terminé'))).toBe(true)
     expect(nodeText('failed')).toHaveLength(1)
-    expect(nodeText('failed')[0]).toContain('✕ en erreur')
+    expect(nodeText('failed')[0]).toContain('en erreur')
     expect(document.querySelector('[data-scene-status]')?.textContent).toContain('Run en erreur')
     // Two edges: supervisor to each specialist; no synthesis yet, so no edge to it.
     expect(document.querySelectorAll('.scene-link')).toHaveLength(2)
-    expect(document.querySelector('desc')?.textContent).toContain('Spécialiste (b) : en erreur')
+    // Each agent on its thread: the supervisor grey, the specialists sky then magenta.
+    const threads = [...document.querySelectorAll('[data-node]')].map((n) =>
+      n.getAttribute('data-thread'),
+    )
+    expect(threads).toEqual(['sup', 'sky', 'mag'])
+    expect(document.querySelector('[data-scene-description]')?.textContent).toContain(
+      'Spécialiste (b) : en erreur',
+    )
   })
 
-  it('shows a waiting gate with its actions and says a rollback undoes nothing outside', async () => {
+  it('draws a waiting gate as the black knot, with its question', async () => {
     await mount(
       replay([
         { kind: 'run-started', at: 0, data: {} },
@@ -77,12 +84,15 @@ describe('RunScene', () => {
         },
       ]),
     )
-    await expect.poll(() => nodeText('waiting')[0] ?? '').toContain('⏸ en attente')
+    await expect.poll(() => nodeText('waiting')[0] ?? '').toContain('en attente')
     expect(document.querySelector('[data-scene-status]')?.textContent).toContain(
       'En attente de votre décision',
     )
-    expect(document.querySelector('[data-gate]')?.textContent).toContain('Envoi vers #annonces')
-    expect(document.querySelector('[data-gate-notice]')?.textContent).toContain('pas le monde')
+    const knot = document.querySelector('[data-node="human_gate"]') as HTMLElement
+    expect(knot.tagName).toBe('BUTTON')
+    expect(knot.getAttribute('data-thread')).toBe('ink')
+    expect(knot.textContent).toContain('Porte humaine')
+    expect(knot.textContent).toContain('J’envoie ce message')
   })
 
   it('draws 200 events as they arrive without a long frame', async () => {
@@ -118,6 +128,23 @@ describe('RunScene', () => {
   })
 })
 
+describe('motion on the threads (MEM-86)', () => {
+  it('flows a dash along the thread of a node while it runs, and only then', async () => {
+    const running = replay([
+      { kind: 'run-started', at: 0, data: {} },
+      started('supervisor', 't1', 0.1),
+      finished('supervisor', 't1', 0.2),
+      started('specialist', 't2', 0.3, { task: 'a' }),
+    ])
+    const screen = await mount(running)
+    await expect.poll(() => document.querySelectorAll('[data-flowing]').length).toBe(1)
+    await screen.rerender({
+      model: reduceRun(running, finished('specialist', 't2', 0.9)),
+    })
+    await expect.poll(() => document.querySelectorAll('[data-flowing]').length).toBe(0)
+  })
+})
+
 describe('tool calls (MEM-38)', () => {
   it('names the tools the run called, once a specialist reports them', async () => {
     const model = replay([
@@ -148,7 +175,9 @@ describe('tool calls (MEM-38)', () => {
     // Sorted: the same run must read the same way whatever order they ran in.
     expect(line()!.textContent).toContain('docs__fetch, docs__search')
     // Read by assistive tech too, not only drawn.
-    expect(document.querySelector('desc')!.textContent).toContain('Outils appelés')
+    expect(document.querySelector('[data-scene-description]')!.textContent).toContain(
+      'Outils appelés',
+    )
   })
 
   it('says nothing when no tool ran', async () => {
