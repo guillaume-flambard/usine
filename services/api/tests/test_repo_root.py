@@ -32,3 +32,6 @@ def test_the_image_sets_usine_root_to_its_copy_of_the_repo():
     assert "USINE_ROOT=/src" in dockerfile
     assert "COPY config /src/config" in dockerfile
     assert "COPY --from=api /src/services/api /src/services/api" in dockerfile
+    # The builder's umask 077 made config/ root 0600, unreadable by `usine`.
+    runtime = dockerfile.split("# --- runtime")[1]
+    assert runtime.index("RUN chmod -R a+rX") < runtime.index("USER usine")
