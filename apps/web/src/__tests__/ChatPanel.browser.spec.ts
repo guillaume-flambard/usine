@@ -81,6 +81,17 @@ describe('ChatPanel states', () => {
     }
   })
 
+  it('offers briefs that fill the composer and send nothing', async () => {
+    const { requests } = await setup()
+    const suggestions = document.querySelectorAll<HTMLElement>('[data-suggestion]')
+    expect(suggestions.length).toBeGreaterThan(0)
+    await userEvent.click(suggestions[0]!)
+    const prompt = document.querySelector('[data-composer] textarea') as HTMLTextAreaElement
+    await expect.poll(() => prompt.value).toBe(suggestions[0]!.textContent?.trim())
+    expect(requests).toHaveLength(0)
+    expect(state()).toBe('ready')
+  })
+
   it('goes submitted, streaming, then ready, and shows the answer', async () => {
     const { stream, requests, respond } = await setup()
     await send('relire les portes')
@@ -207,7 +218,7 @@ describe('the recorded demo (MEM-24)', () => {
 
     const note = () => document.querySelector('[data-demo]') as HTMLElement | null
     await expect.poll(note).not.toBeNull()
-    expect(note()!.textContent).toContain('Démonstration enregistrée')
+    expect(note()!.textContent).toContain('Run enregistré')
     const prompt = document.querySelector('[data-composer] textarea') as HTMLTextAreaElement
     expect(prompt.value).toBe(demo)
     spy.mockRestore()

@@ -5,7 +5,8 @@
  * Wiring as documented by Nuxt UI 4 for AI SDK v7 (https://ui.nuxt.com/docs/components/chat):
  * `useChat` from @ai-sdk/vue@4.0.165 gives messages, status, error, stop and
  * regenerate; UChatMessages, UChatPrompt and UChatPromptSubmit take them as is.
- * Text parts are rendered by Nuxt UI as plain text (no `v-html`); the run
+ * An assistant's text parts are rendered as Markdown (AnswerMarkdown, no
+ * `v-html`), a person's as plain text; the run
  * events travel as `data-run-event` parts and feed the scene (MEM-17): the
  * latest assistant message's events, replayed into the read model.
  */
@@ -15,6 +16,7 @@ import type { ChatTransport, UIMessage } from 'ai'
 import { chatTransport } from '../chat/transport'
 import type { RunEventPayload } from '../contracts/ui-stream'
 import { replay } from '../run/readModel'
+import AnswerMarkdown from './AnswerMarkdown'
 import RunScene from './RunScene.vue'
 import RunsSheet from './RunsSheet.vue'
 import ForkPanel from './ForkPanel.vue'
@@ -37,6 +39,16 @@ const emit = defineEmits<{
 }>()
 
 const input = ref('')
+/**
+ * Briefs to start from, filled into the composer, never sent on their own. The
+ * first one is real work for the tool agent: the repository it reads is public
+ * and its README tells why production stopped updating on 2 November.
+ */
+const SUGGESTED_BRIEFS = [
+  'Lis deployment/README.md du dépôt guillaume-flambard/usine, explique pourquoi la production ne se mettait plus à jour, et propose une issue pour le suivre.',
+  "Prépare une annonce de sortie pour la v2 de l'usine, en trois points.",
+  'Compare LangGraph et CrewAI pour orchestrer un agent de support client, en cinq lignes.',
+]
 const stopped = ref(false)
 // The recorded demo (MEM-24): without a model, the service replays a run and
 // says which brief it can answer. The page shows it rather than letting a
@@ -221,10 +233,48 @@ function onReload() {
           class="flex min-h-0 flex-1 flex-col overflow-y-auto px-4"
           data-conversation
         >
-          <p v-if="messages.length === 0" class="m-auto max-w-md text-center text-muted" data-empty>
-            Décrivez une tâche. Le superviseur la découpe et confie chaque morceau à un spécialiste.
-          </p>
-          <UChatMessages v-else :messages="messages" :status="status" should-auto-scroll />
+          <div
+            v-if="messages.length === 0"
+            class="m-auto flex max-w-xl flex-col items-center gap-4 py-8 text-center"
+            data-empty
+          >
+            <p class="text-muted">
+              Décrivez une tâche. Le superviseur la découpe et confie chaque morceau à un
+              spécialiste.
+            </p>
+            <ul class="flex w-full flex-col gap-2" aria-label="Briefs proposés">
+              <li v-for="brief in SUGGESTED_BRIEFS" :key="brief">
+                <UButton
+                  color="neutral"
+                  variant="soft"
+                  size="lg"
+                  block
+                  :label="brief"
+                  :ui="{
+                    base: 'min-h-11 justify-start text-left whitespace-normal',
+                    label: 'whitespace-normal',
+                  }"
+                  data-suggestion
+                  @click="input = brief"
+                />
+              </li>
+            </ul>
+          </div>
+          <UChatMessages v-else :messages="messages" :status="status" should-auto-scroll>
+            <template #content="message">
+              <template v-for="(part, index) in message.parts" :key="index">
+                <!-- Comark parses asynchronously (async setup): Suspense waits for it. -->
+                <Suspense v-if="part.type === 'text' && message.role === 'assistant'">
+                  <AnswerMarkdown
+                    :value="part.text"
+                    :streaming="part.state === 'streaming'"
+                    data-answer
+                  />
+                </Suspense>
+                <p v-else-if="part.type === 'text'" class="whitespace-pre-wrap">{{ part.text }}</p>
+              </template>
+            </template>
+          </UChatMessages>
         </section>
 
         <footer class="flex flex-col gap-2 px-4 pt-2 pb-4" data-composer>
@@ -235,8 +285,8 @@ function onReload() {
             {{ forkFailure }}
           </p>
           <p v-if="demoBrief" class="text-sm text-toned" data-demo>
-            Démonstration enregistrée : ce run rejoue des réponses de modèle, sans modèle branché.
-            Elle ne connaît que ce brief.
+            Run enregistré : aucun modèle n'est branché, le service rejoue des réponses
+            enregistrées. Il ne connaît que ce brief.
           </p>
           <UChatPrompt
             v-model="input"
