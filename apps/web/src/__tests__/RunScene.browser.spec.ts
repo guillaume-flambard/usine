@@ -85,6 +85,15 @@ describe('RunScene', () => {
     expect(nodeText('failed')).toHaveLength(1)
     expect(nodeText('failed')[0]).toContain('en erreur')
     expect(document.querySelector('[data-node-failure]')?.textContent?.trim()).toBe(reason)
+    // Nothing in the failed card is cut: every line sits inside the card and
+    // keeps its full height (the reason was cut in half, 16 November 2026).
+    const card = document.querySelector('[data-node-state="failed"]') as HTMLElement
+    const box = card.getBoundingClientRect()
+    for (const child of [...card.children] as HTMLElement[]) {
+      const r = child.getBoundingClientRect()
+      expect(r.bottom).toBeLessThanOrEqual(box.bottom + 0.5)
+      expect(child.scrollHeight - child.clientHeight).toBeLessThanOrEqual(1)
+    }
     expect(document.querySelector('[data-scene-status]')?.textContent).not.toContain('en erreur')
   })
 
