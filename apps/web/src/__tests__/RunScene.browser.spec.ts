@@ -62,19 +62,31 @@ describe('RunScene', () => {
   })
 
   it('shows why one specialist failed while the run went on', async () => {
-    const reason = 'Le modèle n’a pas répondu à temps. Réessayez.'
+    const reason =
+      'Un spécialiste a dépassé son budget (durée) : 180.0 pour une limite de 180.0. Rien n’a été exécuté au-delà.'
     await mount(
       replay([
         { kind: 'run-started', at: 0, data: {} },
         started('supervisor', 't1', 0.1),
         finished('supervisor', 't1', 0.6, { subtasks: ['a', 'b'] }),
         started('specialist', 't2', 0.7, { task: 'a' }),
-        started('specialist', 't3', 0.7, { task: 'b' }),
+        started('specialist', 't3', 0.7, {
+          // Long, like the production run: the task fills its lines.
+          task: 'Analyser le contenu de deployment/README.md pour identifier la cause de l’arrêt des mises à jour en production',
+        }),
         finished('specialist', 't2', 2.1, {
           specialists: [{ name: 'x', framework: 'f', tokens: 1 }],
         }),
         finished('specialist', 't3', 3.1, {
-          specialists: [{ name: 'x', framework: 'f', tokens: 0, failed: reason }],
+          specialists: [
+            {
+              name: 'x',
+              framework: 'langchain',
+              tokens: 0,
+              tools: ['github__get_file_contents'],
+              failed: reason,
+            },
+          ],
         }),
         started('synthesize', 't4', 3.2),
         finished('synthesize', 't4', 3.3),
@@ -85,14 +97,22 @@ describe('RunScene', () => {
     expect(nodeText('failed')).toHaveLength(1)
     expect(nodeText('failed')[0]).toContain('en erreur')
     expect(document.querySelector('[data-node-failure]')?.textContent?.trim()).toBe(reason)
-    // Nothing in the failed card is cut: every line sits inside the card and
-    // keeps its full height (the reason was cut in half, 16 November 2026).
+    // Nothing in the failed card is cut: every block sits inside the card and
+    // shows whole lines (the reason was cut in half, 16 November 2026). A
+    // clamped paragraph may hide its last lines behind an ellipsis, by design;
+    // it must never stop in the middle of one. Fonts differ between machines,
+    // so the check is in lines, not pixels.
     const card = document.querySelector('[data-node-state="failed"]') as HTMLElement
     const box = card.getBoundingClientRect()
     for (const child of [...card.children] as HTMLElement[]) {
       const r = child.getBoundingClientRect()
       expect(r.bottom).toBeLessThanOrEqual(box.bottom + 0.5)
-      expect(child.scrollHeight - child.clientHeight).toBeLessThanOrEqual(1)
+      if (child.tagName !== 'P') continue
+      const style = getComputedStyle(child)
+      const lines =
+        (child.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)) /
+        parseFloat(style.lineHeight)
+      expect(Math.abs(lines - Math.round(lines))).toBeLessThan(0.05)
     }
     expect(document.querySelector('[data-scene-status]')?.textContent).not.toContain('en erreur')
   })
