@@ -48,10 +48,30 @@ export async function fetchRun(
   return json<RunDetail>(await fetchImpl(`/api/runs/${encodeURIComponent(threadId)}`))
 }
 
-/** Each turn back as a user message and an assistant message with its run events. */
+const DECISION_TEXT: Record<string, string> = {
+  approve: 'Décision : approuver.',
+  reject: 'Décision : rejeter.',
+  edit: 'Décision : approuver la version modifiée.',
+}
+
+/**
+ * The decision a turn carries, when the turn is the gate's answer rather than a
+ * new brief: the service resumes the same run (`run-started` with `resumed`).
+ */
+function decisionOf(turn: RunTurn): string | undefined {
+  if (turn.events[0]?.kind !== 'run-started' || turn.events[0]?.data?.resumed !== true) return
+  const decided = turn.events.find((event) => event.kind === 'gate-decided')
+  return String(decided?.data?.decision ?? 'decided')
+}
+
+/**
+ * Each turn back as a user message and an assistant message with its run events.
+ * A gate decision comes back as a decision, not as a second brief: otherwise a
+ * reopened run showed only its last turn, the gate alone (16 November 2026).
+ */
 export function toMessages(run: RunDetail): UIMessage[] {
   return run.history.flatMap((turn, index): UIMessage[] => [
-    { id: `${run.thread_id}-u${index}`, role: 'user', parts: [{ type: 'text', text: turn.brief }] },
+    userMessage(`${run.thread_id}-u${index}`, turn),
     {
       id: `${run.thread_id}-a${index}`,
       role: 'assistant',
@@ -63,6 +83,18 @@ export function toMessages(run: RunDetail): UIMessage[] {
       ],
     },
   ])
+}
+
+function userMessage(id: string, turn: RunTurn): UIMessage {
+  const decision = decisionOf(turn)
+  if (decision === undefined)
+    return { id, role: 'user', parts: [{ type: 'text', text: turn.brief }] }
+  return {
+    id,
+    role: 'user',
+    metadata: { gate: decision },
+    parts: [{ type: 'text', text: DECISION_TEXT[decision] ?? 'Décision prise.' }],
+  }
 }
 
 const DATE = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' })

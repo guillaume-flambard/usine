@@ -202,7 +202,7 @@ function place(node: RunNode) {
         <article
           v-else
           class="scene-node card"
-          :class="{ working: node.state === 'running' }"
+          :class="{ working: node.state === 'running', failed: Boolean(node.failure) }"
           :style="place(node)"
           :data-node="node.name"
           :data-node-state="node.state"
@@ -214,7 +214,7 @@ function place(node: RunNode) {
           <p v-if="node.failure" class="card-failure text-error" data-node-failure>
             {{ node.failure }}
           </p>
-          <p v-if="meta(node).length" class="card-meta">
+          <p v-if="meta(node).length && !node.failure" class="card-meta">
             <template v-for="(line, i) in meta(node)" :key="i"
               >{{ line }}<br v-if="i < meta(node).length - 1"
             /></template>
@@ -309,6 +309,17 @@ function place(node: RunNode) {
   margin: 0;
   color: var(--tt);
   font: 600 var(--text-sm) / 1.2 var(--font-sans);
+}
+/* Every line in the card keeps its height: a fixed-height flex column would
+   otherwise squeeze a clamped paragraph and cut a line in half (16 November
+   2026, a failed specialist's reason). A failed card trades its meta (framework,
+   tools) for the reason, and its task takes two lines instead of three. */
+.card > * {
+  flex-shrink: 0;
+}
+.card.failed .card-task {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 .card-failure {
   display: -webkit-box;
