@@ -105,7 +105,7 @@ const rightDuration = computed(() => props.right.at.toFixed(1))
         </div>
         <div class="flex flex-col gap-1">
           <span class="text-toned text-xs uppercase tracking-wider">Cout / latence / eval</span>
-          <span class="text-sm text-muted">M6 — non disponible</span>
+          <span class="text-sm text-muted">M6 : non disponible</span>
         </div>
       </div>
     </div>

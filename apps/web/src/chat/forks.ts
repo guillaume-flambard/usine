@@ -7,6 +7,8 @@
  * and returns the branch id announced in its first event, because the screen
  * then opens the branch as a run like any other.
  */
+import { nodeName } from '../run/names'
+
 export interface Checkpoint {
   checkpoint_id: string
   step: number | null
@@ -96,12 +98,10 @@ export function branchOf(stream: string): string {
 /** What a checkpoint looks like in a list: where it sits, and what it would run. */
 export function checkpointLabel(checkpoint: Checkpoint): string {
   // The input checkpoint sits at step -1: it is the entry point, not "step 0".
-  const where =
-    checkpoint.source === 'input' || checkpoint.step === -1
-      ? "Point d'entrée"
-      : `Étape ${checkpoint.step === null ? '?' : checkpoint.step + 1}`
-  if (checkpoint.next.length === 0) return `${where} — fin du run`
-  return `${where} — reprend à ${checkpoint.next.join(', ')}`
+  if (checkpoint.source === 'input' || checkpoint.step === -1) return "Point d'entrée"
+  const where = `Étape ${checkpoint.step === null ? '?' : checkpoint.step + 1}`
+  if (checkpoint.next.length === 0) return `${where}, fin du run`
+  return `${where}, avant : ${checkpoint.next.map(nodeName).join(', ')}`
 }
 
 export function isForkable(checkpoint: Checkpoint): boolean {

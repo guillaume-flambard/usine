@@ -18,14 +18,14 @@ describe('checkpoints', () => {
   it('names where a checkpoint sits and what it would run', () => {
     expect(
       checkpointLabel({ checkpoint_id: 'c1', step: 1, source: 'loop', next: ['specialist'] }),
-    ).toBe('Étape 2 — reprend à specialist')
+    ).toBe('Étape 2, avant : Spécialiste')
     expect(checkpointLabel({ checkpoint_id: 'c2', step: 3, source: 'loop', next: [] })).toBe(
-      'Étape 4 — fin du run',
+      'Étape 4, fin du run',
     )
     // The input checkpoint is the entry point, not "step 0".
     expect(
       checkpointLabel({ checkpoint_id: 'c0', step: -1, source: 'input', next: ['__start__'] }),
-    ).toBe("Point d'entrée — reprend à __start__")
+    ).toBe("Point d'entrée")
   })
 
   it('only offers a fork where something is left to run', () => {
