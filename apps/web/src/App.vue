@@ -4,6 +4,7 @@ import type { UIMessage } from 'ai'
 import ChatPanel from './components/ChatPanel.vue'
 import DivergentScene from './components/DivergentScene.vue'
 import LandingPage from './components/LandingPage.vue'
+import VisitPage from './components/VisitPage.vue'
 import { fetchRun, toMessages, type RunDetail } from './chat/runs'
 import { visit, type Door } from './chat/session'
 // Nuxt UI's own labels (a modal's « Close », for one) in French, like the page.
@@ -20,7 +21,12 @@ async function checkDoor() {
   door.value = who.door
   email.value = who.email
 }
-onMounted(checkDoor)
+// The public visit (/visite) needs no account and calls no API: it replays a
+// recorded run. Everything else goes through the door.
+const visiting = window.location.pathname.replace(/\/+$/, '') === '/visite'
+onMounted(() => {
+  if (!visiting) void checkDoor()
+})
 
 // The conversation shown: a fresh one, or a reopened run (MEM-18). The key
 // remounts the panel, so `useChat` starts on the right thread.
@@ -80,8 +86,9 @@ function onForked(originalThreadId: string, branchThreadId: string) {
     <!-- Signed out: the public page. Signed in: the atelier, its sidebar,
          canvas, inspector and dock (ChatPanel), or the comparison. -->
     <div class="shell" data-shell :data-door="door">
+      <VisitPage v-if="visiting" />
       <LandingPage
-        v-if="door === 'out' || door === 'unreachable'"
+        v-else-if="door === 'out' || door === 'unreachable'"
         :unreachable="door === 'unreachable'"
         @retry="checkDoor"
       />
