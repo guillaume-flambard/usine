@@ -110,4 +110,16 @@ describe('run read model', () => {
     // must not turn the build red.
     expect(elapsed).toBeLessThan(500)
   })
+
+  it('a specialist that failed beside the others shows its reason, and the run finishes', async () => {
+    // Production, 16 November 2026: one timeout used to stop the whole run.
+    const model = replay(await recordedEvents('partial-failure.sse'))
+
+    expect(model.status).toBe('finished')
+    const specialists = model.nodes.filter((n) => n.name === 'specialist')
+    expect(specialists.map((n) => n.state).sort()).toEqual(['failed', 'finished'])
+    const failed = specialists.find((n) => n.state === 'failed')
+    expect(failed?.failure).toMatch(/^Le modèle est saturé/)
+    expect(model.nodes.find((n) => n.name === 'synthesize')?.state).toBe('finished')
+  })
 })

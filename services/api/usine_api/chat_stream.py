@@ -32,14 +32,12 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import aclosing
 from typing import Any
 
-import openai
 from pydantic import BaseModel, ConfigDict, Field
 
-from usine_api.cassette import CassetteMiss
 from usine_api.contracts import RunEvent, RunEventKind, SpecialistOutput
+from usine_api.errors import readable_error
 from usine_api.graph.supervisor import ACT, HUMAN_GATE, SPECIALIST, SUPERVISOR, SYNTHESIZE
 from usine_api.observability import record_gate_decision, run_config
-from usine_api.specialists.contract import BudgetExceeded
 from usine_api.threads import RunStatus, RunTurn, ThreadIndex
 
 logger = logging.getLogger(__name__)
@@ -93,31 +91,6 @@ def sse(chunk: dict[str, Any] | str) -> str:
     return f"data: {payload}\n\n"
 
 
-def readable_error(error: BaseException) -> str:
-    """What the person reads. The detail goes to the log, never to the page."""
-    if isinstance(error, openai.RateLimitError):
-        return "Le modèle est saturé pour le moment (429). Réessayez dans une minute."
-    if isinstance(error, openai.APITimeoutError):
-        return "Le modèle n'a pas répondu à temps. Réessayez."
-    if isinstance(error, openai.APIConnectionError):
-        return "La passerelle de modèles est injoignable."
-    if isinstance(error, openai.APIStatusError):
-        return f"Le modèle a refusé la requête (erreur {error.status_code})."
-    if isinstance(error, BudgetExceeded):
-        return (
-            f"Un spécialiste a dépassé son budget ({error.kind}) : {error.actual} "
-            f"pour une limite de {error.limit}. Rien n'a été exécuté au-delà."
-        )
-    if isinstance(error, CassetteMiss):
-        # The demo (MEM-24) answers one recorded brief: say so, rather than
-        # blaming an internal error for a question nobody recorded.
-        return (
-            "Aucun modèle n'est branché : ce run rejoue des réponses enregistrées "
-            "et ne connaît que son brief. Branchez un modèle pour poser une autre question."
-        )
-    return "Le run a échoué sur une erreur interne. Elle est journalisée."
-
-
 def _summary(node: str, payload: dict[str, Any], *, finished: bool) -> dict[str, Any]:
     """Plain JSON for the screen: never a live object (CLAUDE.md, rule 2)."""
     if node == SUPERVISOR and finished:
@@ -134,6 +107,8 @@ def _summary(node: str, payload: dict[str, Any], *, finished: bool) -> dict[str,
                     "tokens": o.tokens,
                     # Which MCP tools ran (MEM-38): a trace says what it did.
                     "tools": list(o.tools),
+                    # Why it did not finish; the others went on without it.
+                    **({"failed": o.failed} if o.failed else {}),
                 }
                 for o in outputs
             ]

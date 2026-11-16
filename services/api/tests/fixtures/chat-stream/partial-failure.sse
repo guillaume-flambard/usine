@@ -1,0 +1,32 @@
+data: {"type": "start", "messageId": "id-1", "messageMetadata": {"threadId": "chat-1"}}
+
+data: {"type": "data-run-event", "data": {"kind": "run-started", "at": 0.25, "node": null, "data": {"threadId": "chat-1"}}}
+
+data: {"type": "data-run-event", "data": {"kind": "node-started", "at": 0.5, "node": "supervisor", "data": {"taskId": "t1"}}}
+
+data: {"type": "data-run-event", "data": {"kind": "node-finished", "at": 0.75, "node": "supervisor", "data": {"taskId": "t1", "subtasks": ["a", "b"]}}}
+
+data: {"type": "data-run-event", "data": {"kind": "node-started", "at": 1.0, "node": "specialist", "data": {"taskId": "t2", "task": "a"}}}
+
+data: {"type": "data-run-event", "data": {"kind": "node-started", "at": 1.25, "node": "specialist", "data": {"taskId": "t3", "task": "b"}}}
+
+data: {"type": "data-run-event", "data": {"kind": "node-finished", "at": 1.5, "node": "specialist", "data": {"taskId": "t2", "specialists": [{"name": "fake", "framework": "test", "tokens": 1, "tools": []}]}}}
+
+data: {"type": "data-run-event", "data": {"kind": "node-finished", "at": 1.75, "node": "specialist", "data": {"taskId": "t3", "specialists": [{"name": "fake", "framework": "test", "tokens": 0, "tools": [], "failed": "Le modèle est saturé pour le moment (429). Réessayez dans une minute."}]}}}
+
+data: {"type": "data-run-event", "data": {"kind": "node-started", "at": 2.0, "node": "synthesize", "data": {"taskId": "t4"}}}
+
+data: {"type": "data-run-event", "data": {"kind": "node-finished", "at": 2.25, "node": "synthesize", "data": {"taskId": "t4"}}}
+
+data: {"type": "text-start", "id": "id-2"}
+
+data: {"type": "text-delta", "id": "id-2", "delta": "fait : a\n\n*1 sur 2 sous-tâches n'ont pas abouti : Le modèle est saturé pour le moment (429). Réessayez dans une minute.*"}
+
+data: {"type": "text-end", "id": "id-2"}
+
+data: {"type": "data-run-event", "data": {"kind": "run-finished", "at": 2.5, "node": null, "data": {"outcome": "ok"}}}
+
+data: {"type": "finish", "finishReason": "stop"}
+
+data: [DONE]
+

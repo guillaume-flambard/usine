@@ -19,15 +19,18 @@ the model call in flight; a sync node would keep its thread running to the end.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from typing import Annotated, Any, NotRequired, Protocol, TypedDict, cast
 
 from langchain_core.runnables import ensure_config
 from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.errors import GraphBubbleUp
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Send, interrupt
 
+from usine_api.cassette import CassetteMiss
 from usine_api.contracts import (
     Budget,
     GateDecision,
@@ -35,9 +38,12 @@ from usine_api.contracts import (
     ProposedAction,
     SpecialistOutput,
 )
+from usine_api.errors import NoSpecialistFinished, readable_error
 from usine_api.specialists import UnknownSpecialist
 from usine_api.specialists.contract import Specialist
 from usine_api.specialists.node import as_node
+
+logger = logging.getLogger("usine.graph")
 
 SUPERVISOR = "supervisor"
 SPECIALIST = "specialist"
@@ -107,6 +113,8 @@ class SubtaskState(TypedDict):
 
     task: str
     brief: NotRequired[str]
+    # How many sub-tasks run beside this one, itself included.
+    siblings: NotRequired[int]
 
 
 # Measured on 16 November 2026: the tool agent reading one real README through
@@ -142,8 +150,10 @@ def build_graph(
         # never see each other, and a planner that drops "guillaume-flambard/usine"
         # from a sub-task made one invent a repository (production, 16 November
         # 2026). The card still shows the sub-task alone.
+        siblings = len(state["subtasks"])
         return [
-            Send(SPECIALIST, {"task": task, "brief": state["brief"]}) for task in state["subtasks"]
+            Send(SPECIALIST, {"task": task, "brief": state["brief"], "siblings": siblings})
+            for task in state["subtasks"]
         ]
 
     # The Specialist contract's adapter (MEM-27) is generic over the state it
@@ -160,16 +170,54 @@ def build_graph(
     async def run_specialist(state: SubtaskState) -> RunState:
         name = named_specialist()
         if name is None:
-            return cast(RunState, await default_task(state))
-        chosen = by_name.get(name)
-        if chosen is None:
-            raise UnknownSpecialist(name)
-        return cast(RunState, await as_node(chosen, budget)(state))
+            chosen, node = specialist, default_task
+        else:
+            found = by_name.get(name)
+            if found is None:
+                raise UnknownSpecialist(name)
+            chosen, node = found, as_node(found, budget)
+        try:
+            return cast(RunState, await node(state))
+        except (GraphBubbleUp, CassetteMiss):
+            # LangGraph's own control flow, and a replay asked a question nobody
+            # recorded: both must stop the run, not hide in one card.
+            raise
+        except Exception as error:  # noqa: BLE001 - one specialist never stops the others
+            if state.get("siblings", 1) <= 1:
+                # Alone, it has nobody to leave the floor to: the run fails here
+                # and a resume reruns it from the checkpoint before it.
+                raise
+            # Measured on 16 November 2026: one model call past its timeout on
+            # the free gateway stopped the whole run, gate included. A failed
+            # specialist now says why, and the others go on.
+            logger.warning("specialist failed: %s", error, exc_info=error)
+            return {
+                "results": [
+                    SpecialistOutput(
+                        answer="",
+                        identity=chosen.identity,
+                        tokens=0,
+                        tool_calls=0,
+                        failed=readable_error(error),
+                    )
+                ]
+            }
 
     def synthesize(state: RunState) -> RunState:
-        proposed = [action for result in state["results"] for action in result.actions]
+        finished = [result for result in state["results"] if result.failed is None]
+        failed = [result.failed for result in state["results"] if result.failed is not None]
+        if not finished:
+            raise NoSpecialistFinished(failed)
+        proposed = [action for result in finished for action in result.actions]
+        parts = [result.answer for result in finished]
+        if failed:
+            parts.append(
+                f"*{len(failed)} sur {len(state['results'])} sous-tâches n'ont pas abouti : "
+                + " ; ".join(dict.fromkeys(failed))
+                + "*"
+            )
         return {
-            "answer": "\n\n".join(result.answer for result in state["results"]),
+            "answer": "\n\n".join(parts),
             "proposed": proposed,
             "decision": {},
             "executed": [],

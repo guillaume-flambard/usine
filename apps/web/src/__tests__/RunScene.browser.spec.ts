@@ -61,6 +61,33 @@ describe('RunScene', () => {
     )
   })
 
+  it('shows why one specialist failed while the run went on', async () => {
+    const reason = 'Le modèle n’a pas répondu à temps. Réessayez.'
+    await mount(
+      replay([
+        { kind: 'run-started', at: 0, data: {} },
+        started('supervisor', 't1', 0.1),
+        finished('supervisor', 't1', 0.6, { subtasks: ['a', 'b'] }),
+        started('specialist', 't2', 0.7, { task: 'a' }),
+        started('specialist', 't3', 0.7, { task: 'b' }),
+        finished('specialist', 't2', 2.1, {
+          specialists: [{ name: 'x', framework: 'f', tokens: 1 }],
+        }),
+        finished('specialist', 't3', 3.1, {
+          specialists: [{ name: 'x', framework: 'f', tokens: 0, failed: reason }],
+        }),
+        started('synthesize', 't4', 3.2),
+        finished('synthesize', 't4', 3.3),
+        { kind: 'run-finished', at: 3.4, data: { outcome: 'ok' } },
+      ]),
+    )
+    await expect.poll(() => document.querySelectorAll('[data-node]').length).toBe(4)
+    expect(nodeText('failed')).toHaveLength(1)
+    expect(nodeText('failed')[0]).toContain('en erreur')
+    expect(document.querySelector('[data-node-failure]')?.textContent?.trim()).toBe(reason)
+    expect(document.querySelector('[data-scene-status]')?.textContent).not.toContain('en erreur')
+  })
+
   it('draws a waiting gate as the black knot, with its question', async () => {
     await mount(
       replay([

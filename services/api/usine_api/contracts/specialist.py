@@ -62,3 +62,6 @@ class SpecialistOutput(BaseModel):
     actions: tuple[ProposedAction, ...] = ()
     # The tool calls it made, by name (MEM-38): a trace says which tools ran.
     tools: tuple[str, ...] = ()
+    # Why it did not finish, in words a person reads. A failed specialist does
+    # not stop the others: the run goes on and says what is missing.
+    failed: str | None = None
