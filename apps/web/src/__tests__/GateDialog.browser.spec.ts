@@ -68,6 +68,8 @@ function stubApi() {
   const gateBodies: Record<string, unknown>[] = []
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
     const url = String(input)
+    // A signed-in visitor: the door (App.vue) lets them in.
+    if (url === '/auth/session') return Response.json({ authenticated: true })
     if (url === '/api/chat') return sse(GATE_STREAM)
     if (url.endsWith('/gate')) {
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>
@@ -102,6 +104,10 @@ async function colourSettled() {
 
 async function openGate() {
   await render(App, { global: { plugins: [createAppRouter(), ui] } })
+  // The door (App.vue) asks for the session before showing the atelier.
+  await expect
+    .poll(() => document.querySelector('[data-shell]')?.getAttribute('data-door'))
+    .toBe('in')
   await userEvent.fill(q('[data-composer] textarea'), 'publie la note')
   await userEvent.keyboard('{Enter}')
   await expect.poll(dialog).not.toBeNull()

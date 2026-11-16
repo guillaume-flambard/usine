@@ -10,7 +10,7 @@ export default defineConfig({
   // calls api.iconify.design at runtime, which the page's policy
   // (connect-src 'self') blocks, so the buttons lost their icons. `scan`
   // adds the icons the app names itself (i-lucide-history…).
-  plugins: [vue(), ui({ icon: { clientBundle: { scan: true } } })],
+  plugins: [vue(), ui({ prose: true, icon: { clientBundle: { scan: true } } })],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -21,12 +21,18 @@ export default defineConfig({
       ? {
           // The API is served by services/api (FastAPI). The provider key lives
           // there and never reaches the browser.
-          proxy: {
-            '/api': {
-              target: `http://127.0.0.1:${process.env.USINE_API_PORT ?? 8000}`,
-              changeOrigin: true,
-            },
-          },
+          // In production the same image serves the page and the API, so
+          // these paths are same-origin there too (/auth for the Pocket ID
+          // login, /health for the service's state).
+          proxy: Object.fromEntries(
+            ['/api', '/auth', '/health'].map((path) => [
+              path,
+              {
+                target: `http://127.0.0.1:${process.env.USINE_API_PORT ?? 8000}`,
+                changeOrigin: true,
+              },
+            ]),
+          ),
         }
       : {},
 })

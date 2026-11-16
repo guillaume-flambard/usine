@@ -43,7 +43,9 @@ function stubApi(page: RunPage) {
     const url = String(input)
     // The panel asks /health on mount for the recorded demo (MEM-24): not the
     // subject here.
-    if (url !== '/health') calls.push(url)
+    if (url !== '/health' && url !== '/auth/session') calls.push(url)
+    // A signed-in visitor: the door (App.vue) lets them in.
+    if (url === '/auth/session') return Response.json({ authenticated: true })
     if (url.startsWith('/api/runs?')) return Response.json(page)
     if (url === '/api/runs/chat-1') return Response.json(RUN)
     return new Response('not found', { status: 404 })
@@ -57,6 +59,10 @@ describe('earlier runs', () => {
   it('lists the runs and reopens one with its scene', async () => {
     const calls = stubApi({ items: [RUN], next_cursor: null })
     await render(App, { global: { plugins: [createAppRouter(), ui] } })
+    // The door (App.vue) asks for the session before showing the atelier.
+    await expect
+      .poll(() => document.querySelector('[data-shell]')?.getAttribute('data-door'))
+      .toBe('in')
 
     await userEvent.click(document.querySelector('[data-runs-trigger]') as HTMLElement)
     await expect.poll(() => document.querySelector('[data-run="chat-1"]')).not.toBeNull()
@@ -79,6 +85,10 @@ describe('earlier runs', () => {
   it('says when there is no run yet', async () => {
     stubApi({ items: [], next_cursor: null })
     await render(App, { global: { plugins: [createAppRouter(), ui] } })
+    // The door (App.vue) asks for the session before showing the atelier.
+    await expect
+      .poll(() => document.querySelector('[data-shell]')?.getAttribute('data-door'))
+      .toBe('in')
     await userEvent.click(document.querySelector('[data-runs-trigger]') as HTMLElement)
     await expect.poll(() => document.querySelector('[data-runs-empty]')).not.toBeNull()
   })
