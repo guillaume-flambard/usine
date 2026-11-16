@@ -6,7 +6,11 @@ import ui from '@nuxt/ui/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [vue(), ui()],
+  // Icons are bundled, never fetched: without a local collection, Iconify
+  // calls api.iconify.design at runtime, which the page's policy
+  // (connect-src 'self') blocks, so the buttons lost their icons. `scan`
+  // adds the icons the app names itself (i-lucide-history…).
+  plugins: [vue(), ui({ icon: { clientBundle: { scan: true } } })],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

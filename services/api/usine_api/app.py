@@ -1177,7 +1177,7 @@ def create_app(
             # Le lien passe par `/api` : c'est le préfixe que le proxy route vers
             # ce service. Bâti sur l'origine publique, pas sur `base_url` (qui,
             # derrière le proxy, porte l'hôte interne).
-            link = f"{site_origin}/api/auth/redeem?token={token}"
+            link = f"{site_origin}/auth/redeem?token={token}"
             mailer.send_link(email, link)
         return no_store({"sent": True})
 
@@ -1714,5 +1714,13 @@ def create_app(
                 "malformed": one.malformed,
             }
         )
+
+    # En production, la même image sert la page (MEM-58). Ajouté en dernier,
+    # donc à l'extérieur du verrou : la page est publique, l'API ne l'est pas.
+    web_dir = os.environ.get("USINE_WEB_DIR", "")
+    if web_dir:
+        from .spa import page_middleware
+
+        app.middleware("http")(page_middleware(web_dir))
 
     return app

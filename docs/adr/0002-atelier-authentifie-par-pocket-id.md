@@ -31,8 +31,8 @@ Le premier utilisateur de l'usine est le lab (`CLAUDE.md`, décision du 10 septe
 
 ## Conséquences
 
-- Une étape revient au propriétaire : enregistrer le client `usine` dans Pocket ID avec l'adresse de retour `https://usine.memolabs.dev/api/auth/oidc/callback`, puis poser son identifiant, son secret et le `sub` admis dans le `.env` du service.
-- Le front v2 n'a pas encore d'écran de connexion. Avant la recette en ligne (MEM-62), il lui faut un lien « Se connecter » vers `/api/auth/oidc/login`, affiché quand l'API répond 401.
+- Une étape revient au propriétaire : enregistrer le client `usine` dans Pocket ID avec l'adresse de retour `https://usine.memolabs.dev/auth/oidc/callback`, puis poser son identifiant, son secret et le `sub` admis dans le `.env` du service.
+- Le front v2 n'a pas encore d'écran de connexion. Avant la recette en ligne (MEM-62), il lui faut un lien « Se connecter » vers `/auth/oidc/login`, affiché quand l'API répond 401.
 - Les états de connexion en cours vivent en mémoire, pour dix minutes, mille au plus, et la route de connexion passe sous le limiteur. Avec une seule instance du service, c'est suffisant. Plusieurs instances devraient les partager.
 - Le basic auth Traefik reste une défense en profondeur possible devant l'atelier, sans remplacer celle-ci.
 

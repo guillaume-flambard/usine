@@ -197,6 +197,9 @@ importers:
         specifier: ^5.5.1
         version: 5.5.1(@vue/compiler-sfc@3.5.45)(esbuild@0.27.7)(rolldown@1.2.19)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.27.7)(jiti@2.7.0))(vue@3.5.45(typescript@6.0.3))
     devDependencies:
+      '@iconify-json/lucide':
+        specifier: ^1.2.155
+        version: 1.2.155
       '@playwright/test':
         specifier: 1.65.1
         version: 1.65.1
@@ -576,6 +579,9 @@ packages:
   '@humanwhocodes/retry@0.4.3':
     resolution: {integrity: sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ==}
     engines: {node: '>=18.18'}
+
+  '@iconify-json/lucide@1.2.155':
+    resolution: {integrity: sha512-pntdVKUFkr/NA+R5wVvRlpRFCr+wY8xKU1wFjywvOr5taNq8Y6MTfHTZ6v7P5M0pe3LQYUO2rYzKCgIfAhdcDA==}
 
   '@iconify/collections@1.0.764':
     resolution: {integrity: sha512-cjPAaJBUaQMSfPF3pBwB35GHJWrD8u26B6aLx/aWo+abiaPyOHF1j0BJ7zBviiCU3TC1j9Mje2rV+X/9evaIBw==}
@@ -3527,6 +3533,10 @@ snapshots:
   '@humanwhocodes/module-importer@1.0.1': {}
 
   '@humanwhocodes/retry@0.4.3': {}
+
+  '@iconify-json/lucide@1.2.155':
+    dependencies:
+      '@iconify/types': 2.0.0
 
   '@iconify/collections@1.0.764':
     dependencies:
