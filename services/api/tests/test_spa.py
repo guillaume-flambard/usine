@@ -74,3 +74,16 @@ def test_a_nul_byte_is_not_a_crash(built: Path) -> None:
     assert page_file(built, "/assets/index-abc123.js\x00") is None
     with TestClient(closed_app()) as client:
         assert client.get("/assets/index-abc123.js%00").status_code in (401, 404)
+
+
+def test_the_public_visit_is_the_page_for_anyone(built: Path) -> None:
+    # Production, 16 November 2026: /visite fell through to the lock and every
+    # visitor got a 401 instead of the recorded run.
+    with TestClient(closed_app()) as client:
+        visit = client.get("/visite")
+        slash = client.get("/visite/")
+        assert client.get("/api/runs").status_code == 401
+    assert visit.status_code == 200
+    assert "L'usine agentique" in visit.text
+    assert visit.headers["content-security-policy"] == PAGE_POLICY
+    assert slash.status_code == 200
