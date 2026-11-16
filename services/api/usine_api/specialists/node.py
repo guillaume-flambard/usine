@@ -70,6 +70,29 @@ StateIn = TypeVar("StateIn", bound=Mapping[str, Any])
 StateOut = TypeVar("StateOut", bound=dict[str, Any])
 
 
+def with_brief(state: Any) -> str:
+    """The sub-task, preceded by the brief it comes from when they differ.
+
+    The brief gives the exact names a sub-task may have dropped (repository,
+    owner, file); the specialist is told to answer its sub-task only.
+    """
+    task = str(state["task"])
+    brief = str(state.get("brief") or "").strip()
+    if not brief or brief == task.strip():
+        return task
+    return f"{BRIEF_HEADING}\n{brief}\n\n{SUBTASK_HEADING}\n{task}"
+
+
+BRIEF_HEADING = "Brief d'origine, pour les noms exacts (dépôt, propriétaire, fichier) :"
+SUBTASK_HEADING = "Ta sous-tâche, à laquelle tu réponds seule :"
+
+
+def subtask_of(text: str) -> str:
+    """The sub-task alone, from a text `with_brief` may have prefixed."""
+    head, separator, subtask = text.partition(f"\n\n{SUBTASK_HEADING}\n")
+    return subtask if separator and head.startswith(BRIEF_HEADING) else text
+
+
 def as_node(
     specialist: Specialist,
     budget: Budget,
@@ -83,7 +106,7 @@ def as_node(
     """
 
     async def run_task(state: StateIn) -> StateOut:
-        output = await execute(specialist, str(state["task"]), budget, tools=tools)
+        output = await execute(specialist, with_brief(state), budget, tools=tools)
         return cast(StateOut, {"results": [output]})
 
     return run_task

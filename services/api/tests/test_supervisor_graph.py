@@ -9,6 +9,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from usine_api.contracts import SpecialistIdentity, SpecialistInput, SpecialistOutput
 from usine_api.graph import build_graph
 from usine_api.graph.prompts import DEFAULTS, SPECIALIST_TASK, SUPERVISOR_PLAN, default_prompt
+from usine_api.specialists.node import subtask_of
 
 GRAPH_DIAGRAM = Path(__file__).resolve().parents[3] / "docs/architecture/supervisor-graph.mmd"
 
@@ -28,11 +29,14 @@ class FakeSpecialist:
 
     def __init__(self) -> None:
         self.tasks: list[str] = []
+        self.received: list[str] = []
 
     async def run(self, task: SpecialistInput) -> SpecialistOutput:
-        self.tasks.append(task.task)
+        self.received.append(task.task)
+        subtask = subtask_of(task.task)  # the brief may come first
+        self.tasks.append(subtask)
         return SpecialistOutput(
-            answer=f"fait : {task.task}", identity=self.identity, tokens=1, tool_calls=0
+            answer=f"fait : {subtask}", identity=self.identity, tokens=1, tool_calls=0
         )
 
 
@@ -50,6 +54,24 @@ async def test_three_subtasks_fan_out_to_three_specialists():
     assert sorted(specialist.tasks) == ["a", "b", "c"]
     assert len(result["results"]) == 3
     assert sorted(result["answer"].split("\n\n")) == ["fait : a", "fait : b", "fait : c"]
+
+
+async def test_each_specialist_also_reads_the_brief():
+    # A planner dropped "guillaume-flambard/usine" from a sub-task and the
+    # specialist invented a repository (production, 16 November 2026).
+    planner = FakePlanner(["proposer une issue"])
+    specialist = FakeSpecialist()
+    brief = "Lis deployment/README.md du dépôt guillaume-flambard/usine"
+    await build_graph(planner, specialist).ainvoke({"brief": brief})
+    [received] = specialist.received
+    assert brief in received
+    assert received.endswith("proposer une issue")
+
+
+async def test_a_brief_equal_to_its_subtask_is_not_repeated():
+    planner, specialist = FakePlanner(["relire les portes"]), FakeSpecialist()
+    await build_graph(planner, specialist).ainvoke({"brief": "relire les portes"})
+    assert specialist.received == ["relire les portes"]
 
 
 async def test_empty_plan_falls_back_to_the_brief():
