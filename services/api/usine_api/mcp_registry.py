@@ -22,6 +22,7 @@ et publier. Un outil `irreversible` ne s'exécute pas sans décision humaine
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -139,6 +140,19 @@ class Registry:
                 "humaine (MEM-20), il ne s'exécute pas à la demande d'un agent",
             )
         return risk
+
+
+def tools_reachable(registry: Registry, env: Mapping[str, str]) -> bool:
+    """True when at least one whitelisted server can be called now.
+
+    A server that names a token is reachable only once that variable is set;
+    a server without `token_env` needs none.
+    """
+    for name in registry.names():
+        token_env = registry.resolve(name).token_env
+        if token_env is None or env.get(token_env):
+            return True
+    return False
 
 
 def _validate(entry: Any, path: Path) -> Registered:
