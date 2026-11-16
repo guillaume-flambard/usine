@@ -1,71 +1,95 @@
 <script setup lang="ts">
 /**
  * The public visit (16 November 2026): a real run, recorded in production,
- * replayed in the browser for a visitor with no account.
+ * told as a story for a visitor with no account and no technical background.
  *
- * Visitors stopped at the sign-in page, and saw nothing of what the atelier
- * does. Here they watch the agents read the repository, then the request for
- * consent before the issue would leave. The stream is the archive format
- * (CLAUDE.md, rule 2): the recorded events rebuild the same scene, with no
- * model, no account and no call to the service. A decision taken here stays in
- * the page, and the page says so: nothing leaves.
+ * The first version showed the machine (graph, nodes, JSON): the owner himself
+ * said he understood nothing. This one tells what happens, step by step, in
+ * plain words, each step with one line saying why it matters. The graph stays
+ * one click away for technical readers.
+ *
+ * Everything shown comes from the recorded events (CLAUDE.md, rule 2): the
+ * question, the work split, the tools each agent used, the tickets proposed.
+ * No model, no account, no call to the service. A decision taken here stays in
+ * the page, and the page says so.
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { RunEventPayload } from '../contracts/ui-stream'
 import { EMPTY_RUN, reduceRun, type RunReadModel } from '../run/readModel'
 import { runDate, type RunDetail } from '../chat/runs'
 import { SIGN_IN_URL } from '../chat/session'
 import RunScene from './RunScene.vue'
-import InspectorPanel from './InspectorPanel.vue'
 import AnswerMarkdown from './AnswerMarkdown'
-import type { GateDecisionInput } from './GatePanel.vue'
 
 const REPO = 'https://github.com/guillaume-flambard/usine'
-/** The whole run plays in about this long, whatever it took for real. */
-const PLAY_SECONDS = 18
+/** The story plays in about this long, whatever the run took for real. */
+const PLAY_SECONDS = 14
+
+/** What a tool did, in words anyone reads. */
+const TOOL_WORDS: Record<string, string> = {
+  github__get_file_contents: 'a lu un fichier du projet sur GitHub',
+  github__issue_read: 'a lu un ticket existant',
+  github__list_issues: 'a parcouru les tickets ouverts',
+  github__search_issues: 'a cherché dans les tickets',
+  github__issue_write: 'a rédigé une proposition de ticket',
+}
 
 const run = ref<RunDetail | null>(null)
 const failure = ref('')
 const shown = ref(0)
-const decision = ref<GateDecisionInput | null>(null)
+const decision = ref<'open' | 'no' | null>(null)
+const chosen = ref(0)
+const technical = ref(false)
 let timers: ReturnType<typeof setTimeout>[] = []
 
-/** The recorded events, up to the gate: what happens next is the visitor's. */
+/** The recorded events, up to the request for consent: the rest is the visitor's. */
 const events = computed<RunEventPayload[]>(() => {
   const turn = run.value?.history[0]
   if (!turn) return []
   const gate = turn.events.findIndex((e) => e.kind === 'gate-opened')
   return gate === -1 ? turn.events : turn.events.slice(0, gate + 1)
 })
+const model = computed<RunReadModel>(() =>
+  events.value.slice(0, shown.value).reduce(reduceRun, EMPTY_RUN),
+)
 
-const model = computed<RunReadModel>(() => {
-  let state = events.value.slice(0, shown.value).reduce(reduceRun, EMPTY_RUN)
-  const knot = state.nodes.find((n) => n.name === 'human_gate')
-  if (decision.value && knot) {
-    // The visitor's choice, played in the page only: the knot tightens or not,
-    // and the run ends. Nothing is sent anywhere.
-    const at = state.at + 0.1
-    state = reduceRun(state, {
-      kind: 'gate-decided',
-      at,
-      node: 'human_gate',
-      data: { taskId: knot.id, decision: decision.value.decision, reason: decision.value.reason },
-    } as RunEventPayload)
-    state = reduceRun(state, {
-      kind: 'run-finished',
-      at,
-      node: null,
-      data: { outcome: 'ok' },
-    } as RunEventPayload)
-  }
-  return state
-})
+const plan = computed(() => model.value.nodes.find((n) => n.name === 'supervisor')?.subtasks ?? [])
+const agents = computed(() =>
+  model.value.nodes
+    .filter((n) => n.name === 'specialist')
+    .map((n, i) => {
+      const tools = [...new Set((n.specialists ?? []).flatMap((s) => s.tools ?? []))]
+      return {
+        id: n.id,
+        rank: i + 1,
+        task: n.task ?? '',
+        done: n.state === 'finished',
+        failed: n.state === 'failed',
+        seconds: n.finishedAt === undefined ? null : n.finishedAt - n.startedAt,
+        did: tools.map((t) => TOOL_WORDS[t] ?? t),
+      }
+    }),
+)
 
-const done = computed(() => shown.value >= events.value.length && events.value.length > 0)
+interface Ticket {
+  title: string
+  body: string
+}
+const tickets = computed<Ticket[]>(() =>
+  (model.value.gate?.actions ?? []).flatMap((action) => {
+    try {
+      const args = JSON.parse(action.preview) as { title?: string; body?: string }
+      return args.title ? [{ title: args.title, body: args.body ?? '' }] : []
+    } catch {
+      return []
+    }
+  }),
+)
+const asked = computed(() => model.value.status === 'waiting' && tickets.value.length > 0)
 const step = computed(() => {
-  if (decision.value) return 3
-  if (model.value.status === 'waiting') return 3
-  if (shown.value > 0) return 2
+  if (asked.value || decision.value) return 4
+  if (agents.value.length) return 3
+  if (plan.value.length) return 2
   return 1
 })
 
@@ -74,18 +98,21 @@ function play() {
   timers = []
   shown.value = 0
   decision.value = null
+  chosen.value = 0
   const list = events.value
   const total = list.at(-1)?.at ?? 0
   const scale = total > PLAY_SECONDS ? PLAY_SECONDS / total : 1
   const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   list.forEach((event, index) => {
-    const delay = still ? 0 : Math.round(event.at * scale * 1000) + 600
+    const delay = still ? 0 : Math.round(event.at * scale * 1000) + 1200
     timers.push(setTimeout(() => (shown.value = Math.max(shown.value, index + 1)), delay))
   })
 }
 
-function decide(input: GateDecisionInput) {
-  decision.value = input
+async function decide(value: 'open' | 'no') {
+  decision.value = value
+  await nextTick()
+  document.querySelector('[data-visit-outcome]')?.scrollIntoView({ block: 'nearest' })
 }
 
 onMounted(async () => {
@@ -101,15 +128,8 @@ onMounted(async () => {
 onBeforeUnmount(() => timers.forEach(clearTimeout))
 
 const recorded = computed(() => (run.value ? runDate(run.value.created_at) : ''))
-const answer = computed(() => (done.value ? (run.value?.history[0]?.answer ?? '') : ''))
-const sandboxText = computed(() => {
-  if (!decision.value) return ''
-  return decision.value.decision === 'reject'
-    ? 'Dans l’atelier, le run s’arrêterait ici, et le motif resterait dans sa trace.'
-    : 'Dans l’atelier, l’issue serait créée sur GitHub à cet instant, avec exactement ces arguments.'
-})
-
-const STEPS = ['Une tâche', 'Les agents travaillent', 'Votre accord']
+const seconds = (value: number) =>
+  `${value.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} s`
 </script>
 
 <template>
@@ -125,79 +145,186 @@ const STEPS = ['Une tâche', 'Les agents travaillent', 'Votre accord']
         </svg>
         Usine
       </a>
-      <p class="recorded" data-visit-recorded>
-        Visite : un vrai run, enregistré {{ recorded ? `le ${recorded}` : '' }}. Rien ne part d’ici.
-      </p>
       <nav class="links" aria-label="Aller plus loin">
         <a :href="REPO">Le code</a>
         <a :href="SIGN_IN_URL">Se connecter</a>
       </nav>
     </header>
 
-    <section class="intro" aria-labelledby="visit-title">
-      <h1 id="visit-title">
-        Une équipe d’agents fait la tâche avec de vrais outils, et rien ne part sans votre accord.
-      </h1>
-      <ol class="steps" data-visit-steps>
-        <li
-          v-for="(label, i) in STEPS"
-          :key="label"
-          :aria-current="step === i + 1 ? 'step' : undefined"
-        >
-          <span class="num">{{ i + 1 }}</span>{{ label }}
+    <main class="page">
+      <section class="intro" aria-labelledby="visit-title">
+        <p class="kicker">Visite guidée, une minute</p>
+        <h1 id="visit-title">
+          Un assistant qui enquête sur votre projet, et vous demande avant d’agir.
+        </h1>
+        <p class="lede">
+          Voici un vrai cas, enregistré le {{ recorded || '16 novembre 2026' }}. Le site de ce
+          projet ne se mettait plus à jour. On a posé la question à l’assistant. Regardez ce qu’il
+          fait.
+        </p>
+      </section>
+
+      <p v-if="failure" class="alert" role="alert">{{ failure }}</p>
+
+      <ol v-else class="story" data-visit-story>
+        <!-- 1. The question -->
+        <li class="beat" :class="{ now: step === 1 }" data-beat="question">
+          <p class="num" aria-hidden="true">1</p>
+          <div>
+            <h2>La question</h2>
+            <p class="bubble you">
+              Pourquoi mon site ne se met plus à jour ? Propose un ticket pour le suivre.
+            </p>
+            <p class="why">
+              On lui parle comme à un collègue. La demande exacte est en bas de page.
+            </p>
+          </div>
+        </li>
+
+        <!-- 2. The work split -->
+        <li v-if="plan.length" class="beat" :class="{ now: step === 2 }" data-beat="plan">
+          <p class="num" aria-hidden="true">2</p>
+          <div>
+            <h2>
+              Il répartit le travail entre {{ plan.length }} agent{{ plan.length > 1 ? 's' : '' }}
+            </h2>
+            <ul class="plain">
+              <li v-for="(task, i) in plan" :key="i">
+                <span class="tag">Agent {{ i + 1 }}</span
+                >{{ task }}
+              </li>
+            </ul>
+            <p class="why">Un agent chef découpe la tâche, les autres travaillent en même temps.</p>
+          </div>
+        </li>
+
+        <!-- 3. The agents at work, with real tools -->
+        <li v-if="agents.length" class="beat" :class="{ now: step === 3 }" data-beat="work">
+          <p class="num" aria-hidden="true">3</p>
+          <div>
+            <h2>Les agents vont chercher les faits</h2>
+            <ul class="plain">
+              <li v-for="a in agents" :key="a.id" :data-agent-done="a.done || undefined">
+                <span class="tag">Agent {{ a.rank }}</span>
+                <template v-if="a.done">
+                  {{ a.did.length ? a.did.join(', puis ') : 'a terminé' }}
+                  <span class="time">en {{ seconds(a.seconds ?? 0) }}</span>
+                </template>
+                <template v-else-if="a.failed">n’a pas abouti</template>
+                <template v-else><span class="working">travaille…</span></template>
+              </li>
+            </ul>
+            <p class="why">
+              Ils ne devinent pas : ils lisent le vrai projet, ici sur GitHub, en lecture seule.
+            </p>
+          </div>
+        </li>
+
+        <!-- 4. The finding and the request for consent -->
+        <li v-if="asked || decision" class="beat" :class="{ now: step === 4 }" data-beat="consent">
+          <p class="num ink" aria-hidden="true">4</p>
+          <div>
+            <h2>Il a trouvé, et il vous demande avant d’agir</h2>
+            <p class="bubble bot">
+              {{
+                tickets.length > 1
+                  ? `Chaque agent a rédigé un ticket. Voici les ${tickets.length} propositions : laquelle j’ouvre sur GitHub ?`
+                  : 'Voici le ticket que je propose d’ouvrir sur GitHub. Je l’ouvre ?'
+              }}
+            </p>
+            <div
+              v-if="tickets.length > 1"
+              class="choices"
+              role="radiogroup"
+              aria-label="Ticket à ouvrir"
+            >
+              <button
+                v-for="(t, i) in tickets"
+                :key="i"
+                type="button"
+                role="radio"
+                class="choice"
+                :aria-checked="chosen === i"
+                :disabled="decision !== null"
+                @click="chosen = i"
+              >
+                {{ t.title }}
+              </button>
+            </div>
+            <article class="ticket" data-visit-ticket>
+              <p class="ticket-kind">Ticket proposé</p>
+              <h3>{{ tickets[chosen]?.title }}</h3>
+              <div class="ticket-body">
+                <!-- Comark parses asynchronously: Suspense waits for it. -->
+                <Suspense
+                  ><AnswerMarkdown :key="chosen" :value="tickets[chosen]?.body ?? ''"
+                /></Suspense>
+              </div>
+            </article>
+            <div v-if="!decision" class="acts">
+              <button type="button" class="btn btn-ink" data-visit-open @click="decide('open')">
+                Ouvrir ce ticket
+              </button>
+              <button type="button" class="btn btn-line" data-visit-no @click="decide('no')">
+                Non merci
+              </button>
+            </div>
+            <p v-else class="outcome" role="status" data-visit-outcome>
+              <b>Visite : rien n’est parti.</b>
+              {{
+                decision === 'open'
+                  ? 'En vrai, le ticket serait créé sur GitHub à cet instant, exactement comme ci-dessus.'
+                  : 'En vrai, rien ne serait envoyé, et votre refus resterait noté avec le run.'
+              }}
+              <button type="button" class="link" @click="play">Revoir depuis le début</button>
+            </p>
+            <p class="why">
+              C’est le principe de l’outil : l’assistant prépare, une personne décide. Rien
+              d’irréversible ne part sans accord.
+            </p>
+          </div>
         </li>
       </ol>
-      <p v-if="run" class="brief" data-visit-brief>
-        <span class="label">La tâche</span>{{ run.history[0]?.brief }}
-      </p>
-    </section>
 
-    <p v-if="failure" class="alert" role="alert">{{ failure }}</p>
-
-    <main v-else class="grid">
-      <div class="canvas" data-canvas>
-        <RunScene v-if="model.events > 0" :model="model" />
-        <div class="replay">
-          <button type="button" class="btn btn-line" data-visit-replay @click="play">
-            <UIcon name="i-lucide-rotate-ccw" class="size-4" aria-hidden="true" />Revoir depuis le
-            début
-          </button>
+      <section v-if="run" class="more" aria-labelledby="more-title">
+        <h2 id="more-title">Pour les curieux</h2>
+        <p>
+          Sous le capot : Vue 3 et Nuxt UI pour l’interface, LangGraph pour orchestrer les agents,
+          le serveur MCP officiel de GitHub pour les outils, et une validation humaine avant toute
+          action. Le code est ouvert.
+        </p>
+        <p class="brief"><span>La demande exacte :</span> {{ run.history[0]?.brief }}</p>
+        <button
+          type="button"
+          class="btn btn-line"
+          :aria-expanded="technical"
+          data-visit-technical
+          @click="technical = !technical"
+        >
+          {{ technical ? 'Masquer' : 'Voir' }} comment les agents se sont organisés
+        </button>
+        <div v-if="technical && model.events > 0" class="canvas">
+          <RunScene :model="model" />
         </div>
-      </div>
-      <InspectorPanel v-if="model.events > 0" :model="model" @decide="decide">
-        <div class="talk">
-          <p v-if="!answer" class="quiet">
-            Les agents lisent le dépôt GitHub du projet. Leur réponse s’affiche ici quand ils ont
-            fini.
-          </p>
-          <AnswerMarkdown v-else :value="answer" />
-        </div>
-      </InspectorPanel>
+      </section>
     </main>
-
-    <p v-if="sandboxText" class="sandbox" role="status" data-visit-sandbox>
-      <b>Visite : rien n’est parti.</b> {{ sandboxText }}
-      <a :href="SIGN_IN_URL">Se connecter</a> pour le faire en vrai, ou
-      <button type="button" class="link" @click="play">revoir le run</button>.
-    </p>
   </div>
 </template>
 
 <style scoped>
 .visit {
-  display: flex;
-  flex-direction: column;
   min-height: 100dvh;
-  background: var(--color-surface);
+  background: var(--color-paper-2);
 }
 .bar {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-sm) var(--space-md);
+  justify-content: space-between;
+  gap: var(--space-md);
   min-height: 64px;
-  padding: var(--space-sm) var(--space-20);
+  padding: var(--space-xs) var(--space-20);
   border-bottom: 1px solid var(--color-rule);
+  background: var(--color-surface);
 }
 .brand {
   display: inline-flex;
@@ -228,12 +355,6 @@ const STEPS = ['Une tâche', 'Les agents travaillent', 'Votre accord']
 .f-ink {
   fill: var(--color-ink);
 }
-.recorded {
-  flex: 1;
-  min-width: 14rem;
-  color: var(--color-muted);
-  font-size: var(--text-sm);
-}
 .links {
   display: flex;
   gap: var(--space-md);
@@ -245,118 +366,218 @@ const STEPS = ['Une tâche', 'Les agents travaillent', 'Votre accord']
   color: var(--color-ink);
   font-size: var(--text-sm);
 }
-.intro {
+.page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
-  padding: var(--space-lg) var(--space-20) var(--space-md);
-  border-bottom: 1px solid var(--color-rule);
+  gap: var(--space-xl);
+  width: min(100% - 2 * var(--space-20), 46rem);
+  margin: 0 auto;
+  padding: var(--space-xl) 0 var(--space-3xl);
+}
+.kicker {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
 }
 .intro h1 {
-  max-width: 46rem;
-  font: 600 var(--text-xl) / 1.25 var(--font-sans);
+  margin-top: var(--space-xs);
+  font: 600 var(--text-2xl) / 1.15 var(--font-sans);
   text-wrap: balance;
 }
-.steps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-xs) var(--space-lg);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  color: var(--color-muted);
-  font-size: var(--text-sm);
+.lede {
+  margin-top: var(--space-sm);
+  color: var(--color-ink-2);
+  font-size: var(--text-md);
+  line-height: 1.5;
 }
-.steps li {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
-}
-.steps li[aria-current='step'] {
-  color: var(--color-ink);
-  font-weight: 600;
-}
-.num {
-  display: inline-grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: var(--color-paper-3);
-  font-size: var(--text-xs);
-  font-variant-numeric: tabular-nums;
-}
-.steps li[aria-current='step'] .num {
-  background: var(--color-ink);
-  color: var(--color-on-ink);
-}
-.brief {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-xs);
-  max-width: 60rem;
-  font-size: var(--text-sm);
-}
-.label {
-  color: var(--color-muted);
-}
-.grid {
-  display: grid;
-  flex: 1;
-  grid-template-columns: minmax(0, 1fr) 436px;
-  min-height: 0;
-}
-.canvas {
+.story {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
-  min-width: 0;
-  overflow: auto;
-  padding: var(--space-lg) var(--space-20);
-  background-color: var(--color-paper-2);
-  background-image: radial-gradient(var(--color-rule-2) 1px, transparent 1.2px);
-  background-size: 20px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
-.replay {
+.beat {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: var(--space-md);
+  padding: var(--space-20);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-1);
+  animation: arrive var(--dur-long) var(--ease-out);
+}
+.beat.now {
+  box-shadow:
+    var(--shadow-2),
+    0 0 0 1.5px var(--color-ink);
+}
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .beat {
+    animation: none;
+  }
+}
+.num {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-paper-3);
+  font: 600 var(--text-sm) / 1 var(--font-sans);
+}
+.num.ink {
+  background: var(--color-ink);
+  color: var(--color-on-ink);
+}
+.beat h2 {
+  font: 600 var(--text-lg) / 1.3 var(--font-sans);
+}
+.bubble {
+  margin-top: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-in);
+  font-size: var(--text-md);
+  line-height: 1.45;
+}
+.bubble.you {
+  background: var(--color-paper-3);
+}
+.bubble.bot {
+  background: var(--color-paper-2);
+  box-shadow: inset 0 0 0 1px var(--color-rule);
+}
+.plain {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: var(--space-sm) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  line-height: 1.45;
 }
-.talk {
+.tag {
+  display: inline-block;
+  margin-right: var(--space-xs);
+  padding: 0 var(--space-xs);
+  border-radius: var(--radius-pill);
+  background: var(--color-paper-3);
+  font-weight: 600;
+}
+.time {
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+.working {
+  color: var(--color-muted);
+}
+.why {
+  margin-top: var(--space-sm);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-top: var(--space-sm);
+}
+.choice {
+  min-height: 44px;
+  padding: var(--space-xs) var(--space-md);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-in);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: 500 var(--text-sm) / 1.35 var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+}
+.choice[aria-checked='true'] {
+  border-color: var(--color-ink);
+  box-shadow: inset 0 0 0 1px var(--color-ink);
+}
+.ticket {
+  margin-top: var(--space-sm);
+  padding: var(--space-md);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-in);
+  background: var(--color-surface);
+}
+.ticket-kind {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+}
+.ticket h3 {
+  margin-top: var(--space-2xs);
+  font: 600 var(--text-md) / 1.35 var(--font-sans);
+}
+.ticket-body {
+  max-height: 16rem;
+  margin-top: var(--space-xs);
+  overflow-y: auto;
+  font-size: var(--text-sm);
+}
+/* The ticket's own Markdown headings stay small: it is a quoted document. */
+.ticket-body :deep(h1),
+.ticket-body :deep(h2),
+.ticket-body :deep(h3) {
+  margin: var(--space-sm) 0 var(--space-2xs);
+  font: 600 var(--text-sm) / 1.4 var(--font-sans);
+}
+.acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-top: var(--space-md);
+}
+.outcome {
+  margin-top: var(--space-md);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.link {
+  margin-left: var(--space-2xs);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-ink);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.more {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
   font-size: var(--text-sm);
+  line-height: 1.5;
 }
-.quiet {
+.more h2 {
+  font: 600 var(--text-md) / 1.3 var(--font-sans);
+}
+.brief span {
   color: var(--color-muted);
 }
-.sandbox {
-  position: sticky;
-  bottom: 0;
-  padding: var(--space-md) var(--space-20);
-  border-top: 1px solid var(--color-rule);
-  background: var(--color-surface);
-  font-size: var(--text-sm);
+.more .btn {
+  align-self: flex-start;
 }
-.sandbox a,
-.link {
-  color: var(--color-ink);
-  text-decoration: underline;
-}
-.link {
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  cursor: pointer;
+.canvas {
+  overflow-x: auto;
+  padding: var(--space-md);
+  border-radius: var(--radius-card);
+  background-color: var(--color-paper);
+  background-image: radial-gradient(var(--color-rule-2) 1px, transparent 1.2px);
+  background-size: 20px 20px;
 }
 .alert {
-  padding: var(--space-lg) var(--space-20);
   color: var(--color-error);
-}
-@media (max-width: 64rem) {
-  .grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 </style>
