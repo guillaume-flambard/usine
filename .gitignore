@@ -61,3 +61,9 @@ services/api/.pytest_cache/
 services/api/.ruff_cache/
 .claude/launch.json
 .venv/
+
+# Skills tierces installées par `npx skills experimental_install` (skills-lock.json) : non versionnées.
+.claude/skills/vue-best-practices/
+.claude/skills/vue-debug-guides/
+.claude/skills/vue-testing-best-practices/
+.claude/skills/langchain-build-agent/
