@@ -20,7 +20,7 @@ data: {"type": "data-run-event", "data": {"kind": "gate-opened", "at": 2.25, "no
 
 data: {"type": "text-start", "id": "id-2"}
 
-data: {"type": "text-delta", "id": "id-2", "delta": "fait : publier"}
+data: {"type": "text-delta", "id": "id-2", "delta": "**En bref** : 1 action attend votre accord : rien ne part avant.\n\nfait : publier"}
 
 data: {"type": "text-end", "id": "id-2"}
 

@@ -11,6 +11,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import type { GateView } from '../run/readModel'
 import { ACTION_KINDS, gateQuestion, toolOf } from '../run/gate'
+import AnswerMarkdown from './AnswerMarkdown'
 
 export interface GateDecisionInput {
   decision: 'approve' | 'reject' | 'edit'
@@ -48,6 +49,18 @@ const decided = computed(() => Boolean(props.gate.decision) || sent.value !== nu
 const decision = computed(() => props.gate.decision ?? sent.value?.decision)
 const canReject = computed(() => reason.value.trim().length > 0)
 const question = computed(() => gateQuestion(props.gate))
+
+/** A ticket-like proposal (title and body) read as a ticket, not as JSON. */
+function readable(preview: string): { title: string; body: string } | null {
+  try {
+    const args = JSON.parse(preview) as { title?: unknown; body?: unknown }
+    return typeof args.title === 'string'
+      ? { title: args.title, body: typeof args.body === 'string' ? args.body : '' }
+      : null
+  } catch {
+    return null
+  }
+}
 
 const DONE: Record<string, string> = {
   approve: 'Approuvé. L’action part telle quelle.',
@@ -156,6 +169,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           data-gate-preview-input
         />
       </label>
+      <template v-else-if="readable(action.preview)">
+        <!-- Read as a ticket: the JSON with escaped line breaks was unreadable
+             (review, 16 November 2026). The exact arguments stay one click away. -->
+        <article class="ticket" data-gate-ticket>
+          <h4>{{ readable(action.preview)?.title }}</h4>
+          <div class="ticket-body">
+            <Suspense><AnswerMarkdown :value="readable(action.preview)?.body ?? ''" /></Suspense>
+          </div>
+        </article>
+        <details class="exact">
+          <summary>Arguments exacts envoyés</summary>
+          <pre class="json" data-gate-preview>{{ action.preview }}</pre>
+        </details>
+      </template>
       <pre v-else class="json" data-gate-preview>{{ action.preview }}</pre>
     </section>
 
@@ -382,6 +409,39 @@ textarea.json:focus-visible,
 .help {
   color: var(--color-muted);
   font-size: var(--text-xs);
+}
+.ticket {
+  margin-top: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-in);
+  background: var(--color-surface);
+}
+.ticket h4 {
+  font: 600 var(--text-sm) / 1.35 var(--font-sans);
+}
+.ticket-body {
+  max-height: 14rem;
+  margin-top: var(--space-2xs);
+  overflow-y: auto;
+  font-size: var(--text-sm);
+}
+.ticket-body :deep(h1),
+.ticket-body :deep(h2),
+.ticket-body :deep(h3) {
+  margin: var(--space-xs) 0 var(--space-2xs);
+  font: 600 var(--text-sm) / 1.4 var(--font-sans);
+}
+.exact {
+  margin-top: var(--space-xs);
+  font-size: var(--text-xs);
+}
+.exact summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: var(--color-muted);
+  cursor: pointer;
 }
 .gate {
   padding: var(--space-20);

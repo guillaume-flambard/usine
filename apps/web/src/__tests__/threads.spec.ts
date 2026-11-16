@@ -42,6 +42,8 @@ describe('avatar initials', () => {
   it('takes the first letters of the local part', () => {
     expect(initialsOf('guillaume.flambard@example.org')).toBe('GF')
     expect(initialsOf('contact@memolabs.dev')).toBe('C')
+    // No letter, no initials: an address of digits drew « 6 » (16 November 2026).
+    expect(initialsOf('6789@example.org')).toBe('')
     expect(initialsOf(undefined)).toBe('')
   })
 })

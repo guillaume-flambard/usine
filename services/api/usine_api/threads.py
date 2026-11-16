@@ -98,6 +98,16 @@ class ThreadIndex(Protocol):
         """Append a finished turn and set the status."""
         ...
 
+    def abandon_running(self) -> int:
+        """Mark every run still "running" as failed; return how many.
+
+        Called at startup: a run's stream lives in the process, so after a
+        restart nothing will ever finish it. Without this it stays "en cours"
+        forever (16 November 2026). A run waiting at the gate is not touched:
+        its checkpoint resumes it.
+        """
+        ...
+
     def fork(
         self,
         thread_id: str,
@@ -184,6 +194,13 @@ class InMemoryThreadIndex:
             if row is not None:
                 row.turns.append(turn)
                 row.status = status
+
+    def abandon_running(self) -> int:
+        with self._lock:
+            running = [row for row in self._rows.values() if row.status == "running"]
+            for row in running:
+                row.status = "error"
+            return len(running)
 
     def _summary(self, thread_id: str, row: _Row) -> RunSummary:
         return RunSummary(
@@ -311,6 +328,12 @@ class PostgresThreadIndex:
                 "UPDATE threads SET turns = turns || %s::jsonb, status = %s WHERE thread_id = %s",
                 (Jsonb([turn.model_dump()]), status, thread_id),
             )
+
+    def abandon_running(self) -> int:
+        with self._pool.connection() as conn:
+            return conn.execute(
+                "UPDATE threads SET status = 'error' WHERE status = 'running'"
+            ).rowcount
 
     def page(
         self, owner: str | None, cursor: str | None, limit: int

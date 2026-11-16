@@ -6,7 +6,12 @@ from pathlib import Path
 
 from langgraph.checkpoint.memory import InMemorySaver
 
-from usine_api.contracts import SpecialistIdentity, SpecialistInput, SpecialistOutput
+from usine_api.contracts import (
+    ProposedAction,
+    SpecialistIdentity,
+    SpecialistInput,
+    SpecialistOutput,
+)
 from usine_api.graph import build_graph
 from usine_api.graph.prompts import DEFAULTS, SPECIALIST_TASK, SUPERVISOR_PLAN, default_prompt
 from usine_api.specialists.node import subtask_of
@@ -53,7 +58,12 @@ async def test_three_subtasks_fan_out_to_three_specialists():
     result = await build_graph(planner, specialist).ainvoke({"brief": "trois choses"})
     assert sorted(specialist.tasks) == ["a", "b", "c"]
     assert len(result["results"]) == 3
-    assert sorted(result["answer"].split("\n\n")) == ["fait : a", "fait : b", "fait : c"]
+    lead, *agents = result["answer"].split("\n\n**Agent ")
+    # The answer opens with what happens next, then each agent under its heading.
+    assert lead == (
+        "**En bref** : 3 agents ont terminé. Aucune action proposée : rien ne sera écrit."
+    )
+    assert sorted(a.split("**\n\n")[1] for a in agents) == ["fait : a", "fait : b", "fait : c"]
 
 
 async def test_each_specialist_also_reads_the_brief():
@@ -114,3 +124,33 @@ async def test_versioned_diagram_matches_the_graph():
     # Regenerate: uv run python -m usine_api.graph.diagram
     drawn = build_graph(FakePlanner([]), FakeSpecialist()).get_graph().draw_mermaid()
     assert GRAPH_DIAGRAM.read_text(encoding="utf-8") == drawn
+
+
+class ProposingSpecialist:
+    """Every agent proposes the same issue, as three agents did in production."""
+
+    identity = SpecialistIdentity(name="fake", framework="test", framework_version="0")
+
+    async def run(self, task: SpecialistInput) -> SpecialistOutput:
+        action = ProposedAction(
+            kind="external_write",
+            target="github/issue_write",
+            justification="github/issue_write sur o/r",
+            preview=f'{{"title": "{subtask_of(task.task)}"}}',
+        )
+        return SpecialistOutput(
+            answer="fait", identity=self.identity, tokens=1, tool_calls=1, actions=(action,)
+        )
+
+
+async def test_one_proposal_per_action_reaches_the_person():
+    # 16 November 2026: three agents proposed three near-identical issues, and
+    # approving the gate would have opened all three.
+    graph = build_graph(
+        FakePlanner(["a", "b", "c"]), ProposingSpecialist(), checkpointer=InMemorySaver()
+    )
+    config = {"configurable": {"thread_id": "dedupe"}}
+    await graph.ainvoke({"brief": "trois agents"}, config)
+    state = await graph.aget_state(config)
+    assert len(state.values["proposed"]) == 1
+    assert "3 propositions pour 1 action" in state.values["answer"]
