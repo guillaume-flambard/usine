@@ -60,8 +60,10 @@ const DECISION_TEXT: Record<string, string> = {
  */
 function decisionOf(turn: RunTurn): string | undefined {
   if (turn.events[0]?.kind !== 'run-started' || turn.events[0]?.data?.resumed !== true) return
+  // A fork resumes too, with no decision in it: only a gate-decided event makes
+  // the turn a decision (a reopened branch read « Décision prise. », review).
   const decided = turn.events.find((event) => event.kind === 'gate-decided')
-  return String(decided?.data?.decision ?? 'decided')
+  return decided ? String(decided.data?.decision ?? 'decided') : undefined
 }
 
 /**

@@ -12,7 +12,7 @@
  * `data-run-event` parts and feed the scene (MEM-17): the latest run's events,
  * replayed into the read model.
  */
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useChat } from '@ai-sdk/vue'
 import type { ChatTransport, UIMessage } from 'ai'
 import { chatTransport } from '../chat/transport'
@@ -139,8 +139,20 @@ const DECISION_TEXT: Record<GateDecisionInput['decision'], string> = {
   edit: 'Décision : approuver la version modifiée.',
 }
 
+// The last decision sent, so a retry goes back to the gate. A plain regenerate
+// lost the gate body and sent « Décision : approuver. » to /api/chat as a new
+// brief, which started a bogus run (review, 16 November 2026).
+const lastDecision = ref<GateDecisionInput | null>(null)
+const lastIsDecision = () => {
+  const last = messages.value.at(-1)
+  return last !== undefined && isDecision(last)
+}
+
 function decide(decision: GateDecisionInput) {
   stopped.value = false
+  // A decision the service refused stays on screen once, not twice.
+  if (status.value === 'error' && lastIsDecision()) messages.value = messages.value.slice(0, -1)
+  lastDecision.value = decision
   const text =
     decision.decision === 'reject'
       ? `${DECISION_TEXT.reject} Motif : ${decision.reason}`
@@ -169,8 +181,10 @@ const STATUS_LABELS: Record<string, string> = {
 
 /** The pill says where the run is, in words: the gate outranks "ready". */
 const statusText = computed(() => {
-  if (state.value === 'ready' && run.value.status === 'waiting') {
-    return 'À la porte, en attente de décision'
+  // A refused decision is not a failed run: the run still waits at the gate
+  // (review, 16 November 2026: the pill said « Le run a échoué »).
+  if ((state.value === 'ready' || state.value === 'error') && run.value.status === 'waiting') {
+    return 'En attente de votre accord'
   }
   if (state.value === 'ready' && run.value.status === 'finished') return 'Run terminé'
   if (state.value === 'ready' && run.value.status === 'failed') return 'Run en erreur'
@@ -202,6 +216,26 @@ watch(state, async (now, before) => {
   }
 })
 
+// When the run stops at the gate, the knot comes into view: at 1440 x 900 it
+// sat under the dock, below the fold, at the very moment it matters (review,
+// 16 November 2026). Its scroll margin keeps it clear of the dock. A reopened
+// run already waiting at the gate counts too, once the scene is mounted.
+async function showKnot() {
+  if (run.value.status !== 'waiting') return
+  await nextTick()
+  // The scene lays itself out (dagre, fonts) after it mounts: a scroll asked any
+  // earlier lands on a canvas that does not overflow yet. A timer, not a frame:
+  // frames stop in a hidden tab.
+  await new Promise((done) => setTimeout(done, 60))
+  const knot = document.querySelector<HTMLElement>('[data-canvas] [data-node="human_gate"]')
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  knot?.scrollIntoView({ block: 'nearest', behavior: still ? 'auto' : 'smooth' })
+}
+watch(() => run.value.status, showKnot)
+// An error line under the canvas shortens it: keep the knot in view.
+watch(() => error.value, showKnot)
+onMounted(showKnot)
+
 const firstBrief = computed(() => {
   const m = messages.value.find((x) => x.role === 'user' && !isDecision(x))
   const part = m?.parts.find((p) => p.type === 'text') as { text: string } | undefined
@@ -229,6 +263,10 @@ function onStop() {
 
 function onReload() {
   stopped.value = false
+  if (lastIsDecision() && lastDecision.value) {
+    void regenerate({ body: { gate: lastDecision.value } })
+    return
+  }
   regenerate()
 }
 
@@ -347,11 +385,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               data-fork-open
               @click="forkOpen = true"
             >
-              <UIcon name="i-lucide-git-fork" class="size-4" aria-hidden="true" />Forker<span
-                class="kbd"
-                aria-hidden="true"
-                >⌘K</span
-              >
+              <UIcon name="i-lucide-git-fork" class="size-4" aria-hidden="true" />Refaire avec un
+              autre agent<span class="kbd" aria-hidden="true">⌘K</span>
             </button>
             <button
               v-if="comparable"

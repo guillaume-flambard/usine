@@ -6,6 +6,8 @@ import DivergentScene from './components/DivergentScene.vue'
 import LandingPage from './components/LandingPage.vue'
 import { fetchRun, toMessages, type RunDetail } from './chat/runs'
 import { visit, type Door } from './chat/session'
+// Nuxt UI's own labels (a modal's « Close », for one) in French, like the page.
+import { fr } from '@nuxt/ui/locale'
 
 // The atelier is closed without a Pocket ID session (MEM-60): the page asks
 // before showing anything that would answer 401. A signed-out visitor gets
@@ -74,7 +76,7 @@ function onForked(originalThreadId: string, branchThreadId: string) {
 </script>
 
 <template>
-  <UApp>
+  <UApp :locale="fr">
     <!-- Signed out: the public page. Signed in: the atelier, its sidebar,
          canvas, inspector and dock (ChatPanel), or the comparison. -->
     <div class="shell" data-shell :data-door="door">

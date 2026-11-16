@@ -18,7 +18,16 @@ describe('checkpoints', () => {
   it('names where a checkpoint sits and what it would run', () => {
     expect(
       checkpointLabel({ checkpoint_id: 'c1', step: 1, source: 'loop', next: ['specialist'] }),
-    ).toBe('Étape 2, avant : Spécialiste')
+    ).toBe('Étape 2, avant : Agent')
+    // Parallel specialists are counted, not listed three times.
+    expect(
+      checkpointLabel({
+        checkpoint_id: 'c3',
+        step: 1,
+        source: 'loop',
+        next: ['specialist', 'specialist', 'specialist'],
+      }),
+    ).toBe('Étape 2, avant : les 3 agents')
     expect(checkpointLabel({ checkpoint_id: 'c2', step: 3, source: 'loop', next: [] })).toBe(
       'Étape 4, fin du run',
     )
@@ -33,6 +42,15 @@ describe('checkpoints', () => {
       isForkable({ checkpoint_id: 'c1', step: 0, source: 'input', next: ['supervisor'] }),
     ).toBe(true)
     expect(isForkable({ checkpoint_id: 'c2', step: 3, source: 'loop', next: [] })).toBe(false)
+    // A branch's seed that fans out is refused by the service: never offered.
+    expect(
+      isForkable({
+        checkpoint_id: 'c4',
+        step: 0,
+        source: 'update',
+        next: ['specialist', 'specialist'],
+      }),
+    ).toBe(false)
   })
 })
 

@@ -55,6 +55,25 @@ describe('toMessages', () => {
     expect(decision?.parts).toEqual([{ type: 'text', text: 'Décision : rejeter.' }])
   })
 
+  it('keeps a reopened branch as a brief: a fork resumes without a decision', () => {
+    const branch = {
+      ...RUN,
+      history: [
+        {
+          brief: BRIEF,
+          answer: 'ok',
+          events: [
+            ev('run-started', 0, null, { resumed: true }),
+            ev('run-finished', 0.2, null, { outcome: 'ok' }),
+          ],
+        },
+      ],
+    }
+    const [user] = toMessages(branch)
+    expect(user?.metadata).toBeUndefined()
+    expect(user?.parts).toEqual([{ type: 'text', text: BRIEF }])
+  })
+
   it('keeps a plain second brief as a brief', () => {
     const second = { ...RUN.history[1]!, events: [ev('run-started', 0, null)], brief: 'et ensuite' }
     const [, , user] = toMessages({ ...RUN, history: [RUN.history[0]!, second] })

@@ -178,7 +178,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <circle class="f-ink" cx="12" cy="16.4" r="4.6" />
           <path class="s-ink" d="M12 21v1.8" />
         </svg>
-        Porte humaine
+        Votre accord
       </h3>
       <p :id="`${uid}-q`" class="q">{{ question }}</p>
       <p class="why">

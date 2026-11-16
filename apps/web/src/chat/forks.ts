@@ -101,9 +101,20 @@ export function checkpointLabel(checkpoint: Checkpoint): string {
   if (checkpoint.source === 'input' || checkpoint.step === -1) return 'Point d’entrée'
   const where = `Étape ${checkpoint.step === null ? '?' : checkpoint.step + 1}`
   if (checkpoint.next.length === 0) return `${where}, fin du run`
-  return `${where}, avant : ${checkpoint.next.map(nodeName).join(', ')}`
+  // Three parallel specialists read « Spécialiste, Spécialiste, Spécialiste »:
+  // count repeated names instead (review, 16 November 2026).
+  const counts = new Map<string, number>()
+  for (const name of checkpoint.next) counts.set(name, (counts.get(name) ?? 0) + 1)
+  const parts = [...counts].map(([name, n]) =>
+    n > 1 ? `les ${n} ${nodeName(name).toLocaleLowerCase('fr')}s` : nodeName(name),
+  )
+  return `${where}, avant : ${parts.join(', ')}`
 }
 
 export function isForkable(checkpoint: Checkpoint): boolean {
+  // A branch's seed (source `update`) that fans out to several nodes cannot be
+  // forked again: the service refuses it, so it is never offered, and never
+  // the default (review, 16 November 2026).
+  if (checkpoint.source === 'update' && checkpoint.next.length > 1) return false
   return checkpoint.next.length > 0
 }

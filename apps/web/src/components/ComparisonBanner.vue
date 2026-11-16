@@ -35,10 +35,10 @@ const RUN_LABELS: Record<RunReadModel['status'], string> = {
 }
 
 const DIVERGENCE_LABELS = {
-  none: 'Les deux branches sont identiques.',
+  none: 'Les deux versions donnent le même résultat.',
   node: (name: string) => `Premier point de divergence : ${nodeName(name)}.`,
   state: (name: string, state: string) =>
-    `Premier point de divergence : ${nodeName(name)}, ${STATE_LABELS[state] ?? state} sur la branche.`,
+    `Premier point de divergence : ${nodeName(name)}, ${STATE_LABELS[state] ?? state} sur la nouvelle version.`,
 }
 
 const divergence = computed(() => firstDivergence(props.left, props.right))
@@ -50,16 +50,49 @@ const divergenceText = computed(() => {
   return DIVERGENCE_LABELS.node(d.name)
 })
 
+// What the branch changed, said in words: where it resumes and with whom. A
+// banner reading only « identiques » left the fork unexplained (review, 16 Nov).
+function who(model: RunReadModel): string {
+  const names = new Set(
+    model.nodes
+      .flatMap((n) => (n.name === 'specialist' ? (n.specialists ?? []) : []))
+      .map((s) => s.name),
+  )
+  return [...names].join(', ')
+}
+const resumeText = computed(() => {
+  const first = props.right.nodes[0]
+  if (!first) return ''
+  // Parallel nodes of the same kind open the branch together: count them.
+  const lead = props.right.nodes.findIndex((n) => n.name !== first.name)
+  const count = lead === -1 ? props.right.nodes.length : lead
+  const where =
+    count > 1
+      ? `les ${count} ${nodeName(first.name).toLocaleLowerCase('fr')}s`
+      : nodeName(first.name)
+  const before = who(props.left)
+  const after = who(props.right)
+  const swap = !after
+    ? ''
+    : after === before
+      ? `, avec le même agent (${after})`
+      : `, avec ${after} au lieu de ${before || 'l’original'}`
+  return `La nouvelle version reprend avant ${where}${swap}.`
+})
+
 const sides = computed(() => [
   { key: 'left', title: 'Run original', model: props.left },
-  { key: 'right', title: 'Branche', model: props.right },
+  { key: 'right', title: 'Nouvelle version', model: props.right },
 ])
 </script>
 
 <template>
   <section class="banner" data-comparison-banner>
     <div class="box" data-divergence>
-      <p class="text" data-divergence-text>{{ divergenceText }}</p>
+      <div>
+        <p class="text" data-divergence-text>{{ divergenceText }}</p>
+        <p v-if="resumeText" class="resume" data-resume-text>{{ resumeText }}</p>
+      </div>
       <dl class="sides">
         <div v-for="side in sides" :key="side.key">
           <dt>{{ side.title }}</dt>
@@ -94,6 +127,11 @@ const sides = computed(() => [
 }
 .text {
   font: 400 var(--text-voice) / 1.3 var(--font-serif);
+}
+.resume {
+  margin-top: var(--space-2xs);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
 }
 .sides {
   display: flex;

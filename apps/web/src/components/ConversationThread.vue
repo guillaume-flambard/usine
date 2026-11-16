@@ -22,7 +22,8 @@ const uid = useId()
   <section aria-label="Conversation" class="conversation" data-conversation>
     <div v-if="messages.length === 0" class="empty" data-empty>
       <p class="empty-lede">
-        Décrivez une tâche. Le superviseur la découpe et confie chaque morceau à un spécialiste.
+        Donnez une tâche. Une équipe d’agents la fait avec de vrais outils, et rien ne part sans
+        votre accord.
       </p>
       <ul class="briefs" aria-label="Briefs proposés">
         <li v-for="(brief, i) in briefs" :key="brief.label" class="brief">
