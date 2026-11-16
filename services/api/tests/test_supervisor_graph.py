@@ -9,6 +9,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from usine_api.contracts import SpecialistIdentity, SpecialistInput, SpecialistOutput
 from usine_api.graph import build_graph
 from usine_api.graph.prompts import DEFAULTS, SPECIALIST_TASK, SUPERVISOR_PLAN, default_prompt
+from usine_api.specialists.node import subtask_of
 
 GRAPH_DIAGRAM = Path(__file__).resolve().parents[3] / "docs/architecture/supervisor-graph.mmd"
 
@@ -32,8 +33,7 @@ class FakeSpecialist:
 
     async def run(self, task: SpecialistInput) -> SpecialistOutput:
         self.received.append(task.task)
-        # The text ends with the sub-task; the brief, when it differs, comes first.
-        subtask = task.task.rsplit("\n", 1)[-1]
+        subtask = subtask_of(task.task)  # the brief may come first
         self.tasks.append(subtask)
         return SpecialistOutput(
             answer=f"fait : {subtask}", identity=self.identity, tokens=1, tool_calls=0

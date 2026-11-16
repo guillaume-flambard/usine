@@ -25,6 +25,7 @@ from usine_api.checkpoints import open_checkpointer
 from usine_api.contracts import SpecialistIdentity, SpecialistInput, SpecialistOutput
 from usine_api.fork import AS_INPUT, ForkRequest, fork_run
 from usine_api.graph import build_graph
+from usine_api.specialists.node import subtask_of
 from usine_api.threads import PostgresThreadIndex, RunTurn
 
 DSN = os.environ.get("USINE_TEST_DATABASE_URL", "")
@@ -52,8 +53,7 @@ class CountingSpecialist:
 
     async def run(self, task: SpecialistInput) -> SpecialistOutput:
         self.calls += 1
-        # The text ends with the sub-task; the brief, when it differs, comes first.
-        subtask = task.task.rsplit("\n", 1)[-1]
+        subtask = subtask_of(task.task)  # the brief may come first
         return SpecialistOutput(
             answer=f"fait : {subtask}", identity=IDENTITY, tokens=1, tool_calls=0
         )

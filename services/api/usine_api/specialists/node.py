@@ -80,12 +80,17 @@ def with_brief(state: Any) -> str:
     brief = str(state.get("brief") or "").strip()
     if not brief or brief == task.strip():
         return task
-    return (
-        "Brief d'origine, pour les noms exacts (dépôt, propriétaire, fichier) :\n"
-        f"{brief}\n\n"
-        "Ta sous-tâche, à laquelle tu réponds seule :\n"
-        f"{task}"
-    )
+    return f"{BRIEF_HEADING}\n{brief}\n\n{SUBTASK_HEADING}\n{task}"
+
+
+BRIEF_HEADING = "Brief d'origine, pour les noms exacts (dépôt, propriétaire, fichier) :"
+SUBTASK_HEADING = "Ta sous-tâche, à laquelle tu réponds seule :"
+
+
+def subtask_of(text: str) -> str:
+    """The sub-task alone, from a text `with_brief` may have prefixed."""
+    head, separator, subtask = text.partition(f"\n\n{SUBTASK_HEADING}\n")
+    return subtask if separator and head.startswith(BRIEF_HEADING) else text
 
 
 def as_node(
