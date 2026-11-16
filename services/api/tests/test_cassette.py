@@ -165,7 +165,7 @@ async def test_replay_refuses_a_call_the_cassette_does_not_hold() -> None:
     refusing = Refusing()
     refused = await stream_once(recorded, "replay", "un autre brief", live=refusing)
     assert refusing.calls == 0
-    assert "rejoue un run enregistré" in refused
+    assert "rejoue des réponses enregistrées" in refused
     assert 'finishReason": "error' in refused
 
 
@@ -299,7 +299,7 @@ async def test_a_keyless_service_replays_the_demo(monkeypatch: pytest.MonkeyPatc
                 "messages": [{"role": "user", "parts": [{"type": "text", "text": "autre chose"}]}],
             },
         )
-        assert "rejoue un run enregistré" in other.text
+        assert "rejoue des réponses enregistrées" in other.text
 
 
 def test_a_cassette_mode_that_does_not_exist_is_a_startup_error(

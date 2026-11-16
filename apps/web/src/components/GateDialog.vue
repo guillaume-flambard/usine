@@ -76,11 +76,7 @@ function approveEdited() {
   >
     <template #body>
       <div class="flex flex-col gap-4" data-gate-dialog :data-gate-mode="mode">
-        <section
-          v-for="(action, index) in gate.actions"
-          :key="`${action.kind}-${action.target}`"
-          class="flex flex-col gap-1"
-        >
+        <section v-for="(action, index) in gate.actions" :key="index" class="flex flex-col gap-1">
           <h3 class="font-medium">
             {{ KINDS[action.kind] ?? action.kind }} vers {{ action.target }}
           </h3>

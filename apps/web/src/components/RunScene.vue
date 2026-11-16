@@ -8,17 +8,11 @@
 import { computed } from 'vue'
 import { layoutRun, linkPath, NODE_HEIGHT, NODE_WIDTH } from '../run/layout'
 import type { NodeState, RunNode, RunReadModel } from '../run/readModel'
+import { nodeName } from '../run/names'
 
 const props = defineProps<{ model: RunReadModel }>()
 const emit = defineEmits<{ decide: [] }>()
 
-const NAMES: Record<string, string> = {
-  supervisor: 'Superviseur',
-  specialist: 'Spécialiste',
-  synthesize: 'Synthèse',
-  human_gate: 'Porte humaine',
-  act: 'Action',
-}
 const STATES: Record<NodeState, { sign: string; label: string }> = {
   running: { sign: '…', label: 'en cours' },
   waiting: { sign: '⏸', label: 'en attente' },
@@ -47,7 +41,7 @@ const frame = computed(() => ({
 }))
 
 function title(node: RunNode): string {
-  return NAMES[node.name] ?? node.name
+  return nodeName(node.name)
 }
 
 function detail(node: RunNode): string {
@@ -104,7 +98,7 @@ const description = computed(() => {
     >
       <p class="font-medium">Action proposée, en attente de votre décision :</p>
       <ul class="list-disc pl-5">
-        <li v-for="action in model.gate.actions" :key="`${action.kind}-${action.target}`">
+        <li v-for="(action, index) in model.gate.actions" :key="index">
           {{ ACTION_KINDS[action.kind] ?? action.kind }} vers {{ action.target }} :
           {{ action.justification }}
         </li>

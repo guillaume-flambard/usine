@@ -213,7 +213,11 @@ class OidcClient:
         if not isinstance(sub, str) or not 0 < len(sub) <= MAX_SUB_LENGTH:
             raise OidcRefused("malformed subject")
         if sub not in self.settings.allowed_subs:
-            raise OidcRefused("subject not allowed")
+            # The verified subject goes to the server log, never to the visitor:
+            # it is how the owner learns the `sub` to put in
+            # USINE_OIDC_ALLOWED_SUBS on a first login. It is an opaque id, not
+            # a secret, and only a signed, verified token reaches this line.
+            raise OidcRefused(f"subject not allowed: {sub}")
         return sub
 
     async def _verify(self, token: str, config: dict[str, Any]) -> dict[str, Any]:

@@ -8,7 +8,7 @@ data: {"type": "data-run-event", "data": {"kind": "node-finished", "at": 0.75, "
 
 data: {"type": "data-run-event", "data": {"kind": "node-started", "at": 1.0, "node": "specialist", "data": {"taskId": "t2", "task": "une tâche"}}}
 
-data: {"type": "data-run-event", "data": {"kind": "run-finished", "at": 1.25, "node": null, "data": {"outcome": "error"}}}
+data: {"type": "data-run-event", "data": {"kind": "run-finished", "at": 1.25, "node": null, "data": {"outcome": "error", "error": "Le modèle est saturé pour le moment (429). Réessayez dans une minute."}}}
 
 data: {"type": "error", "errorText": "Le modèle est saturé pour le moment (429). Réessayez dans une minute."}
 
