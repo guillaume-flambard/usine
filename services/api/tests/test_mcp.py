@@ -108,6 +108,60 @@ async def test_calling_a_tool_flattens_its_content_to_text() -> None:
     }
 
 
+async def test_an_embedded_text_resource_is_read() -> None:
+    # The GitHub MCP server returns a file as an embedded resource, not as text:
+    # dropping it made the agent say the README was unreadable (16 November 2026).
+    rpc = Rpc(
+        content(
+            {"type": "text", "text": "successfully downloaded text file"},
+            {
+                "type": "resource",
+                "resource": {
+                    "uri": "repo://guillaume-flambard/usine/contents/deployment/README.md",
+                    "mimeType": "text/markdown",
+                    "text": "# Déploiement\nLa chaîne est arrêtée.",
+                },
+            },
+        )
+    )
+
+    answer = await call_tool(METEO, "get_file_contents", {}, transport=rpc)
+
+    assert "La chaîne est arrêtée." in answer["text"]
+    assert "non textuel" not in answer["text"]
+
+
+async def test_an_embedded_text_blob_is_decoded() -> None:
+    import base64
+
+    blob = base64.b64encode("ligne en UTF-8 : é".encode()).decode()
+    rpc = Rpc(
+        content(
+            {"type": "resource", "resource": {"uri": "x", "mimeType": "text/plain", "blob": blob}}
+        )
+    )
+
+    answer = await call_tool(METEO, "get_file_contents", {}, transport=rpc)
+
+    assert answer["text"] == "ligne en UTF-8 : é"
+
+
+async def test_a_binary_resource_is_still_named() -> None:
+    rpc = Rpc(
+        content(
+            {
+                "type": "resource",
+                "resource": {"uri": "logo.png", "mimeType": "image/png", "blob": "iVBO"},
+            }
+        )
+    )
+
+    answer = await call_tool(METEO, "get_file_contents", {}, transport=rpc)
+
+    assert "non textuel" in answer["text"]
+    assert "logo.png" in answer["text"]
+
+
 async def test_a_non_textual_part_is_named_rather_than_dropped() -> None:
     # Un agent qui ne sait pas qu'une image est revenue croirait l'outil muet.
     rpc = Rpc(content({"type": "image", "data": "..."}))

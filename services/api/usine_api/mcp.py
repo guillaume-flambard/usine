@@ -24,6 +24,8 @@ besoin.
 
 from __future__ import annotations
 
+import base64
+import binascii
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -292,6 +294,30 @@ def _flatten(content: Any) -> str:
         kind = part.get("type")
         if kind == "text" and isinstance(part.get("text"), str):
             pieces.append(part["text"])
+        elif kind == "resource" and isinstance(part.get("resource"), dict):
+            pieces.append(_resource_text(part["resource"]))
         elif isinstance(kind, str):
             pieces.append(f"({kind} non textuel)")
     return "\n".join(pieces)
+
+
+def _resource_text(resource: dict[str, Any]) -> str:
+    """Le texte d'une ressource embarquée (MCP, `EmbeddedResource`).
+
+    Le serveur GitHub rend un fichier ainsi, pas en partie `text`. Une ressource
+    textuelle porte `text`, ou `blob` en base64 qu'on décode s'il est en UTF-8 ;
+    une ressource binaire reste nommée, avec son URI.
+    """
+    if isinstance(resource.get("text"), str):
+        return resource["text"]
+    uri = str(resource.get("uri", ""))
+    blob = resource.get("blob")
+    if isinstance(blob, str):
+        mime = str(resource.get("mimeType", ""))
+        textual = mime.startswith("text/") or mime.endswith(("json", "xml", "yaml", "markdown"))
+        if textual:
+            try:
+                return base64.b64decode(blob, validate=True).decode("utf-8")
+            except (binascii.Error, UnicodeDecodeError):
+                pass
+    return f"(ressource non textuelle : {uri})"
