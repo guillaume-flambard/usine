@@ -68,3 +68,9 @@ def test_without_a_built_folder_nothing_is_served(monkeypatch: pytest.MonkeyPatc
     monkeypatch.delenv("USINE_WEB_DIR", raising=False)
     with TestClient(closed_app()) as client:
         assert client.get("/").status_code in (401, 404)
+
+
+def test_a_nul_byte_is_not_a_crash(built: Path) -> None:
+    assert page_file(built, "/assets/index-abc123.js\x00") is None
+    with TestClient(closed_app()) as client:
+        assert client.get("/assets/index-abc123.js%00").status_code in (401, 404)

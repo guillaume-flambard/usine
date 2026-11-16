@@ -1177,7 +1177,7 @@ def create_app(
             # Le lien passe par `/api` : c'est le préfixe que le proxy route vers
             # ce service. Bâti sur l'origine publique, pas sur `base_url` (qui,
             # derrière le proxy, porte l'hôte interne).
-            link = f"{site_origin}/api/auth/redeem?token={token}"
+            link = f"{site_origin}/auth/redeem?token={token}"
             mailer.send_link(email, link)
         return no_store({"sent": True})
 

@@ -31,6 +31,9 @@ PAGE_POLICY = (
 
 def page_file(root: Path, path: str) -> Path | None:
     """The built file this path names, or None. Never outside `root`."""
+    if "\x00" in path:
+        # `Path.resolve` raises on a NUL byte: a 500 without the headers.
+        return None
     if path == "/":
         candidate = root / "index.html"
     else:

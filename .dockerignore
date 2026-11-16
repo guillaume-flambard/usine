@@ -1,7 +1,9 @@
 # `COPY . .` recopierait sinon les dépendances compilées pour macOS par-dessus
 # celles installées pour Linux, et le build échouerait sur les mauvais binaires.
-node_modules
-dist
+# `**/` : un motif sans lui ne vaut qu'à la racine du contexte, et
+# `COPY apps/web` recopiait apps/web/node_modules du poste.
+**/node_modules
+**/dist
 .git
 .gitignore
 .eslintcache
@@ -19,6 +21,6 @@ spike
 services/api/.venv
 
 # A local `docker build` must never copy the provider key into a layer.
-.env
-.env.*
-!.env.example
+**/.env
+**/.env.*
+!**/.env.example
