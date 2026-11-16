@@ -1715,4 +1715,12 @@ def create_app(
             }
         )
 
+    # En production, la même image sert la page (MEM-58). Ajouté en dernier,
+    # donc à l'extérieur du verrou : la page est publique, l'API ne l'est pas.
+    web_dir = os.environ.get("USINE_WEB_DIR", "")
+    if web_dir:
+        from .spa import page_middleware
+
+        app.middleware("http")(page_middleware(web_dir))
+
     return app
