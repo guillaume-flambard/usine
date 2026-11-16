@@ -41,7 +41,7 @@ from .audit import AuditLog, InMemoryAuditLog
 from .cassette import MODES, Cassette, CassetteTransport, Mode, open_cassette
 from .chat_stream import STREAM_HEADERS, ChatMessage, ChatRequest, no_model_stream, run_stream
 from .checkpoints import open_checkpointer
-from .compare import COMPARE_BUDGET, CompareRequest, compare, load_cases
+from .compare import CASES_PATH, COMPARE_BUDGET, CompareRequest, compare, load_cases
 from .contracts import GateDecision
 from .contracts import action as action_contract
 from .erasure import Erasure, erasure_for
@@ -150,9 +150,22 @@ def address_of(request: Request) -> str:
     return client.host if client else "?"
 
 
+def _repo_root() -> Path:
+    """La racine du dépôt, d'où se lisent config/ et services/api/cassettes.
+
+    En développement, le paquet est dans le dépôt et la racine se déduit de son
+    chemin. Dans l'image, il est installé dans le venv (--no-editable) : la
+    racine se perd, d'où USINE_ROOT, posé par le Dockerfile. Sans lui, la
+    production cherchait la liste blanche dans /opt/venv/lib/config et
+    l'agent outillé n'était jamais branché.
+    """
+    raw = os.environ.get("USINE_ROOT", "")
+    return Path(raw) if raw else Path(__file__).resolve().parents[3]
+
+
 #: La liste blanche des serveurs d'outils (MEM-37), versionnée avec le dépôt.
 def _mcp_config_path() -> Path:
-    return Path(__file__).resolve().parents[3] / "config" / "mcp-servers.yaml"
+    return _repo_root() / "config" / "mcp-servers.yaml"
 
 
 def _allowed_tools(whitelist: Registry, server: str) -> set[str] | None:
@@ -164,16 +177,20 @@ def _allowed_tools(whitelist: Registry, server: str) -> set[str] | None:
     return {tool.name for tool in registered.tools}
 
 
-#: La cassette livrée avec le service : le run que la vitrine rejoue sans clé.
-DEMO_CASSETTE = Path(__file__).resolve().parents[1] / "cassettes" / "demo.json"
+def _api_dir() -> Path:
+    return _repo_root() / "services" / "api"
 
 
 def _cassette_path() -> Path:
-    """Où lire ou écrire la cassette. Un chemin relatif part de services/api."""
+    """Où lire ou écrire la cassette. Un chemin relatif part de services/api.
+
+    Par défaut, la cassette livrée avec le service : le run que la vitrine
+    rejoue sans clé.
+    """
     raw = os.environ.get("USINE_CASSETTE", "")
-    path = Path(raw) if raw else DEMO_CASSETTE
+    path = Path(raw) if raw else _api_dir() / "cassettes" / "demo.json"
     if not path.is_absolute():
-        path = Path(__file__).resolve().parents[1] / path
+        path = _api_dir() / path
     return path
 
 
@@ -991,7 +1008,7 @@ def create_app(
             from langfuse import get_client
 
             client = get_client()
-        report = await compare(chosen, load_cases(), budget=COMPARE_BUDGET, client=client)
+        report = await compare(chosen, load_cases(CASES_PATH), budget=COMPARE_BUDGET, client=client)
         return no_store(report.model_dump(mode="json"))
 
     @app.post("/api/mcp/tokens", response_model=McpSecret, tags=["mcp"])

@@ -44,7 +44,8 @@ COPY config /src/config
 COPY --from=web /src/apps/web/dist /src/web
 ENV PATH=/opt/venv/bin:$PATH \
     PYTHONUNBUFFERED=1 \
-    USINE_WEB_DIR=/src/web
+    USINE_WEB_DIR=/src/web \
+    USINE_ROOT=/src
 WORKDIR /src/services/api
 USER usine
 EXPOSE 8000

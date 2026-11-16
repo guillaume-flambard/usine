@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import time
 from collections.abc import Mapping
 from pathlib import Path
@@ -44,7 +45,16 @@ from usine_api.specialists.node import execute
 COMPARE_BUDGET = Budget(max_tokens=2_000, max_seconds=180, max_tool_calls=0)
 
 #: The frozen cases. Small on purpose: a case set that drifts measures nothing.
-CASES_PATH = Path(__file__).parent.parent / "compare" / "cases.json"
+# USINE_ROOT: in the image the package lives in the venv, away from the repo (app._repo_root).
+CASES_PATH = (
+    (
+        Path(os.environ["USINE_ROOT"]) / "services" / "api"
+        if os.environ.get("USINE_ROOT")
+        else Path(__file__).parent.parent
+    )
+    / "compare"
+    / "cases.json"
+)
 
 
 class CompareRequest(BaseModel):

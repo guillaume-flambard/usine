@@ -246,9 +246,9 @@ async def test_a_cassette_carries_no_secret(tmp_path: Path) -> None:
 
 
 def demo_cassette() -> Cassette:
-    from usine_api.app import DEMO_CASSETTE
+    from usine_api.app import _api_dir
 
-    return Cassette.load(DEMO_CASSETTE)
+    return Cassette.load(_api_dir() / "cassettes" / "demo.json")
 
 
 def test_the_shipped_demo_still_matches_its_prompts() -> None:
