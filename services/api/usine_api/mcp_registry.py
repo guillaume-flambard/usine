@@ -28,7 +28,7 @@ from typing import Any, Literal
 
 import yaml
 
-from usine_api.mcp import Server
+from usine_api.mcp import Server, remember_credential
 
 RiskLevel = Literal["read", "write", "irreversible"]
 RISKS: tuple[str, ...] = ("read", "write", "irreversible")
@@ -80,6 +80,11 @@ class Registry:
 
     def __init__(self, servers: dict[str, Registered]) -> None:
         self._servers = servers
+        # The transport sends each server its own token, read from the named
+        # variable at call time (mcp.auth_headers).
+        for registered in servers.values():
+            if registered.token_env:
+                remember_credential(registered.url, registered.token_env)
 
     @classmethod
     def load(cls, path: Path) -> Registry:

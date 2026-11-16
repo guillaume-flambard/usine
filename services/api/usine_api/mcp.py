@@ -101,6 +101,56 @@ def forget_session(url: str) -> None:
     _SESSIONS.pop(url, None)
 
 
+#: The environment variable holding each server's bearer token, by URL. The
+#: whitelist names the variable (`token_env`); the value is read at call time
+#: and never kept here, so it cannot leak through a dump of this module.
+_CREDENTIALS: dict[str, str] = {}
+
+
+def remember_credential(url: str, env_name: str) -> None:
+    _CREDENTIALS[url] = env_name
+
+
+def auth_headers(url: str, env: Mapping[str, str]) -> dict[str, str]:
+    """`Authorization: Bearer …` for a server whose token is set, else nothing."""
+    name = _CREDENTIALS.get(url)
+    token = env.get(name, "") if name else ""
+    return {"authorization": f"Bearer {token}"} if token else {}
+
+
+def parse_body(content_type: str, text: str) -> dict[str, Any]:
+    """Read a JSON-RPC answer, plain JSON or a Server-Sent Events stream.
+
+    Streamable HTTP lets a server answer a POST either way
+    (https://modelcontextprotocol.io/specification/2025-06-18/basic/transports).
+    FastMCP and GitHub's server answer in SSE: reading only JSON turned every
+    real answer into « répondu sans résultat ». The last `data:` event that is
+    a JSON-RPC response wins; notifications sent before it are skipped.
+    """
+    import json
+
+    if "text/event-stream" not in content_type:
+        try:
+            parsed = json.loads(text)
+        except ValueError:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    answer: dict[str, Any] = {}
+    for event in text.replace("\r\n", "\n").split("\n\n"):
+        data = "\n".join(
+            line[5:].lstrip() for line in event.split("\n") if line.startswith("data:")
+        )
+        if not data:
+            continue
+        try:
+            parsed = json.loads(data)
+        except ValueError:
+            continue
+        if isinstance(parsed, dict) and ("result" in parsed or "error" in parsed):
+            answer = parsed
+    return answer
+
+
 class Transport(Protocol):
     """Un appel JSON-RPC vers un serveur. Injecté pour que les tests s'en passent."""
 

@@ -81,8 +81,10 @@ from .mcp import (
     TIMEOUT_SECONDS,
     McpRefusal,
     Server,
+    auth_headers,
     call_tool,
     list_tools,
+    parse_body,
     remember_session,
     session_headers,
 )
@@ -205,13 +207,14 @@ async def http_rpc(url: str, payload: dict[str, Any]) -> dict[str, Any]:
         response = await client.post(
             url,
             json=payload,
-            headers={"accept": "application/json, text/event-stream", **session_headers(url)},
+            headers={
+                "accept": "application/json, text/event-stream",
+                **session_headers(url),
+                **auth_headers(url, os.environ),
+            },
         )
         remember_session(url, dict(response.headers))
-        try:
-            return response.json()
-        except ValueError:
-            return {}
+        return parse_body(response.headers.get("content-type", ""), response.text)
 
 
 async def http_fetch(url: str) -> tuple[int, str]:
@@ -362,6 +365,13 @@ def create_app(
     tool_servers: dict[str, Server] = servers or whitelist.servers()
     recollection: Memory = memory if memory is not None else InMemoryMemory()
     rpc = transport if transport is not None else http_rpc
+    # Une action approuvée à la porte s'exécute pour de vrai, par le serveur
+    # d'outils qui l'a proposée (McpExecutor). Sans serveur dans la liste
+    # blanche, rien n'est branché et le graphe le dit (DryRunExecutor).
+    if executor is None and whitelist.names():
+        from .mcp_tools import McpExecutor
+
+        executor = McpExecutor(whitelist, transport=rpc)
     # Le modèle passe par le LiteLLM du lab (MEM-13) : le service ne lit plus
     # aucune clé de fournisseur, seulement la sienne auprès de LiteLLM. Le choix
     # du modèle, le repli et le paramètre qui coupe le raisonnement suivent
