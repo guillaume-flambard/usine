@@ -282,9 +282,10 @@ const seconds = (value: number) =>
         </p>
         <!-- Conclusion first (checklist V5): the answer, then how it was reached. -->
         <p class="answer" data-visit-answer>
-          <b>La réponse, en bref.</b> Pas encore : le dépôt n’a aucun guide de contribution. Trois
-          agents ont lu le README, la CI et le dépôt ; l’un d’eux propose un seul ticket pour en
-          écrire un, et rien n’est parti sans accord.
+          <b>La réponse, en bref.</b> Pas ce jour-là : le dépôt n’avait aucun guide de contribution.
+          Trois agents ont lu le README, la CI et le dépôt ; l’un d’eux propose un seul ticket pour
+          en écrire un, et rien n’est parti sans accord. Depuis, le
+          <a :href="`${REPO}/blob/main/CONTRIBUTING.md`">guide</a> a été écrit à la main.
         </p>
       </section>
 

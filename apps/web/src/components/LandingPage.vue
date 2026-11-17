@@ -107,6 +107,7 @@ const finishDelay = (seconds: number) => `${Math.round((seconds - FIRST_DONE) * 
 const RUN_LOG = '/visite/run.json'
 const README = `${REPO}/blob/main/README.md`
 const CI = `${REPO}/blob/main/.github/workflows/verify.yml`
+const GUIDE = `${REPO}/blob/main/CONTRIBUTING.md`
 
 /** What the day of going live really broke, and the fix. Each has its test. */
 const ENTRIES = [
@@ -252,8 +253,8 @@ const ENTRIES = [
             <div>
               <dt>Vérifié</dt>
               <dd>
-                le README et la CI ont été lus par l’outil GitHub, et le dépôt n’a pas de
-                <span class="mono">CONTRIBUTING.md</span>
+                le README et la CI ont été lus par l’outil GitHub, et le dépôt n’avait pas de
+                <span class="mono">CONTRIBUTING.md</span> le 17 novembre
               </dd>
             </div>
             <div>
@@ -269,7 +270,9 @@ const ENTRIES = [
             Les preuves :
             <a :href="README">le README</a>, <a :href="CI">la CI</a>,
             <a :href="RUN_LOG">le journal du run</a>
-            (<span class="mono">WkkmutTlh5Aaqgfd</span>), <a :href="REPO">le code</a>.
+            (<span class="mono">WkkmutTlh5Aaqgfd</span>), <a :href="REPO">le code</a>. La suite : le
+            ticket n’a pas été ouvert, le <a :href="GUIDE">guide de contribution</a> a été écrit à
+            la main depuis.
           </p>
         </section>
 
