@@ -21,6 +21,7 @@ import { SIGN_IN_URL } from '../chat/session'
 import RunScene from './RunScene.vue'
 import AnswerMarkdown from './AnswerMarkdown'
 import { SPECIALIST_THREADS } from '../run/threads'
+import AgentLane, { type LaneStep } from './AgentLane.vue'
 
 const REPO = 'https://github.com/guillaume-flambard/usine'
 /** An agent's thread by its rank (1-based), the same colours as the graph. */
@@ -94,6 +95,34 @@ const agents = computed(() =>
       }
     }),
 )
+
+/** Three threads from left, middle and right, meeting at the gate's knot. */
+const KNOT_PATHS = ['M20 0 C20 34 112 30 117 52', 'M120 0 L120 49', 'M220 0 C220 34 128 30 123 52']
+
+type Agent = (typeof agents.value)[number]
+
+/** The status in words, never a bare « travaille… » (checklist V3). */
+function laneStatus(a: Agent): string {
+  if (a.failed) return 'n’a pas abouti'
+  if (a.done) return `terminé en ${seconds(a.seconds ?? 0)}`
+  return 'en cours'
+}
+
+/**
+ * One step per real event: the part it received when it started, then, once
+ * it finished, what its tools did. A proposal stops at the gate, so the
+ * thread ends on an open knot there.
+ */
+function laneSteps(a: Agent): LaneStep[] {
+  const steps: LaneStep[] = [{ text: 'reçoit sa part du chef d’équipe', done: true }]
+  if (a.failed) return [...steps, { text: 's’arrête : pas de résultat', done: false }]
+  if (!a.done) return [...steps, { text: 'lit le dépôt, en lecture seule sur GitHub', done: false }]
+  for (const words of a.did) steps.push({ text: words, done: true })
+  if (a.did.some((words) => words === TOOL_WORDS.github__issue_write)) {
+    steps.push({ text: 'attend la porte : rien n’est envoyé', done: false })
+  }
+  return steps
+}
 
 interface Ticket {
   title: string
@@ -294,17 +323,20 @@ const seconds = (value: number) =>
           <p class="num" aria-hidden="true">3</p>
           <div>
             <h2>Les faits</h2>
-            <ul class="plain">
-              <li v-for="a in agents" :key="a.id" :data-agent-done="a.done || undefined">
-                <span class="who" :data-thread="threadOf(a.rank)">Agent {{ a.rank }}</span>
-                <template v-if="a.done">
-                  {{ a.did.length ? a.did.join(', puis ') : 'a terminé' }}
-                  <span class="time">en {{ seconds(a.seconds ?? 0) }}</span>
-                </template>
-                <template v-else-if="a.failed">n’a pas abouti</template>
-                <template v-else><span class="working">travaille…</span></template>
-              </li>
-            </ul>
+            <!-- Each agent on its thread, one knot per real event of the log
+                 (checklist V3): side by side, because they worked in parallel. -->
+            <div class="lanes">
+              <AgentLane
+                v-for="a in agents"
+                :key="a.id"
+                live
+                :thread="threadOf(a.rank)"
+                :name="`Agent ${a.rank}`"
+                :status="laneStatus(a)"
+                :steps="laneSteps(a)"
+                :data-agent-done="a.done || undefined"
+              />
+            </div>
             <p class="why">
               Ils ne devinent pas : ils lisent le vrai projet, ici sur GitHub, en lecture seule.
             </p>
@@ -316,6 +348,18 @@ const seconds = (value: number) =>
           <p class="num ink" aria-hidden="true">4</p>
           <div>
             <h2>Votre accord</h2>
+            <!-- The one expressive moment (checklist V4, M2): the agents' threads
+                 knot into the gate as it opens, drawn once, 560 ms. -->
+            <svg class="knot" viewBox="0 0 240 72" aria-hidden="true" data-visit-knot>
+              <path
+                v-for="(thread, i) in agents.slice(0, 3).map((a) => threadOf(a.rank))"
+                :key="thread"
+                :data-thread="thread"
+                :d="KNOT_PATHS[i]"
+                pathLength="1"
+              />
+              <circle cx="120" cy="58" r="9" />
+            </svg>
             <p class="bubble bot">
               {{
                 tickets.length > 1
@@ -634,6 +678,47 @@ const seconds = (value: number) =>
   gap: var(--space-xs);
   margin-top: var(--space-sm);
 }
+/* The agents side by side, as they worked (checklist V3). */
+.lanes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+/* The knot: drawn once when the gate opens; under reduced motion it is simply
+   there (only opacity and colour transition then). */
+.knot {
+  display: block;
+  width: min(100%, 15rem);
+  height: auto;
+  margin: var(--space-xs) 0 var(--space-sm);
+  overflow: visible;
+}
+.knot path {
+  fill: none;
+  stroke: var(--t);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset var(--dur-signature) var(--ease-in-out) 150ms;
+  @starting-style {
+    stroke-dashoffset: 1;
+  }
+}
+.knot circle {
+  fill: var(--color-ink);
+  transform-box: fill-box;
+  transform-origin: center;
+  transition:
+    opacity 300ms var(--ease-out) 650ms,
+    transform 300ms var(--ease-out) 650ms;
+  @starting-style {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
 /* A choice's edge reads on white at 3:1 (checklist D2); the chosen one doubles it in ink. */
 .choice {
   min-height: 44px;

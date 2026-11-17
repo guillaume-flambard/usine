@@ -13,6 +13,7 @@
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { SIGN_IN_URL } from '../chat/session'
+import AgentLane from './AgentLane.vue'
 
 defineProps<{ unreachable?: boolean }>()
 defineEmits<{ retry: [] }>()
@@ -190,28 +191,24 @@ const ENTRIES = [
           </p>
 
           <div class="lanes">
-            <section
-              v-for="(lane, l) in LANES"
+            <AgentLane
+              v-for="lane in LANES"
               :key="lane.name"
-              class="lane"
-              :style="{ '--lane': l, '--finish': finishDelay(lane.seconds) }"
-              :data-thread="lane.thread"
-              :aria-label="`${lane.name}, ${lane.status}`"
-            >
-              <h3 class="agent">{{ lane.name }}</h3>
-              <p class="status">{{ lane.status }}</p>
-              <ol class="trace">
-                <li class="done" style="--step: 0">
-                  <span>reçoit sa part : {{ lane.task }}</span>
-                </li>
-                <li class="done" style="--step: 1">
-                  <span>lit le dépôt avec <span class="mono">get_file_contents</span></span>
-                </li>
-                <li style="--step: 2">
-                  <span>propose <span class="mono">issue_write</span>, arrêté à la porte</span>
-                </li>
-              </ol>
-            </section>
+              :thread="lane.thread"
+              :name="lane.name"
+              :status="lane.status"
+              :steps="[
+                { text: `reçoit sa part : ${lane.task}`, done: true },
+                { text: 'lit le dépôt avec', code: 'get_file_contents', done: true },
+                {
+                  text: 'propose',
+                  code: 'issue_write',
+                  after: ', arrêté à la porte',
+                  done: false,
+                },
+              ]"
+              :style="{ '--finish': finishDelay(lane.seconds) }"
+            />
           </div>
 
           <svg class="knot" viewBox="0 0 300 64" preserveAspectRatio="none" aria-hidden="true">
@@ -465,94 +462,6 @@ h1 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-md);
 }
-.lane {
-  position: relative;
-  padding: var(--space-lg) var(--space-lg) var(--space-md);
-  border-radius: var(--radius-in);
-  background: var(--color-surface);
-  box-shadow:
-    var(--shadow-1),
-    0 0 0 1px var(--color-rule);
-}
-/* The thread: the lane's top edge, in its agent's colour. */
-.lane::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: var(--space-lg);
-  left: var(--space-lg);
-  height: 3px;
-  border-radius: 0 0 3px 3px;
-  background: var(--t);
-}
-.agent {
-  font: 400 var(--text-xl) / 1.15 var(--font-voice);
-}
-.status {
-  margin: 2px 0 var(--space-md);
-  color: var(--tt);
-  font-size: var(--text-sm);
-  font-weight: 500;
-}
-/* The thread runs down the trace: one knot per event, a dashed segment for
-   what is still pending. */
-.trace {
-  margin: 0;
-  padding: 0;
-  border-top: 1px solid var(--color-rule);
-  list-style: none;
-}
-.trace li {
-  position: relative;
-  display: grid;
-  grid-template-columns: 10px 1fr;
-  gap: var(--space-sm);
-  padding: var(--space-sm) 0;
-  border-bottom: 1px solid var(--color-rule);
-  font-size: var(--text-sm);
-  line-height: 1.45;
-}
-.trace li:last-child {
-  padding-bottom: var(--space-2xs);
-  border-bottom: 0;
-}
-.trace li::before {
-  content: '';
-  position: relative;
-  z-index: 1;
-  width: 10px;
-  height: 10px;
-  margin-top: 5px;
-  border: 2px solid var(--t);
-  border-radius: 50%;
-  background: var(--color-surface);
-}
-.trace li.done::before {
-  background: var(--t);
-}
-.trace li::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 4px;
-  width: 2px;
-  background: var(--t);
-}
-.trace li:first-child::after {
-  top: calc(var(--space-sm) + 10px);
-}
-.trace li:last-child::after {
-  bottom: auto;
-  height: calc(var(--space-sm) + 5px);
-}
-.trace li:not(.done)::after {
-  background: repeating-linear-gradient(180deg, var(--t) 0 4px, transparent 4px 7px);
-}
-.trace .mono {
-  color: var(--color-ink-2);
-  font-size: 0.92em;
-}
 .knot {
   display: block;
   width: 100%;
@@ -737,7 +646,7 @@ h1 {
   clip-path: inset(0 100% 0 0);
   transition: clip-path 420ms var(--ease-out);
 }
-.run[data-motion] .trace li {
+.run[data-motion] :deep(.trace li) {
   --at: calc(320ms + var(--step) * 260ms);
   opacity: 0;
   transform: translateY(6px);
@@ -745,10 +654,10 @@ h1 {
     opacity 300ms var(--ease-out) var(--at),
     transform 300ms var(--ease-out) var(--at);
 }
-.run[data-motion] .trace li:last-child {
+.run[data-motion] :deep(.trace li:last-child) {
   --at: calc(840ms + var(--finish));
 }
-.run[data-motion] .trace li::after {
+.run[data-motion] :deep(.trace li)::after {
   clip-path: inset(0 0 100% 0);
   transition: clip-path 260ms var(--ease-out) var(--at);
 }
@@ -771,10 +680,10 @@ h1 {
   transition-delay: 1900ms;
 }
 .run[data-motion].is-playing .lane::before,
-.run[data-motion].is-playing .trace li::after {
+.run[data-motion].is-playing :deep(.trace li)::after {
   clip-path: inset(0);
 }
-.run[data-motion].is-playing .trace li,
+.run[data-motion].is-playing :deep(.trace li),
 .run[data-motion].is-playing .gate,
 .run[data-motion].is-playing .ledger,
 .run[data-motion].is-playing .proof {

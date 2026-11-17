@@ -9,7 +9,7 @@ Sources, in the side-session notes of 16 November (`~/Library/Application Suppor
 - **RL**: `releve/RELEVE.md` (the measured defects of the live pages, 16 November, 19 h)
 - **TA**: ui-craft `references/taste.md` (the owner's own rules)
 
-State as of 17 November 2026, 11 h 35, after the second pass (motion, checklist).
+State as of 17 November 2026, 11 h 40, after the third pass (AgentLane, the visit on threads).
 
 ## Public page (`/`)
 
@@ -35,8 +35,8 @@ State as of 17 November 2026, 11 h 35, after the second pass (motion, checklist)
 |---|---|---|---|---|
 | V1 | 5 to 13 steps, captions of 25 to 30 words at most | UX 3 | count | applied (4 steps) |
 | V2 | Pause and play always visible (WCAG 2.2.2), never on hover only; reduced motion starts paused | UX 3, UX 10, MO | look; emulate reduced motion | applied (sticky bar, Pause and Reprendre tested; reduced motion shows every step at once, not seen in a browser) |
-| V3 | Honest progress: each agent's thread grows one segment per real event, with the step in words and the elapsed time; no bare « travaille… » | MO 5, UX anti-patterns, RL 17 | watch the replay | missing |
-| V4 | The convergence into the gate is shown, as the one expressive moment | RL 18, MO 7 | watch | missing |
+| V3 | Honest progress: each agent's thread grows one segment per real event, with the step in words and the elapsed time; no bare « travaille… » | MO 5, UX anti-patterns, RL 17 | watch the replay | applied (AgentLane live: start, then the tools at finish, in the logged order 3, 1, 2; status Â« en cours Â» then Â« terminÃ© en N s Â») |
+| V4 | The convergence into the gate is shown, as the one expressive moment | RL 18, MO 7 | watch | applied (the threads knot when the gate opens, 560 ms, drawn once) |
 | V5 | Conclusion first, then how it was reached | UX 4, RL 4 | read the top | applied (Â« La rÃ©ponse, en bref Â») |
 | V6 | Two layers of text: a plain caption, a technical detail you can open | UX 4 | look | partly (« Pour les curieux ») |
 | V7 | Its title differs from the public page's | RL 6 | compare | applied (the public page has its own headline) |
@@ -47,7 +47,7 @@ State as of 17 November 2026, 11 h 35, after the second pass (motion, checklist)
 | ID | Rule | Source | How to check | State |
 |---|---|---|---|---|
 | M1 | UI moves in 100 to 300 ms with a strong ease-out; press at 0.97; nothing grows from 0; hover only under `(hover: hover) and (pointer: fine)`; no `transition: all` | MO 1 | read the CSS | applied |
-| M2 | One expressive moment per page, about 560 ms: the threads knotting into the gate | MO 10 | watch | applied on `/`, missing on `/visite` |
+| M2 | One expressive moment per page, about 560 ms: the threads knotting into the gate | MO 10 | watch | applied on both pages |
 | M3 | Reduced motion reduces, it does not remove: fades and colour stay | MO 8 | emulate reduced motion | applied |
 | M4 | Only transform, opacity, clip-path and a few stroke-dashoffsets move | MO 9 | read the CSS | applied |
 | D1 | Layered shadows tinted toward the ground; a higher shadow fades in on a layer, never an animated box-shadow | MO 4 | read the CSS | applied |
