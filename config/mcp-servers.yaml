@@ -38,9 +38,10 @@
 servers:
   # Le serveur MCP officiel de GitHub, hébergé par GitHub
   # (https://github.com/github/github-mcp-server, docs/remote-server.md).
-  # Le jeton est un PAT à grain fin, limité aux dépôts que l'usine suit, avec
-  # Contents en lecture, Issues et Pull requests en lecture et écriture (le tri
-  # quotidien, ADR 0003, commente et ferme).
+  # `token_env` est le jeton du chat : un PAT à grain fin limité au dépôt `usine`.
+  # Le tri quotidien (ADR 0003) passe par le même serveur avec ses propres jetons,
+  # un par compte (`tokens` dans config/triage.yaml), et lui seul voit
+  # `add_issue_comment` et `update_pull_request` (TRIAGE_ONLY).
   # `issue_write`, `add_issue_comment` et `update_pull_request` écrivent :
   # irréversibles, ils ne partent qu'après la porte humaine, avec les arguments
   # que la personne a lus ou corrigés. `merge_pull_request` n'est jamais listé.
