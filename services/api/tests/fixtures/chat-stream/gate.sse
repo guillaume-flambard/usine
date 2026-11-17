@@ -16,7 +16,7 @@ data: {"type": "data-run-event", "data": {"kind": "node-finished", "at": 1.75, "
 
 data: {"type": "data-run-event", "data": {"kind": "node-started", "at": 2.0, "node": "human_gate", "data": {"taskId": "t4"}}}
 
-data: {"type": "data-run-event", "data": {"kind": "gate-opened", "at": 2.25, "node": "human_gate", "data": {"taskId": "t4", "gate": {"actions": [{"kind": "send", "target": "#annonces", "justification": "publier", "preview": "v2 est sortie"}], "notice": "Revenir en arrière restaure l'état du run, pas le monde : une action déjà exécutée (un envoi, une écriture, une PR) n'est pas défaite.", "expires_after_seconds": 86400}}}}
+data: {"type": "data-run-event", "data": {"kind": "gate-opened", "at": 2.25, "node": "human_gate", "data": {"taskId": "t4", "gate": {"actions": [{"kind": "send", "target": "#annonces", "justification": "publier", "preview": "v2 est sortie"}], "notice": "Revenir en arrière restaure l'état du run, pas le monde : une action déjà exécutée (un envoi, une écriture, une PR) n'est pas défaite.", "expires_after_seconds": 86400, "checklist": false}}}}
 
 data: {"type": "text-start", "id": "id-2"}
 

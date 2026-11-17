@@ -27,8 +27,8 @@ from pydantic import BaseModel, Field
 
 from usine_api.db import migrate
 
-Scope = Literal["read", "read_fork"]
-SCOPES: tuple[str, ...] = ("read", "read_fork")
+Scope = Literal["read", "read_fork", "triage"]
+SCOPES: tuple[str, ...] = ("read", "read_fork", "triage")
 
 #: Which tools each scope may call. A name not listed here is a refusal.
 TOOLS_FOR = {

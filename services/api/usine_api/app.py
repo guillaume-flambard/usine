@@ -11,15 +11,17 @@ qu'elle est propre.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import secrets
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import httpx
 from fastapi import FastAPI, HTTPException, Query, Request, Response
@@ -102,6 +104,7 @@ from .mcp_auth import (
 from .mcp_registry import Registry, RegistryRefusal, tools_reachable
 from .memory import MAX_FACT, Fact, InMemoryMemory, Memory
 from .models import ModelSettings, model_settings
+from .observability import record_triage_decisions
 from .oidc import (
     STATE_COOKIE,
     STATE_TTL_SECONDS,
@@ -131,6 +134,7 @@ from .specialists import UnknownSpecialist
 from .specialists.contract import Specialist
 from .threads import InMemoryThreadIndex, RunDetail, RunSummary, ThreadIndex
 from .tracing import trace_of
+from .triage.service import TRIAGE_PREFIX, default_triage, is_triage
 
 logger = logging.getLogger("usine.service")
 
@@ -309,6 +313,7 @@ def create_app(
     executor: ActionExecutor | None = None,
     open_atelier: bool | None = None,
     oidc: OidcClient | None = None,
+    triage_graph: Callable[[Any], Any] | None = None,
 ) -> FastAPI:
     """Construit le service. Tout ce qui touche l'extérieur est injectable."""
     bounds = limits or Limits()
@@ -506,6 +511,17 @@ def create_app(
             and tools_reachable(whitelist, os.environ)
         ):
             chat_specialist = wired["mcp-agent"]
+    # Le tri quotidien (ADR 0003) : injecté par les tests, sinon câblé quand un
+    # modèle et un jeton GitHub qui lit tous les dépôts sont là, sinon absent.
+    if triage_graph is None:
+        triage_graph = default_triage(
+            gateway=gateway,
+            registry=whitelist,
+            transport=rpc,
+            policy_path=_repo_root() / "config" / "triage.yaml",
+            env=os.environ,
+            http_client=cassette_client,
+        )
     site_origin = origin or os.environ.get("USINE_ORIGIN", "https://usine.memolabs.dev")
     if not api_key:
         # Un déploiement dégradé doit se remarquer, pas servir un rejeu en silence.
@@ -537,6 +553,12 @@ def create_app(
                 if chat_planner is not None and chat_specialist is not None
                 else None
             )
+            # Le graphe du tri, sur le même checkpointer : sa porte attend
+            # jusqu'à 24 h et doit survivre à un redémarrage.
+            app_.state.triage_graph = triage_graph(saver) if triage_graph is not None else None
+            # Les tris en cours : une référence forte, sinon la tâche peut être
+            # ramassée en plein run (doc asyncio.create_task).
+            app_.state.triage_runs = set()
             yield
         if pg is not None:
             pg.pool.close()
@@ -652,6 +674,10 @@ def create_app(
     async def chat(body: ChatRequest, request: Request) -> StreamingResponse:
         # La route garde son préfixe /api : c'est l'adresse par défaut de
         # useChat, et le proxy de Vite le transmet tel quel.
+        if body.id and is_triage(body.id):
+            # Un tri ne se poursuit pas en chat : son graphe et sa porte sont
+            # les siens, et son identifiant est réservé au timer.
+            raise HTTPException(status_code=409, detail="Ce run est un tri : il ne se discute pas.")
         graph = getattr(request.app.state, "chat_graph", None)
         if graph is None:
             return StreamingResponse(no_model_stream(), headers=STREAM_HEADERS)
@@ -674,6 +700,44 @@ def create_app(
             headers=STREAM_HEADERS,
         )
 
+    @app.post("/api/triage", status_code=202, tags=["triage"])
+    async def start_triage(request: Request) -> JSONResponse:
+        """Lance le tri du jour (ADR 0003). Jeton de service de portée `triage` seulement.
+
+        Un seul tri par jour (heure de Paris) : le run s'appelle `tri-AAAA-MM-JJ`,
+        et un second appel le même jour reçoit 409. Le tri tourne en arrière-plan
+        jusqu'à sa porte ; la réponse n'attend pas.
+        """
+        token = mcp_token_of(request)
+        if token is None or token.scope != "triage":
+            raise HTTPException(status_code=401, detail="Jeton de tri requis.")
+        graph = getattr(request.app.state, "triage_graph", None)
+        if graph is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Tri indisponible : jeton GitHub ou modèle absent.",
+            )
+        day = datetime.now(ZoneInfo("Europe/Paris")).date().isoformat()
+        thread_id = f"{TRIAGE_PREFIX}{day}"
+        runs: set[asyncio.Task[None]] = request.app.state.triage_runs
+        started = any(task.get_name() == thread_id for task in runs)
+        if started or index.get(thread_id, token.org) is not None:
+            raise HTTPException(status_code=409, detail="Le tri du jour existe déjà.")
+        body = ChatRequest(
+            id=thread_id,
+            messages=[ChatMessage(role="user", parts=[{"type": "text", "text": f"Tri du {day}"}])],
+        )
+
+        async def drain() -> None:
+            async for _chunk in run_stream(graph, body, index=index, owner=token.org):
+                pass
+
+        task = asyncio.create_task(drain(), name=thread_id)
+        runs.add(task)
+        task.add_done_callback(runs.discard)
+        note(token.org, "triage.start", thread_id)
+        return no_store({"threadId": thread_id}, status=202)
+
     @app.get("/api/runs", response_model=RunPage, tags=["runs"])
     def list_threads(
         request: Request,
@@ -687,9 +751,15 @@ def create_app(
             raise HTTPException(status_code=422, detail="Curseur illisible.") from error
         return RunPage(items=items, next_cursor=next_cursor)
 
+    def graph_for(request: Request, thread_id: str) -> Any:
+        """Le graphe d'un run : celui du tri pour un run `tri-`, sinon celui du chat."""
+        if is_triage(thread_id):
+            return getattr(request.app.state, "triage_graph", None)
+        return getattr(request.app.state, "chat_graph", None)
+
     async def pending_gate(request: Request, thread_id: str) -> Any:
         """L'état du thread s'il attend une décision humaine (MEM-20), sinon None."""
-        graph = getattr(request.app.state, "chat_graph", None)
+        graph = graph_for(request, thread_id)
         if graph is None:
             return None
         state = await graph.aget_state({"configurable": {"thread_id": thread_id}})
@@ -740,12 +810,27 @@ def create_app(
                     status_code=422,
                     detail="Une modification garde le genre et la cible des actions proposées.",
                 )
+        gate = waiting.interrupts[0].value
+        if decision.selected is not None:
+            # Une sélection n'a de sens que sur une porte à cocher, et ne nomme
+            # que des actions proposées.
+            if not gate.get("checklist"):
+                raise HTTPException(
+                    status_code=422, detail="Cette porte ne se coche pas : tout ou rien."
+                )
+            if any(index_ >= len(gate["actions"]) for index_ in decision.selected):
+                raise HTTPException(
+                    status_code=422, detail="La sélection nomme une action qui n'existe pas."
+                )
         # Une seule décision par porte : la seconde, concurrente, perd ici.
         if not index.claim_gate(thread_id, owner):
             raise HTTPException(status_code=409, detail="Une décision est déjà en cours.")
         opened = datetime.fromisoformat(waiting.created_at)
         if (datetime.now(UTC) - opened).total_seconds() > action_contract.GATE_TIMEOUT_SECONDS:
             decision = GateDecision(decision="reject", reason="Délai dépassé : la porte a expiré.")
+        if is_triage(thread_id):
+            # Chaque proposition et son sort : le jeu d'évaluation des agents.
+            record_triage_decisions(thread_id, gate["actions"], decision.model_dump(mode="json"))
         brief = str(waiting.values.get("brief", ""))
         body = ChatRequest(
             id=thread_id,
@@ -754,7 +839,7 @@ def create_app(
         who = identity_of(request)
         return StreamingResponse(
             run_stream(
-                request.app.state.chat_graph,
+                graph_for(request, thread_id),
                 body,
                 user_id=who.account.id if who is not None else None,
                 index=index,
@@ -771,7 +856,7 @@ def create_app(
         detail = index.get(thread_id, viewer_org(request))
         if detail is None:
             raise HTTPException(status_code=404, detail="Run introuvable.")
-        graph = getattr(request.app.state, "chat_graph", None)
+        graph = graph_for(request, thread_id)
         if graph is None:
             return StreamingResponse(no_model_stream(), headers=STREAM_HEADERS)
         state = await graph.aget_state({"configurable": {"thread_id": thread_id}})
@@ -822,7 +907,7 @@ def create_app(
         """Les points où le run peut être rejoué, du plus récent au plus ancien (MEM-23)."""
         if index.get(thread_id, viewer_org(request)) is None:
             raise HTTPException(status_code=404, detail="Run introuvable.")
-        graph = getattr(request.app.state, "chat_graph", None)
+        graph = graph_for(request, thread_id)
         if graph is None:
             return []
         config = {"configurable": {"thread_id": thread_id}}
@@ -835,7 +920,7 @@ def create_app(
         owner = viewer_org(request)
         if index.get(thread_id, owner) is None:
             raise HTTPException(status_code=404, detail="Run introuvable.")
-        graph = getattr(request.app.state, "chat_graph", None)
+        graph = graph_for(request, thread_id)
         if graph is None:
             return RunHistory(thread_id=thread_id, checkpoints=[])
         return await history_of_thread(graph, index, thread_id, owner)
@@ -851,7 +936,7 @@ def create_app(
         """L'état d'un checkpoint, par pages de clés (MEM-22)."""
         if index.get(thread_id, viewer_org(request)) is None:
             raise HTTPException(status_code=404, detail="Run introuvable.")
-        graph = getattr(request.app.state, "chat_graph", None)
+        graph = graph_for(request, thread_id)
         page = None
         if graph is not None:
             page = await state_page(graph, thread_id, checkpoint_id, offset, limit)
@@ -934,6 +1019,10 @@ def create_app(
         owner = viewer_org(request)
         if index.get(thread_id, owner) is None:
             raise HTTPException(status_code=404, detail="Run introuvable.")
+        if is_triage(thread_id):
+            # Une branche n'aurait plus d'identifiant `tri-` : elle tomberait sur
+            # le graphe du chat. Un tri se relance le lendemain, il ne se forke pas.
+            raise HTTPException(status_code=409, detail="Un tri ne se forke pas.")
         graph = getattr(request.app.state, "chat_graph", None)
         if graph is None:
             raise HTTPException(

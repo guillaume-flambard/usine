@@ -44,7 +44,10 @@ _READ = (
 )
 _FORK = (("POST", re.compile(rf"/api/runs/{_RUN}/fork")),)
 
-BEARER_ROUTES = {"read": _READ, "read_fork": _READ + _FORK}
+#: The daily triage timer (ADR 0003): it starts the triage, nothing else.
+_TRIAGE = (("POST", re.compile(r"/api/triage")),)
+
+BEARER_ROUTES = {"read": _READ, "read_fork": _READ + _FORK, "triage": _TRIAGE}
 
 
 def is_public(method: str, path: str) -> bool:

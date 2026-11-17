@@ -16,7 +16,13 @@ from usine_api.graph.planner import ChatModelPlanner
 from usine_api.graph.prompts import SUPERVISOR_PLAN, default_prompt
 from usine_api.graph.specialist import ChatModelSpecialist
 from usine_api.models import ModelSettings
-from usine_api.observability import Prompts, chat_template, record_gate_decision, run_config
+from usine_api.observability import (
+    Prompts,
+    chat_template,
+    record_gate_decision,
+    record_triage_decisions,
+    run_config,
+)
 
 # A port nothing listens on: Langfuse is configured but unreachable.
 UNREACHABLE = "http://127.0.0.1:9"
@@ -254,3 +260,61 @@ def test_a_failing_score_never_breaks_the_run(
     warnings = [r for r in caplog.records if r.name == "usine.observability"]
     assert len(warnings) == 1
     assert "réseau" in warnings[0].getMessage()
+
+
+class FakeDataset:
+    """The dataset calls the triage gate makes, recorded instead of sent."""
+
+    def __init__(self, error: Exception | None = None) -> None:
+        self.items: list[dict[str, object]] = []
+        self.error = error
+
+    def create_dataset(self, **kwargs: object) -> None:
+        return None
+
+    def create_dataset_item(self, **kwargs: object) -> None:
+        if self.error is not None:
+            raise self.error
+        self.items.append(kwargs)
+
+
+ACTIONS = [{"preview": json.dumps({"repo": "o/r", "number": n})} for n in (1, 2, 3)]
+
+
+def test_gate_decision_feeds_the_dataset(
+    langfuse_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client = FakeDataset()
+    monkeypatch.setattr("langfuse.get_client", lambda: client)
+    record_triage_decisions("tri-2026-11-18", ACTIONS, {"decision": "approve", "selected": [0, 2]})
+    assert [item["expected_output"] for item in client.items] == [
+        {"approved": True},
+        {"approved": False},
+        {"approved": True},
+    ]
+    assert [item["id"] for item in client.items] == [f"tri-2026-11-18:{i}" for i in range(3)]
+    assert {item["dataset_name"] for item in client.items} == {"usine-tri"}
+    assert client.items[0]["input"] == ACTIONS[0]
+
+
+def test_a_rejected_gate_approves_nothing(
+    langfuse_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client = FakeDataset()
+    monkeypatch.setattr("langfuse.get_client", lambda: client)
+    record_triage_decisions("tri-x", ACTIONS, {"decision": "reject", "reason": "non"})
+    assert {str(item["expected_output"]) for item in client.items} == {"{'approved': False}"}
+
+
+def test_a_failing_dataset_never_breaks_the_gate(
+    langfuse_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("langfuse.get_client", lambda: FakeDataset(RuntimeError("réseau")))
+    record_triage_decisions("tri-x", ACTIONS, {"decision": "approve"})
+
+
+def test_without_tracing_no_dataset_item(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeDataset()
+    monkeypatch.setattr("langfuse.get_client", lambda: client)
+    record_triage_decisions("tri-x", ACTIONS, {"decision": "approve"})
+    assert client.items == []

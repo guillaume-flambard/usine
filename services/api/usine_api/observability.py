@@ -21,6 +21,7 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Mapping
+from contextlib import suppress
 from typing import Any
 
 from langchain_core.prompts import ChatPromptTemplate
@@ -140,6 +141,44 @@ def record_gate_decision(config: dict[str, Any], thread_id: str, decision: dict[
         )
     except Exception as error:  # noqa: BLE001 - tracing never breaks a run
         _warn_once("gate-score", "Langfuse score for the human gate not sent: %s", error)
+
+
+#: The daily triage's decisions, one item per proposal (ADR 0003, point 9).
+TRIAGE_DATASET = "usine-tri"
+
+
+def record_triage_decisions(
+    thread_id: str, actions: list[dict[str, Any]], decision: dict[str, Any]
+) -> None:
+    """Every proposal of a triage gate, and whether the person kept it.
+
+    The agents' precision (the share of their proposals accepted) is read from
+    this dataset over the days. `create_dataset_item` upserts by `id`
+    (langfuse 5.2.0, `_client/client.py`), so a replayed decision overwrites.
+    Never breaks a run.
+    """
+    if not tracing_configured():
+        return
+    approved = decision.get("decision") in ("approve", "edit")
+    selected = decision.get("selected")
+    try:
+        from langfuse import get_client
+
+        client = get_client()
+        with suppress(Exception):
+            # Already there after the first day: the error is the normal case.
+            client.create_dataset(name=TRIAGE_DATASET, description="Tri quotidien : décisions")
+        for index, action in enumerate(actions):
+            kept = approved and (selected is None or index in selected)
+            client.create_dataset_item(
+                dataset_name=TRIAGE_DATASET,
+                id=f"{thread_id}:{index}",
+                input=action,
+                expected_output={"approved": kept},
+                metadata={"thread_id": thread_id, "reason": decision.get("reason")},
+            )
+    except Exception as error:  # noqa: BLE001 - tracing never breaks a run
+        _warn_once("triage-dataset", "Langfuse dataset for the triage gate not sent: %s", error)
 
 
 def _trace_target() -> dict[str, Any]:

@@ -525,7 +525,8 @@
           "scope": {
             "enum": [
               "read",
-              "read_fork"
+              "read_fork",
+              "triage"
             ],
             "title": "Scope",
             "type": "string"
@@ -1703,6 +1704,26 @@
         "summary": "List Specialists",
         "tags": [
           "runs"
+        ]
+      }
+    },
+    "/api/triage": {
+      "post": {
+        "description": "Lance le tri du jour (ADR 0003). Jeton de service de portée `triage` seulement.\n\nUn seul tri par jour (heure de Paris) : le run s'appelle `tri-AAAA-MM-JJ`,\net un second appel le même jour reçoit 409. Le tri tourne en arrière-plan\njusqu'à sa porte ; la réponse n'attend pas.",
+        "operationId": "start_triage_api_triage_post",
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Start Triage",
+        "tags": [
+          "triage"
         ]
       }
     },
