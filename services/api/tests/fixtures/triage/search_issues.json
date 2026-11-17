@@ -1,0 +1,50 @@
+{
+  "data": {
+    "search": {
+      "issueCount": 2,
+      "pageInfo": { "hasNextPage": false, "endCursor": "Y3Vyc29yOjI=" },
+      "nodes": [
+        {
+          "__typename": "Issue",
+          "number": 7,
+          "title": "Le timer de sauvegarde ne part plus",
+          "url": "https://github.com/guillaume-flambard/lab-infra/issues/7",
+          "createdAt": "2026-09-30T10:00:00Z",
+          "updatedAt": "2026-10-12T10:00:00Z",
+          "author": { "login": "guillaume-flambard" },
+          "labels": { "nodes": [{ "name": "P2" }] },
+          "repository": { "nameWithOwner": "guillaume-flambard/lab-infra" },
+          "timelineItems": {
+            "nodes": [
+              {
+                "source": {
+                  "merged": false,
+                  "url": "https://github.com/guillaume-flambard/lab-infra/pull/40"
+                }
+              },
+              {
+                "source": {
+                  "merged": true,
+                  "url": "https://github.com/guillaume-flambard/lab-infra/pull/52"
+                }
+              },
+              { "source": {} }
+            ]
+          }
+        },
+        {
+          "__typename": "Issue",
+          "number": 14,
+          "title": "Carte v1 : une carte lisible par tous",
+          "url": "https://github.com/guillaume-flambard/sosmed-carto-recette/issues/14",
+          "createdAt": "2026-10-31T11:48:49Z",
+          "updatedAt": "2026-10-31T11:48:49Z",
+          "author": { "login": "guillaume-flambard" },
+          "labels": { "nodes": [] },
+          "repository": { "nameWithOwner": "guillaume-flambard/sosmed-carto-recette" },
+          "timelineItems": { "nodes": [] }
+        }
+      ]
+    }
+  }
+}

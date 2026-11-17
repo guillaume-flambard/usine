@@ -1,0 +1,23 @@
+# Le tri quotidien des dépôts (ADR 0003).
+#
+# Les comptes lus chaque matin, et ce qui n'est jamais trié. Un dépôt à
+# bénévoles (régime C de git-workflow.md) a sa propre relecture : l'usine n'y
+# commente ni n'y ferme rien. Un nom seul (`mediterranean-rescue`) exclut ce
+# dépôt chez n'importe quel propriétaire ; `owner/name` n'exclut que celui-là.
+# L'exclusion est vérifiée au tri, puis juste avant d'agir.
+
+accounts:
+  - guillaume-flambard
+  - memolabs-dev
+
+excluded_repos:
+  - mediterranean-rescue
+  - sosmed-carto-recette
+
+excluded_owners:
+  - dataforgoodfr
+
+# Seuils, en jours.
+pr_after_days: 2
+issue_after_days: 14
+draft_after_days: 14

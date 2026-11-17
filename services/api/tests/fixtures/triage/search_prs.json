@@ -1,0 +1,70 @@
+{
+  "data": {
+    "search": {
+      "issueCount": 3,
+      "pageInfo": { "hasNextPage": false, "endCursor": "Y3Vyc29yOjM=" },
+      "nodes": [
+        {
+          "__typename": "PullRequest",
+          "number": 41,
+          "title": "chore(deps): bump vite from 6.0.1 to 6.0.2 in /apps/web",
+          "url": "https://github.com/memolabs-dev/usine/pull/41",
+          "createdAt": "2026-11-08T07:00:00Z",
+          "updatedAt": "2026-11-08T07:05:00Z",
+          "isDraft": false,
+          "mergeable": "CONFLICTING",
+          "author": { "login": "dependabot" },
+          "labels": { "nodes": [{ "name": "dependencies" }] },
+          "repository": { "nameWithOwner": "memolabs-dev/usine" },
+          "commits": {
+            "nodes": [
+              {
+                "commit": {
+                  "committedDate": "2026-11-08T06:59:00Z",
+                  "statusCheckRollup": { "state": "FAILURE" }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "__typename": "PullRequest",
+          "number": 12,
+          "title": "wip: une idée de page",
+          "url": "https://github.com/memolabs-dev/cra-clock/pull/12",
+          "createdAt": "2026-10-19T09:00:00Z",
+          "updatedAt": "2026-10-20T09:00:00Z",
+          "isDraft": true,
+          "mergeable": "MERGEABLE",
+          "author": { "login": "guillaume-flambard" },
+          "labels": { "nodes": [] },
+          "repository": { "nameWithOwner": "memolabs-dev/cra-clock" },
+          "commits": {
+            "nodes": [
+              {
+                "commit": {
+                  "committedDate": "2026-10-20T09:00:00Z",
+                  "statusCheckRollup": null
+                }
+              }
+            ]
+          }
+        },
+        {
+          "__typename": "PullRequest",
+          "number": 88,
+          "title": "feat: carte des sauvetages",
+          "url": "https://github.com/memolabs-dev/mediterranean-rescue/pull/88",
+          "createdAt": "2026-11-01T09:00:00Z",
+          "updatedAt": "2026-11-02T09:00:00Z",
+          "isDraft": false,
+          "mergeable": "MERGEABLE",
+          "author": { "login": "a-volunteer" },
+          "labels": { "nodes": [] },
+          "repository": { "nameWithOwner": "memolabs-dev/mediterranean-rescue" },
+          "commits": { "nodes": [] }
+        }
+      ]
+    }
+  }
+}
