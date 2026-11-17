@@ -29,7 +29,7 @@ Trois approches ont été comparées :
 2. **Périmètre** : les dépôts des comptes `guillaume-flambard` et `memolabs-dev`, **sauf les dépôts à bénévoles** (régime C de `git-workflow.md` : `mediterranean-rescue`, `sosmed-carto-recette`, tout dépôt Data for Good). La liste d'exclusion vit dans `config/` et le code la vérifie deux fois : au tri, puis juste avant d'agir.
 3. **Actions permises** : commenter, puis fermer une PR ou une issue. **Jamais de fusion** : `merge_pull_request` reste hors de la liste blanche.
 4. **Un nœud de pré-tri, sans modèle**, en tête du graphe LangGraph. Il lit GitHub et attache à chaque élément des faits vérifiables : âge, auteur, état de la CI, conflit, PR plus récente qui la remplace, PR fusionnée qui la cite. Il range chaque élément dans un de trois groupes :
-   - **évident**, quand une règle tranche : une PR Dependabot remplacée par une plus récente du même paquet, ou une issue citée par une PR fusionnée (« Closes #n » ou mention) ;
+   - **évident**, quand une règle tranche : une PR Dependabot remplacée par une plus récente du même paquet, ou une issue qu'une PR fusionnée ferme (« Closes #n », `willCloseTarget`). Une simple mention ne suffit pas : mesurée le 17 novembre 2026, elle aurait proposé 89 issues à fermer ; elle part aux agents comme indice ;
    - **à juger** : tout le reste qui traîne, dont les brouillons de plus de 14 jours sans commit ;
    - **à garder** : rien à proposer.
    Une issue étiquetée P0 ou P1 n'est **jamais** fermée par une règle : elle va toujours aux agents.

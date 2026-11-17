@@ -56,7 +56,9 @@ ISSUE_FIELDS = """
     labels(first: 20) { nodes { name } }
     repository { nameWithOwner }
     timelineItems(itemTypes: [CROSS_REFERENCED_EVENT], last: 20) {
-      nodes { ... on CrossReferencedEvent { source { ... on PullRequest { merged url } } } }
+      nodes {
+        ... on CrossReferencedEvent { willCloseTarget source { ... on PullRequest { merged url } } }
+      }
     }
   }
 """
@@ -131,7 +133,10 @@ class Item(BaseModel):
     last_commit_at: datetime | None = None
     ci: Literal["success", "failure", "pending", "none"] = "none"
     conflicting: bool = False
+    #: A merged PR that closes this issue ("Closes #n"): a fact a rule may act on.
     closed_by_merged_pr: str | None = None
+    #: A merged PR that only mentions it: a clue for the agents, never a proof.
+    mentioned_by_merged_pr: str | None = None
 
 
 class Snapshot(BaseModel):
@@ -163,7 +168,10 @@ def _author(node: dict[str, Any]) -> str:
     return login.removesuffix("[bot]")
 
 
-def _item(node: dict[str, Any]) -> Item | None:
+def _item(node: dict[str, Any] | None) -> Item | None:
+    if not node:
+        # A node GitHub would not show this token: the search says so.
+        return None
     kind = node.get("__typename")
     if kind not in ("PullRequest", "Issue"):
         return None
@@ -178,12 +186,21 @@ def _item(node: dict[str, Any]) -> Item | None:
         "updated_at": node["updatedAt"],
     }
     if kind == "Issue":
-        merged = [
-            source["url"]
-            for event in node.get("timelineItems", {}).get("nodes", [])
-            if (source := event.get("source") or {}).get("merged") and source.get("url")
-        ]
-        return Item(kind="issue", closed_by_merged_pr=merged[-1] if merged else None, **common)
+        # Measured on 17 November 2026: counting every mention by a merged PR
+        # as "resolved" proposed 89 issues to close. Only a closing reference
+        # (`willCloseTarget`) is a fact; a mention goes to the agents.
+        closing: list[str] = []
+        mentions: list[str] = []
+        for event in node.get("timelineItems", {}).get("nodes", []) or []:
+            source = (event or {}).get("source") or {}
+            if source.get("merged") and source.get("url"):
+                (closing if event.get("willCloseTarget") else mentions).append(source["url"])
+        return Item(
+            kind="issue",
+            closed_by_merged_pr=closing[-1] if closing else None,
+            mentioned_by_merged_pr=mentions[-1] if mentions else None,
+            **common,
+        )
     commits = node.get("commits", {}).get("nodes", [])
     commit = commits[-1]["commit"] if commits else {}
     rollup = commit.get("statusCheckRollup") or {}
@@ -213,6 +230,15 @@ class GraphQLReader:
         return token
 
     async def _post(self, owner: str, query: str, variables: dict[str, Any]) -> dict[str, Any]:
+        data, errors = await self._post_partial(owner, query, variables)
+        if errors:
+            raise ReadFailure(f"GitHub a refusé la requête : {errors[0]}")
+        return data
+
+    async def _post_partial(
+        self, owner: str, query: str, variables: dict[str, Any]
+    ) -> tuple[dict[str, Any], list[str]]:
+        """The data GitHub gave, and its error messages: a search may be partly readable."""
         response = await self._client.post(
             GRAPHQL_URL,
             json={"query": query, "variables": variables},
@@ -221,24 +247,33 @@ class GraphQLReader:
         if response.status_code != 200:
             raise ReadFailure(f"GitHub a répondu {response.status_code}")
         payload: dict[str, Any] = response.json()
-        if payload.get("errors"):
-            first = payload["errors"][0].get("message", "erreur GraphQL")
-            raise ReadFailure(f"GitHub a refusé la requête : {first}")
-        return dict(payload.get("data") or {})
+        errors = [str(e.get("message", "erreur GraphQL")) for e in payload.get("errors") or []]
+        data = payload.get("data")
+        if not data:
+            raise ReadFailure(f"GitHub a refusé la requête : {errors[0] if errors else 'vide'}")
+        return dict(data), errors
 
     async def _search(self, owner: str, q: str, fields: str) -> tuple[list[Item], str | None]:
         items: list[Item] = []
         after: str | None = None
         count = 0
+        refused: list[str] = []
         while True:
-            data = await self._post(owner, SEARCH_QUERY % fields, {"q": q, "after": after})
-            search = data["search"]
+            data, errors = await self._post_partial(
+                owner, SEARCH_QUERY % fields, {"q": q, "after": after}
+            )
+            refused.extend(errors)
+            search = data.get("search")
+            if not search:
+                raise ReadFailure(f"GitHub a refusé la requête : {errors[0] if errors else 'vide'}")
             count = int(search.get("issueCount", 0))
             items.extend(item for node in search["nodes"] if (item := _item(node)) is not None)
             page = search["pageInfo"]
             if not page.get("hasNextPage"):
                 break
             after = page["endCursor"]
+        if refused:
+            return items, f"« {q} » : {len(refused)} élément(s) illisible(s) ({refused[0]})"
         if count > len(items) or count > SEARCH_CAP:
             return items, f"« {q} » : {len(items)} lus sur {count}, tri incomplet"
         return items, None

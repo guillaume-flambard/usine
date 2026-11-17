@@ -142,3 +142,8 @@ def test_excluded_repo_is_dropped_even_if_reader_let_it_through() -> None:
 def test_evident_comment_names_the_proof() -> None:
     r = pretriage([issue(7, closed_by_merged_pr=MERGED)], POLICY, NOW)[0]
     assert r.comment == f"Fermée par le tri quotidien de l'usine : résolue par {MERGED}."
+
+
+def test_a_mention_by_a_merged_pr_goes_to_agents() -> None:
+    r = pretriage([issue(8, mentioned_by_merged_pr=MERGED)], POLICY, NOW)[0]
+    assert r.group == "a_juger"

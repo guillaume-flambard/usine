@@ -117,6 +117,8 @@ def describe(items: list[Item], now: datetime) -> str:
                 facts.append(f"brouillon, dernier commit il y a {_days(item.last_commit_at, now)}")
         if item.labels:
             facts.append("étiquettes " + ", ".join(item.labels))
+        if item.mentioned_by_merged_pr:
+            facts.append(f"citée par une PR fusionnée {item.mentioned_by_merged_pr} (à lire)")
         lines.append(" ; ".join(facts))
     return "\n".join(lines)
 

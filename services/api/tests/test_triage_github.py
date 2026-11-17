@@ -206,3 +206,31 @@ async def test_an_account_without_token_is_said_not_guessed() -> None:
     snap = await reader.stale(POLICY, NOW)
     assert all(item.repo.startswith("memolabs-dev/") for item in snap.items)
     assert any("aucun jeton pour guillaume-flambard" in reason for reason in snap.incomplete)
+
+
+async def test_only_a_merged_pr_that_closes_the_issue_resolves_it() -> None:
+    reader, _ = reader_with(by_kind)
+    snap = await reader.stale(POLICY, NOW)
+    mentioned = next(i for i in snap.items if i.kind == "issue" and i.number == 21)
+    assert mentioned.closed_by_merged_pr is None
+    assert (
+        mentioned.mentioned_by_merged_pr
+        == "https://github.com/guillaume-flambard/lab-infra/pull/61"
+    )
+
+
+async def test_partial_graphql_errors_keep_what_was_readable() -> None:
+    def partial(body: dict[str, Any]) -> httpx.Response:
+        if "is:pr" in body["variables"]["q"] and "user:memolabs-dev" in body["variables"]["q"]:
+            payload = fixture("search_prs.json")
+            payload["data"]["search"]["nodes"].append(None)
+            payload["errors"] = [{"message": "Resource not accessible by personal access token"}]
+            return httpx.Response(200, json=payload)
+        return httpx.Response(200, json={"data": {"search": empty()}})
+
+    reader, _ = reader_with(partial)
+    snap = await reader.stale(POLICY, NOW)
+    assert any(i.number == 41 for i in snap.items)
+    assert any(
+        "illisible" in reason and "user:memolabs-dev" in reason for reason in snap.incomplete
+    )
