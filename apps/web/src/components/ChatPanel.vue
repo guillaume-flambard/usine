@@ -62,13 +62,14 @@ const emit = defineEmits<{
 const input = ref('')
 /**
  * Briefs to start from, filled into the composer, never sent on their own. The
- * first one is real work for the tool agent: the repository it reads is public
- * and its README tells why production stopped updating on 2 November.
+ * first one is real work for the tool agent, the run the visit replays (17
+ * November 2026): three agents read different sources of the public
+ * repository, and one ticket at most reaches the gate.
  */
 const SUGGESTED_BRIEFS = [
   {
-    label: 'Pourquoi la production ne bouge plus\u202f?',
-    text: 'Lis deployment/README.md du dépôt guillaume-flambard/usine, explique pourquoi la production ne se mettait plus à jour, et propose une issue pour le suivre.',
+    label: 'Un contributeur peut-il démarrer\u202f?',
+    text: 'Un nouveau contributeur peut-il démarrer sur le dépôt guillaume-flambard/usine\u202f? Lis le README, la configuration de la CI (.github/workflows/verify.yml) et cherche un guide de contribution, puis propose un seul ticket pour ce qui manque.',
   },
   {
     label: 'L’annonce de la v2',

@@ -3,3 +3,6 @@
 test-results/
 playwright-report/
 references/
+
+# Impeccable: local tool state (hook consent, cache, review captures)
+.impeccable/
