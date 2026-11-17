@@ -71,3 +71,35 @@ def test_no_token_means_no_triage_and_one_token_is_enough() -> None:
         default_triage(env={"USINE_TRIAGE_TOKEN_MEMOLABS_DEV": "t"}, **{**options, "gateway": None})
         is None
     )
+
+
+def test_a_postgres_token_store_issues_without_migrating_mid_request() -> None:
+    # Found on 17 November 2026: `issue` called `migrate(conn)` with a connection
+    # where `migrate` wants the pool, so issuing a token crashed in production.
+    from contextlib import contextmanager
+    from typing import Any
+
+    from usine_api.mcp_auth import PostgresMcpAuthStore
+
+    class Row:
+        def fetchone(self) -> tuple[str]:
+            return ("id-1",)
+
+    class Conn:
+        def __init__(self) -> None:
+            self.sql: list[str] = []
+
+        def execute(self, sql: str, params: Any = None) -> Row:
+            self.sql.append(sql)
+            return Row()
+
+    conn = Conn()
+
+    class Pool:
+        @contextmanager
+        def connection(self) -> Any:
+            yield conn
+
+    secret = PostgresMcpAuthStore(Pool()).issue("org-a", "timer", "triage")  # type: ignore[arg-type]
+    assert secret.scope == "triage" and secret.token
+    assert len(conn.sql) == 1 and conn.sql[0].startswith("INSERT INTO mcp_tokens")

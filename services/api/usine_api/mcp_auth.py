@@ -25,8 +25,6 @@ from typing import Any, Literal, Protocol
 from psycopg_pool import ConnectionPool
 from pydantic import BaseModel, Field
 
-from usine_api.db import migrate
-
 Scope = Literal["read", "read_fork", "triage"]
 SCOPES: tuple[str, ...] = ("read", "read_fork", "triage")
 
@@ -161,8 +159,10 @@ class PostgresMcpAuthStore:
         self._pool = pool
 
     def issue(self, org: str, label: str, scope: Scope) -> Secret:
+        # The schema is migrated once, when the stores open (postgres.PgStores):
+        # `migrate` takes the pool, and called here with a connection it crashed
+        # every token issued in production (found on 17 November 2026).
         with self._pool.connection() as conn:
-            migrate(conn)
             row = conn.execute(
                 "INSERT INTO mcp_tokens (id, token_hash, org, label, scope) "
                 "VALUES (%s, %s, %s, %s, %s) RETURNING id",
