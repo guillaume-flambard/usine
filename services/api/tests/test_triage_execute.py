@@ -86,7 +86,9 @@ def test_action_carries_what_the_gate_shows() -> None:
 
 async def test_comment_then_close_issue() -> None:
     mcp = FakeMcp()
-    outcome = await TriageExecutor(mcp, FakeReader(), POLICY).execute(to_action(ruling()))
+    outcome = await TriageExecutor({"memolabs-dev": mcp}.get, FakeReader(), POLICY).execute(
+        to_action(ruling())
+    )
     assert outcome == "commentée et fermée"
     assert mcp.calls == [
         (
@@ -114,7 +116,9 @@ async def test_comment_then_close_issue() -> None:
 
 async def test_comment_then_close_pr() -> None:
     mcp = FakeMcp()
-    await TriageExecutor(mcp, FakeReader(), POLICY).execute(to_action(ruling("pr")))
+    await TriageExecutor({"memolabs-dev": mcp}.get, FakeReader(), POLICY).execute(
+        to_action(ruling("pr"))
+    )
     assert [target for target, _ in mcp.calls] == [
         "github/add_issue_comment",
         "github/update_pull_request",
@@ -129,21 +133,25 @@ async def test_comment_then_close_pr() -> None:
 
 async def test_already_closed_item_is_skipped() -> None:
     mcp = FakeMcp()
-    outcome = await TriageExecutor(mcp, FakeReader(open_=False), POLICY).execute(
-        to_action(ruling())
-    )
+    outcome = await TriageExecutor(
+        {"memolabs-dev": mcp}.get, FakeReader(open_=False), POLICY
+    ).execute(to_action(ruling()))
     assert mcp.calls == [] and outcome.startswith("déjà fermé")
 
 
 async def test_close_failure_after_comment_is_reported() -> None:
     mcp = FakeMcp({"github/issue_write": "échec : Resource not accessible"})
-    outcome = await TriageExecutor(mcp, FakeReader(), POLICY).execute(to_action(ruling()))
+    outcome = await TriageExecutor({"memolabs-dev": mcp}.get, FakeReader(), POLICY).execute(
+        to_action(ruling())
+    )
     assert outcome == "commentée, non fermée : échec : Resource not accessible"
 
 
 async def test_comment_failure_stops_the_close() -> None:
     mcp = FakeMcp({"github/add_issue_comment": "échec : 404"})
-    outcome = await TriageExecutor(mcp, FakeReader(), POLICY).execute(to_action(ruling()))
+    outcome = await TriageExecutor({"memolabs-dev": mcp}.get, FakeReader(), POLICY).execute(
+        to_action(ruling())
+    )
     assert [target for target, _ in mcp.calls] == ["github/add_issue_comment"]
     assert outcome == "rien envoyé : échec : 404"
 
@@ -151,13 +159,15 @@ async def test_comment_failure_stops_the_close() -> None:
 async def test_excluded_repo_is_refused_before_anything() -> None:
     mcp = FakeMcp()
     action = to_action(ruling(repo="memolabs-dev/mediterranean-rescue"))
-    outcome = await TriageExecutor(mcp, FakeReader(), POLICY).execute(action)
+    outcome = await TriageExecutor({"memolabs-dev": mcp}.get, FakeReader(), POLICY).execute(action)
     assert mcp.calls == [] and outcome.startswith("refusée")
 
 
 async def test_unreadable_preview_is_refused() -> None:
     action = to_action(ruling()).model_copy(update={"preview": "pas du json"})
-    outcome = await TriageExecutor(FakeMcp(), FakeReader(), POLICY).execute(action)
+    outcome = await TriageExecutor({"memolabs-dev": FakeMcp()}.get, FakeReader(), POLICY).execute(
+        action
+    )
     assert outcome.startswith("refusée")
 
 
@@ -176,20 +186,24 @@ def test_comment_and_pr_update_are_irreversible() -> None:
 async def test_item_updated_since_triage_is_skipped() -> None:
     mcp = FakeMcp()
     reader = FakeReader(updated_at=NOW + timedelta(hours=3))
-    outcome = await TriageExecutor(mcp, reader, POLICY).execute(to_action(ruling()))
+    outcome = await TriageExecutor({"memolabs-dev": mcp}.get, reader, POLICY).execute(
+        to_action(ruling())
+    )
     assert mcp.calls == [] and outcome.startswith("modifié depuis le tri")
 
 
 async def test_comment_is_defused_again_at_execution() -> None:
     mcp = FakeMcp()
     action = to_action(ruling().model_copy(update={"comment": "cc @bob"}))
-    await TriageExecutor(mcp, FakeReader(), POLICY).execute(action)
+    await TriageExecutor({"memolabs-dev": mcp}.get, FakeReader(), POLICY).execute(action)
     assert mcp.calls[0][1]["body"] == "cc @\u2060bob"
 
 
 async def test_comment_timeout_is_reported_as_unknown() -> None:
     mcp = FakeMcp({"github/add_issue_comment": "état inconnu : pas de réponse en 30 s"})
-    outcome = await TriageExecutor(mcp, FakeReader(), POLICY).execute(to_action(ruling()))
+    outcome = await TriageExecutor({"memolabs-dev": mcp}.get, FakeReader(), POLICY).execute(
+        to_action(ruling())
+    )
     assert outcome.startswith("état inconnu, non fermée")
     assert len(mcp.calls) == 1
 
@@ -202,3 +216,10 @@ def test_the_chat_never_reaches_the_triage_tools() -> None:
         with pytest.raises(RegistryRefusal):
             chat.allowed("github", tool)
     assert chat.allowed("github", "issue_write") == "irreversible"
+
+
+async def test_an_owner_without_token_is_refused() -> None:
+    mcp = FakeMcp()
+    action = to_action(ruling(repo="guillaume-flambard/lab-infra"))
+    outcome = await TriageExecutor({"memolabs-dev": mcp}.get, FakeReader(), POLICY).execute(action)
+    assert mcp.calls == [] and outcome == "refusée : aucun jeton pour guillaume-flambard"

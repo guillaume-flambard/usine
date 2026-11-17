@@ -23,6 +23,7 @@ rien n'est fermé.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any, Protocol
 
@@ -80,7 +81,13 @@ def _done(outcome: str) -> bool:
 class TriageExecutor:
     """Runs one approved triage proposal: comment, then close."""
 
-    def __init__(self, mcp: ActionRunner, reader: GitHubReader, policy: TriagePolicy) -> None:
+    def __init__(
+        self,
+        mcp: Callable[[str], ActionRunner | None],
+        reader: GitHubReader,
+        policy: TriagePolicy,
+    ) -> None:
+        # The runner of each account: its calls carry that account's token.
         self._mcp = mcp
         self._reader = reader
         self._policy = policy
@@ -98,6 +105,9 @@ class TriageExecutor:
             return "refusée : ce dépôt est exclu du tri"
         if not comment:
             return "refusée : aucun commentaire à publier"
+        runner = self._mcp(owner)
+        if runner is None:
+            return f"refusée : aucun jeton pour {owner}"
         try:
             now = await self._reader.current(repo, number)
         except Exception as failure:  # noqa: BLE001 - one item never stops the others
@@ -108,7 +118,7 @@ class TriageExecutor:
             return "modifié depuis le tri : rien envoyé, à revoir demain"
 
         why = f"tri quotidien : {repo}#{number}"
-        commented = await self._mcp.execute(
+        commented = await runner.execute(
             _call(
                 "add_issue_comment",
                 {"owner": owner, "repo": name, "issue_number": number, "body": comment},
@@ -139,5 +149,5 @@ class TriageExecutor:
                 },
                 why,
             )
-        closed = await self._mcp.execute(close)
+        closed = await runner.execute(close)
         return "commentée et fermée" if _done(closed) else f"commentée, non fermée : {closed}"

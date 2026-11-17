@@ -129,18 +129,19 @@ class LangChainJudge:
         settings: ModelSettings,
         *,
         registry: Registry,
-        transport: Transport,
+        transports: Callable[[str], Transport | None],
         http_client: httpx.AsyncClient | None = None,
         agent_factory: Callable[..., Any] = create_agent,
     ) -> None:
         self._settings = settings
         self._registry = registry
-        self._transport = transport
+        # One transport per account: the agent reads with the owner's token.
+        self._transports = transports
         self._client = http_client
         self._agent_factory = agent_factory
 
-    async def _toolbox(self) -> Toolbox:
-        return await toolbox(self._registry, transport=self._transport)
+    async def _toolbox(self, transport: Transport) -> Toolbox:
+        return await toolbox(self._registry, transport=transport)
 
     def _readable(self, tools: list[BaseTool]) -> list[BaseTool]:
         kept = []
@@ -154,7 +155,11 @@ class LangChainJudge:
         return kept
 
     async def judge(self, repo: str, items: list[Item]) -> RepoVerdicts:
-        box = await self._toolbox()
+        owner = repo.partition("/")[0]
+        transport = self._transports(owner)
+        if transport is None:
+            raise LookupError(f"aucun jeton pour {owner}")
+        box = await self._toolbox(transport)
         model = chat_model(
             self._settings, http_client=self._client, session_id=current_session_id()
         )

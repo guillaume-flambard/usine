@@ -547,7 +547,6 @@ def create_app(
         triage_graph = default_triage(
             gateway=gateway,
             registry=whitelist,
-            transport=rpc,
             policy_path=_repo_root() / "config" / "triage.yaml",
             env=os.environ,
             http_client=cassette_client,

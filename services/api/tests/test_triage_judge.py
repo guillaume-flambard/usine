@@ -31,6 +31,7 @@ CLOSE_WITH_PROOF = TriageVerdict(
 )
 SETTINGS = ModelSettings(base_url="http://gateway.test", api_key="k", model="m")
 REGISTRY = Registry.load(Path(__file__).parents[3] / "config" / "mcp-servers.yaml")
+FAKE_TRANSPORT: Any = object()
 
 
 def test_verdict_without_proof_becomes_keep() -> None:
@@ -98,7 +99,7 @@ class FakeAgent:
 
 
 class OfflineJudge(LangChainJudge):
-    async def _toolbox(self) -> Toolbox:
+    async def _toolbox(self, transport: Any) -> Toolbox:
         names = ("github__issue_read", "github__get_file_contents", "github__issue_write")
         return Toolbox(tools=[tool(name) for name in names])
 
@@ -111,7 +112,9 @@ async def test_judge_gets_read_tools_only() -> None:
         seen.update(tools=tools, **options)
         return agent
 
-    judge = OfflineJudge(SETTINGS, registry=REGISTRY, transport=None, agent_factory=capture)
+    judge = OfflineJudge(
+        SETTINGS, registry=REGISTRY, transports=lambda owner: FAKE_TRANSPORT, agent_factory=capture
+    )
     verdicts = await judge.judge("memolabs-dev/usine", [ITEM])
     assert {t.name for t in seen["tools"]} == {"github__issue_read", "github__get_file_contents"}
     assert seen["response_format"] is RepoVerdicts
@@ -125,7 +128,7 @@ async def test_judge_without_structured_answer_returns_no_verdict() -> None:
     judge = OfflineJudge(
         SETTINGS,
         registry=REGISTRY,
-        transport=None,
+        transports=lambda owner: FAKE_TRANSPORT,
         agent_factory=lambda *a, **k: FakeAgent(None),
     )
     assert (await judge.judge("memolabs-dev/usine", [ITEM])).verdicts == []

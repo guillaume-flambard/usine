@@ -23,8 +23,7 @@ from usine_api.models import ModelSettings
 from .execute import TriageExecutor
 from .github import GraphQLReader, load_policy
 from .judge import LangChainJudge
-
-TOKEN_ENV = "USINE_GITHUB_TOKEN"
+from .transport import TokenTransport
 
 #: A triage run is `tri-YYYY-MM-DD`: one a day, and its graph is found by name.
 TRIAGE_PREFIX = "tri-"
@@ -47,25 +46,41 @@ def default_triage(
     *,
     gateway: ModelSettings | None,
     registry: Registry,
-    transport: Transport,
     policy_path: Path,
     env: Mapping[str, str],
     http_client: httpx.AsyncClient | None = None,
 ) -> TriageFactory | None:
-    """A factory taking the checkpointer, or None when the triage cannot run."""
-    token = env.get(TOKEN_ENV, "")
-    if gateway is None or not token or "github" not in registry.names():
+    """A factory taking the checkpointer, or None when the triage cannot run.
+
+    Each account reads and writes with its own token (`tokens` in the policy
+    names the variables). An account without its token is not read, and the
+    run says so; with no token at all, there is no triage.
+    """
+    if gateway is None or "github" not in registry.names():
         return None
     policy = load_policy(policy_path)
+    tokens = {
+        account: env.get(variable, "")
+        for account, variable in policy.tokens.items()
+        if env.get(variable, "")
+    }
+    if not tokens:
+        return None
+    transports: dict[str, Transport] = {
+        account: TokenTransport(token) for account, token in tokens.items()
+    }
+    runners = {
+        account: McpExecutor(registry, transport=route) for account, route in transports.items()
+    }
 
     def build(checkpointer: Any) -> Any:
         from usine_api.graph.triage import build_triage_graph
 
-        reader = GraphQLReader(token)
+        reader = GraphQLReader(tokens)
         judge = LangChainJudge(
-            gateway, registry=registry, transport=transport, http_client=http_client
+            gateway, registry=registry, transports=transports.get, http_client=http_client
         )
-        executor = TriageExecutor(McpExecutor(registry, transport=transport), reader, policy)
+        executor = TriageExecutor(runners.get, reader, policy)
         return build_triage_graph(reader, judge, executor, policy, checkpointer=checkpointer)
 
     return build

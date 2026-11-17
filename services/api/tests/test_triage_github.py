@@ -33,11 +33,13 @@ def reader_with(handler: Handler) -> tuple[GraphQLReader, list[dict[str, Any]]]:
 
     def reply(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
+        body["token"] = request.headers["authorization"].removeprefix("Bearer ")
         seen.append(body)
         return handler(body)
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(reply))
-    return GraphQLReader("token", client=client), seen
+    tokens = {"guillaume-flambard": "t-gf", "memolabs-dev": "t-md"}
+    return GraphQLReader(tokens, client=client), seen
 
 
 def by_kind(body: dict[str, Any]) -> httpx.Response:
@@ -182,3 +184,25 @@ def pr_node(number: int) -> dict[str, Any]:
         "repository": {"nameWithOwner": "memolabs-dev/navirox"},
         "commits": {"nodes": []},
     }
+
+
+async def test_each_account_is_read_with_its_own_token() -> None:
+    reader, seen = reader_with(by_kind)
+    await reader.stale(POLICY, NOW)
+    for body in seen:
+        account = (
+            "memolabs-dev"
+            if "user:memolabs-dev" in body["variables"]["q"]
+            else "guillaume-flambard"
+        )
+        assert body["token"] == {"guillaume-flambard": "t-gf", "memolabs-dev": "t-md"}[account]
+
+
+async def test_an_account_without_token_is_said_not_guessed() -> None:
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda r: by_kind(json.loads(r.content)))
+    )
+    reader = GraphQLReader({"memolabs-dev": "t-md"}, client=client)
+    snap = await reader.stale(POLICY, NOW)
+    assert all(item.repo.startswith("memolabs-dev/") for item in snap.items)
+    assert any("aucun jeton pour guillaume-flambard" in reason for reason in snap.incomplete)

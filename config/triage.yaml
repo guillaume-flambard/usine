@@ -17,6 +17,15 @@ excluded_repos:
 excluded_owners:
   - dataforgoodfr
 
+# Un jeton par compte : un PAT à grain fin ne couvre qu'un propriétaire
+# (docs.github.com, « Managing your personal access tokens », lu le 17 novembre
+# 2026). On nomme ici la variable d'environnement, jamais la valeur. Chaque jeton :
+# accès aux dépôts du compte, Issues et Pull requests en écriture, Contents et
+# Metadata en lecture. Un compte sans jeton n'est pas lu, et le tri le dit.
+tokens:
+  guillaume-flambard: USINE_TRIAGE_TOKEN_GUILLAUME_FLAMBARD
+  memolabs-dev: USINE_TRIAGE_TOKEN_MEMOLABS_DEV
+
 # Seuils, en jours.
 pr_after_days: 2
 issue_after_days: 14

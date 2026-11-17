@@ -16,6 +16,7 @@ Ce que ce module ne fait pas : décider. Il lit, et dit ce qu'il n'a pas pu lire
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal, Protocol
@@ -93,6 +94,9 @@ class TriagePolicy(BaseModel):
     pr_after_days: int = 2
     issue_after_days: int = 14
     draft_after_days: int = 14
+    #: Account -> name of the environment variable holding its fine-grained token.
+    #: A fine-grained PAT covers one owner only (docs.github.com, read 17 Nov 2026).
+    tokens: dict[str, str] = {}
 
     def excludes(self, repo: str) -> bool:
         """`owner/name` is excluded by its owner, its full name, or its bare name."""
@@ -194,17 +198,25 @@ def _item(node: dict[str, Any]) -> Item | None:
 
 
 class GraphQLReader:
-    """Reads GitHub's GraphQL API with a fine-grained token, read-only."""
+    """Reads GitHub's GraphQL API, read-only, with each account's own token."""
 
-    def __init__(self, token: str, *, client: httpx.AsyncClient | None = None) -> None:
-        self._token = token
+    def __init__(
+        self, tokens: Mapping[str, str], *, client: httpx.AsyncClient | None = None
+    ) -> None:
+        self._tokens = dict(tokens)
         self._client = client or httpx.AsyncClient(timeout=30)
 
-    async def _post(self, query: str, variables: dict[str, Any]) -> dict[str, Any]:
+    def _token_for(self, owner: str) -> str:
+        token = self._tokens.get(owner)
+        if not token:
+            raise ReadFailure(f"aucun jeton pour {owner}")
+        return token
+
+    async def _post(self, owner: str, query: str, variables: dict[str, Any]) -> dict[str, Any]:
         response = await self._client.post(
             GRAPHQL_URL,
             json={"query": query, "variables": variables},
-            headers={"Authorization": f"Bearer {self._token}"},
+            headers={"Authorization": f"Bearer {self._token_for(owner)}"},
         )
         if response.status_code != 200:
             raise ReadFailure(f"GitHub a répondu {response.status_code}")
@@ -214,12 +226,12 @@ class GraphQLReader:
             raise ReadFailure(f"GitHub a refusé la requête : {first}")
         return dict(payload.get("data") or {})
 
-    async def _search(self, q: str, fields: str) -> tuple[list[Item], str | None]:
+    async def _search(self, owner: str, q: str, fields: str) -> tuple[list[Item], str | None]:
         items: list[Item] = []
         after: str | None = None
         count = 0
         while True:
-            data = await self._post(SEARCH_QUERY % fields, {"q": q, "after": after})
+            data = await self._post(owner, SEARCH_QUERY % fields, {"q": q, "after": after})
             search = data["search"]
             count = int(search.get("issueCount", 0))
             items.extend(item for node in search["nodes"] if (item := _item(node)) is not None)
@@ -236,13 +248,16 @@ class GraphQLReader:
         issue_before = (now - timedelta(days=policy.issue_after_days)).date().isoformat()
         snap = Snapshot()
         for account in policy.accounts:
+            if not self._tokens.get(account):
+                snap.incomplete.append(f"aucun jeton pour {account} : ce compte n'est pas lu")
+                continue
             searches = (
                 (f"is:open is:pr user:{account} created:<{pr_before}", PR_FIELDS),
                 (f"is:open is:issue user:{account} updated:<{issue_before}", ISSUE_FIELDS),
             )
             for q, fields in searches:
                 try:
-                    items, gap = await self._search(q, fields)
+                    items, gap = await self._search(account, q, fields)
                 except (ReadFailure, httpx.HTTPError, KeyError, TypeError) as failure:
                     snap.incomplete.append(f"« {q} » illisible : {failure}")
                     continue
@@ -253,7 +268,9 @@ class GraphQLReader:
 
     async def current(self, repo: str, number: int) -> Current:
         owner, _, name = repo.partition("/")
-        data = await self._post(STATE_QUERY, {"owner": owner, "name": name, "number": number})
+        data = await self._post(
+            owner, STATE_QUERY, {"owner": owner, "name": name, "number": number}
+        )
         found = (data.get("repository") or {}).get("issueOrPullRequest") or {}
         if "updatedAt" not in found:
             raise ReadFailure(f"{repo}#{number} introuvable")
