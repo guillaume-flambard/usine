@@ -311,3 +311,27 @@ def test_a_fork_after_the_decision_never_runs_the_action_again() -> None:
         assert reply.status_code == 409
         assert "relancerait" in reply.json()["detail"]
         assert len(spy.executed) == 1
+
+
+# The checklist gate of the daily triage (ADR 0003, point 6).
+
+
+def test_selected_only_with_approve() -> None:
+    with pytest.raises(ValidationError):
+        GateDecision(decision="reject", reason="non", selected=[0])
+
+
+def test_selected_has_no_duplicates() -> None:
+    with pytest.raises(ValidationError):
+        GateDecision(decision="approve", selected=[1, 1])
+
+
+def test_selected_indices_are_not_negative() -> None:
+    with pytest.raises(ValidationError):
+        GateDecision(decision="approve", selected=[-1])
+
+
+def test_existing_gate_payloads_still_validate() -> None:
+    assert GateDecision(decision="approve").selected is None
+    assert action_contract.GateRequest(actions=[SEND]).checklist is False
+    assert GateDecision(decision="approve", selected=[]).selected == []

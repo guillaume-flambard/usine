@@ -282,7 +282,7 @@
       },
       "GateDecision": {
         "additionalProperties": false,
-        "description": "Approve, reject with a reason, or edit the actions then approve them.",
+        "description": "Approve, reject with a reason, or edit the actions then approve them.\n\nOn a checklist gate, `selected` names the approved actions by index;\n`None` approves them all.",
         "properties": {
           "actions": {
             "anyOf": [
@@ -317,6 +317,20 @@
               }
             ],
             "title": "Reason"
+          },
+          "selected": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected"
           }
         },
         "required": [

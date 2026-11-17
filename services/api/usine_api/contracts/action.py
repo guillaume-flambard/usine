@@ -45,16 +45,23 @@ class GateRequest(BaseModel):
     actions: list[ProposedAction] = Field(min_length=1)
     notice: str = ROLLBACK_NOTICE
     expires_after_seconds: int = GATE_TIMEOUT_SECONDS
+    #: One box per action, all checked: the person approves a selection (ADR 0003).
+    checklist: bool = False
 
 
 class GateDecision(BaseModel):
-    """Approve, reject with a reason, or edit the actions then approve them."""
+    """Approve, reject with a reason, or edit the actions then approve them.
+
+    On a checklist gate, `selected` names the approved actions by index;
+    `None` approves them all.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     decision: Literal["approve", "reject", "edit"]
     reason: str | None = None
     actions: list[ProposedAction] | None = None
+    selected: list[int] | None = None
 
     @model_validator(mode="after")
     def _complete(self) -> GateDecision:
@@ -64,4 +71,9 @@ class GateDecision(BaseModel):
             raise ValueError("an edit gives the actions to execute")
         if self.decision != "edit" and self.actions is not None:
             raise ValueError("only an edit carries actions")
+        if self.selected is not None:
+            if self.decision != "approve":
+                raise ValueError("only an approval selects actions")
+            if len(set(self.selected)) != len(self.selected) or min(self.selected, default=0) < 0:
+                raise ValueError("a selection names each action once, by its index")
         return self
