@@ -185,3 +185,54 @@ async def test_an_edit_never_changes_what_a_triage_executes() -> None:
     forged["preview"] = json.dumps({"repo": "someone/else", "number": 9, "kind": "issue"})
     await g.ainvoke(Command(resume={"decision": "edit", "actions": [forged]}), CONFIG)
     assert [d["repo"] for d in executor.done] == []
+
+
+class RateLimitError(Exception):
+    """Shaped like openai.RateLimitError: the gateway is saturated."""
+
+
+class BusyJudge(Judge):
+    """Saturated twice per repository, then answers; counts how many run at once."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.failures: dict[str, int] = {}
+        self.running = 0
+        self.peak = 0
+
+    async def judge(self, repo: str, items: list[Item]) -> RepoVerdicts:
+        import asyncio
+
+        self.running += 1
+        self.peak = max(self.peak, self.running)
+        try:
+            await asyncio.sleep(0.01)
+            if self.failures.get(repo, 0) < 2:
+                self.failures[repo] = self.failures.get(repo, 0) + 1
+                raise RateLimitError("429 No deployments available")
+            return await super().judge(repo, items)
+        finally:
+            self.running -= 1
+
+
+async def test_judges_run_a_few_at_a_time_and_retry_when_saturated() -> None:
+    judge = BusyJudge()
+    repos = [f"memolabs-dev/r{n}" for n in range(8)]
+    snap = Snapshot(items=[issue(n, repo=repo) for n, repo in enumerate(repos)])
+
+    async def no_wait(seconds: float) -> None:
+        return None
+
+    g = build_triage_graph(
+        Reader(snap),
+        judge,
+        Executor(),
+        POLICY,
+        checkpointer=InMemorySaver(),
+        clock=lambda: NOW,
+        sleep=no_wait,
+    )
+    result = await g.ainvoke({"brief": "Tri du jour"}, CONFIG)
+    assert judge.peak <= 3
+    assert len(result["__interrupt__"][0].value["actions"]) == 8
+    assert "Agents en échec" not in result["answer"]

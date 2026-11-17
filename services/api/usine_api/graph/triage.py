@@ -19,8 +19,9 @@ Postgres, and plain JSON survives every serializer.
 
 from __future__ import annotations
 
+import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Annotated, Any, TypedDict
 
@@ -34,7 +35,7 @@ from usine_api.contracts import GateDecision, GateRequest, ProposedAction
 from usine_api.errors import readable_error
 from usine_api.triage.execute import ActionRunner, to_action
 from usine_api.triage.github import GitHubReader, Item, TriagePolicy
-from usine_api.triage.judge import Judge, settle
+from usine_api.triage.judge import Judge, RepoVerdicts, settle
 from usine_api.triage.rules import Ruling, pretriage
 
 from .supervisor import ACT, HUMAN_GATE, SYNTHESIZE
@@ -43,6 +44,20 @@ logger = logging.getLogger("usine.triage")
 
 PRETRIAGE = "pretriage"
 JUDGE = "judge"
+
+#: Measured on 17 November 2026: 29 repositories judged at once saturated the
+#: lab's gateway (429 on most of them). A few at a time, and a saturated call
+#: waits and tries again.
+MAX_PARALLEL_JUDGES = 3
+SATURATED_RETRIES = 2
+SATURATED_WAIT_SECONDS = 20.0
+
+
+def _saturated(error: BaseException) -> bool:
+    """A 429 from the gateway, whatever the client library calls it."""
+    return any(kind.__name__ == "RateLimitError" for kind in type(error).__mro__) or (
+        "429" in str(error)
+    )
 
 
 def gather(left: list[Any] | None, right: list[Any] | None) -> list[Any]:
@@ -87,7 +102,23 @@ def build_triage_graph(
     *,
     checkpointer: BaseCheckpointSaver[Any] | None = None,
     clock: Callable[[], datetime] = now_utc,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    max_parallel: int = MAX_PARALLEL_JUDGES,
 ) -> CompiledStateGraph[TriageState, None, TriageState, TriageState]:
+    slots = asyncio.Semaphore(max_parallel)
+
+    async def judge_with_retry(repo: str, items: list[Item]) -> RepoVerdicts:
+        attempt = 0
+        while True:
+            try:
+                async with slots:
+                    return await judge.judge(repo, items)
+            except Exception as error:
+                if attempt >= SATURATED_RETRIES or not _saturated(error):
+                    raise
+                attempt += 1
+                await sleep(SATURATED_WAIT_SECONDS * attempt)
+
     async def read_and_sort(state: TriageState) -> TriageState:
         snap = await reader.stale(policy, clock())
         rulings = pretriage(snap.items, policy, clock())
@@ -114,7 +145,7 @@ def build_triage_graph(
     async def judge_repo(state: RepoState) -> TriageState:
         items = [Item.model_validate(raw) for raw in state["items"]]
         try:
-            answer = await judge.judge(state["repo"], items)
+            answer = await judge_with_retry(state["repo"], items)
         except GraphBubbleUp:
             raise
         except Exception as error:  # noqa: BLE001 - one repository never stops the others
