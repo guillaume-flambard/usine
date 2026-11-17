@@ -92,12 +92,24 @@
   --radius-in: 12px;
   --radius-key: 8px;
   --radius-pill: 999px;
-  --shadow-1: 0 1px 2px oklch(20% 0.01 264 / 0.05), 0 6px 16px -8px oklch(20% 0.01 264 / 0.12);
-  --shadow-2: 0 2px 4px oklch(20% 0.01 264 / 0.04), 0 18px 40px -18px oklch(20% 0.01 264 / 0.18);
-  --shadow-3: 0 4px 8px oklch(20% 0.01 264 / 0.05), 0 28px 64px -24px oklch(20% 0.01 264 / 0.26);
+  /* Shadows tinted toward the colour field's hue, 240 (DESIGN.md). */
+  --shadow-1: 0 1px 2px oklch(22% 0.02 240 / 0.06), 0 6px 16px -8px oklch(22% 0.02 240 / 0.14);
+  --shadow-2: 0 2px 4px oklch(22% 0.02 240 / 0.05), 0 18px 40px -18px oklch(22% 0.02 240 / 0.2);
+  --shadow-3: 0 4px 8px oklch(22% 0.02 240 / 0.06), 0 28px 64px -24px oklch(22% 0.02 240 / 0.28);
   --shadow-ink: 0 1px 1px oklch(10% 0 0 / 0.16), 0 6px 14px -8px oklch(20% 0.01 264 / 0.4);
   --shadow-key: inset 0 -1px 0 var(--color-rule-2), 0 0 0 1px var(--color-rule);
   --tracking-display: -0.035em;
+  --dur-signature: 560ms;
+
+  /* The colour field, Usine's ground (DESIGN.md, chosen 17 November 2026). */
+  --color-field: oklch(95.4% 0.012 240);
+
+  /* The shared token contract (ui-craft socle.md), mapped onto F. */
+  --color-ground: var(--color-field);
+  --color-ground-2: var(--color-paper-3);
+  --color-ground-3: var(--color-paper-4);
+  --color-surface-raised: var(--color-paper-2);
+  --font-voice: var(--font-serif);
 
   /* Nuxt UI's tokens, mapped onto F. Primary is the ink: the one action
      colour. Neutrals are F's warm greys. */
@@ -202,6 +214,28 @@ code,
   --t: var(--color-ink);
   --tt: var(--color-ink);
   --ts: var(--color-paper-3);
+}
+
+/* The colour field: a cool ground crossed by translucent bands in the four
+   thread colours. The bands are fixed to the viewport, so a long page keeps
+   them at the same angle, and they never move (nothing to pause). Text never
+   sits on a band in a thread colour, only in ink. */
+.ground-field {
+  position: relative;
+  isolation: isolate;
+  background: var(--color-field);
+}
+.ground-field::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(104deg, transparent 6%, oklch(63% 0.14 246 / 0.3) 20%, transparent 34%),
+    linear-gradient(104deg, transparent 28%, oklch(61.9% 0.216 327 / 0.18) 42%, transparent 55%),
+    linear-gradient(104deg, transparent 50%, oklch(62.1% 0.141 153 / 0.22) 63%, transparent 76%),
+    linear-gradient(104deg, transparent 69%, oklch(69.9% 0.146 68 / 0.24) 82%, transparent 95%);
 }
 
 /* The two button recipes of F: ink (the one filled action) and line. */

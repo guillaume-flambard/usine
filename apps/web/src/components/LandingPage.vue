@@ -1,15 +1,15 @@
 <script setup lang="ts">
 /**
  * The public page: what a signed-out visitor sees (MEM-83, rewritten on
- * 16 November 2026).
+ * 16 November 2026, redrawn on 17 November 2026 with the design system in
+ * DESIGN.md).
  *
- * One story everywhere. The page used to tell an illustrated run "of
- * 2 November" with named agents and figures, while the visit told the real run
- * of 16 November and the atelier used other words: three stories, and the
- * illustration presented itself as real. Now the page says what the tool does
- * in the visit's words, and sends to the visit, the recorded real run. The
- * carnet lists what production really broke the day it went live, each fix
- * with its test. The page calls no model and no authenticated route.
+ * The first screen shows the product at work instead of describing it: the
+ * real run of 16 November, summed up as three agents on their threads that
+ * knot into the gate, on the colour-field ground. Every line comes from that
+ * run (public/visite/run.json); the visit replays it in full. Below, the carnet
+ * lists what production really broke the day it went live, each fix with its
+ * test. The page calls no model and no authenticated route.
  */
 import { SIGN_IN_URL } from '../chat/session'
 
@@ -18,25 +18,32 @@ defineEmits<{ retry: [] }>()
 
 const REPO = 'https://github.com/guillaume-flambard/usine'
 
-/** The visit's four steps, in its own words. */
-const STEPS = [
+/**
+ * The three agents of the run of 16 November, in the supervisor's order. Each
+ * line is an event of public/visite/run.json: the subtask the supervisor gave,
+ * the GitHub tools the agent called, and its time. Each agent proposed an issue
+ * and stopped at the gate: nothing was written.
+ */
+const LANES = [
   {
-    title: 'La question',
-    text: 'On lui écrit comme à un collègue : pourquoi mon site ne se met plus à jour ?',
+    thread: 'sky',
+    name: 'Agent 1',
+    task: 'lire deployment/README.md et en restituer l’essentiel',
+    status: 'terminé en 25 s',
   },
   {
-    title: 'Le travail réparti',
-    text: 'Un agent chef découpe la tâche, trois agents travaillent en même temps.',
+    thread: 'mag',
+    name: 'Agent 2',
+    task: 'expliquer pourquoi la production ne se mettait plus à jour',
+    status: 'terminé en 26 s',
   },
   {
-    title: 'Les faits',
-    text: 'Ils lisent le vrai projet sur GitHub, en lecture seule. Ils ne devinent pas.',
+    thread: 'grn',
+    name: 'Agent 3',
+    task: 'rédiger une issue complète pour suivre le problème',
+    status: 'terminé en 24 s',
   },
-  {
-    title: 'Votre accord',
-    text: 'Ils proposent un ticket, lisible. Rien ne part sur GitHub sans accord humain.',
-  },
-]
+] as const
 
 /** What the day of going live really broke, and the fix. Each has its test. */
 const ENTRIES = [
@@ -60,7 +67,7 @@ const ENTRIES = [
 </script>
 
 <template>
-  <div class="landing" data-landing>
+  <div class="landing ground-field" data-landing>
     <div class="container">
       <header id="top">
         <nav class="nav" aria-label="Principale">
@@ -75,7 +82,7 @@ const ENTRIES = [
             Usine
           </a>
           <ul>
-            <li><a href="/visite">La visite</a></li>
+            <li class="wide-only"><a href="/visite">La visite</a></li>
             <li><a :href="REPO">Le code</a></li>
             <li><a :href="SIGN_IN_URL" data-nav-sign-in>Se connecter</a></li>
           </ul>
@@ -84,14 +91,10 @@ const ENTRIES = [
 
       <main id="main">
         <section class="hero" aria-labelledby="t-hero">
-          <p class="kicker">Usine, par Guillaume Flambard</p>
-          <h1 id="t-hero">
-            Un assistant qui enquête sur votre projet, et vous demande avant d’agir.
-          </h1>
+          <h1 id="t-hero">Trois agents enquêtent. Rien ne part sans vous.</h1>
           <p class="lede">
-            J’ai construit Usine pour montrer comment je fais travailler des agents IA dans une
-            interface Vue : ils lisent un vrai projet avec de vrais outils, et rien d’irréversible
-            ne part sans accord humain.
+            Usine est mon atelier d’agents IA, en Vue. Ils lisent un vrai projet avec de vrais
+            outils, et une personne décide avant toute action qui sort.
           </p>
           <div v-if="unreachable" class="actions">
             <p class="alert" role="alert" data-sign-in-error>
@@ -111,20 +114,76 @@ const ENTRIES = [
             </a>
           </div>
           <p v-if="!unreachable" class="door">
-            La visite dure une minute et rejoue un vrai run, enregistré le 16 novembre 2026 : rien
-            n’en sort. L’atelier lui-même est réservé à mon compte.
+            La visite rejoue ce run en une minute, sans compte. L’atelier lui-même est réservé à mon
+            compte.
           </p>
         </section>
 
-        <section class="block" aria-labelledby="t-steps">
-          <h2 id="t-steps">Ce que vous verrez</h2>
-          <ol class="steps">
-            <li v-for="(s, i) in STEPS" :key="s.title">
-              <span class="num" :class="{ ink: i === STEPS.length - 1 }">{{ i + 1 }}</span>
-              <h3>{{ s.title }}</h3>
-              <p>{{ s.text }}</p>
-            </li>
-          </ol>
+        <section class="run" aria-labelledby="t-run" data-landing-run>
+          <h2 id="t-run" class="question">
+            Pourquoi la production ne se mettait plus à jour&nbsp;?
+          </h2>
+          <p class="caption">
+            Le vrai run du 16 novembre 2026 sur
+            <span class="mono">guillaume-flambard/usine</span>, résumé depuis son journal. En 22 s,
+            le chef d’équipe a partagé la question entre trois agents, qui ont travaillé en même
+            temps.
+          </p>
+
+          <div class="lanes">
+            <section
+              v-for="lane in LANES"
+              :key="lane.name"
+              class="lane"
+              :data-thread="lane.thread"
+              :aria-label="`${lane.name}, ${lane.status}`"
+            >
+              <h3 class="agent">{{ lane.name }}</h3>
+              <p class="status">{{ lane.status }}</p>
+              <ol class="trace">
+                <li class="done">
+                  <span>reçoit sa part : {{ lane.task }}</span>
+                </li>
+                <li class="done">
+                  <span>lit le dépôt avec <span class="mono">get_file_contents</span></span>
+                </li>
+                <li>
+                  <span>propose <span class="mono">issue_write</span>, arrêté à la porte</span>
+                </li>
+              </ol>
+            </section>
+          </div>
+
+          <svg class="knot" viewBox="0 0 300 64" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M50 0 C50 36 150 28 150 64" class="s-sky" />
+            <path d="M150 0 L150 64" class="s-mag" />
+            <path d="M250 0 C250 36 150 28 150 64" class="s-grn" />
+          </svg>
+
+          <section class="gate" aria-labelledby="t-gate">
+            <h3 id="t-gate" class="gate-title">La porte</h3>
+            <p class="gate-what">
+              Trois propositions d’issue sur <span class="mono">guillaume-flambard/usine</span>
+              attendent ici. La première, telle qu’elle partirait :
+            </p>
+            <dl class="payload">
+              <dt>Titre</dt>
+              <dd>Déploiement bloqué : verify.yml ne se déclenche plus sur push vers main</dd>
+              <dt>Étiquettes</dt>
+              <dd class="mono">bug, deployment, production, ci/cd</dd>
+              <dt>Corps</dt>
+              <dd>
+                La production de usine.memolabs.dev ne se met plus à jour depuis le 2 novembre 2026.
+                Le commit <span class="mono">f52872e</span>…
+              </dd>
+            </dl>
+            <p class="rule">
+              Une personne approuve, corrige ou rejette. Tant qu’elle n’a rien dit, rien ne part.
+            </p>
+            <a class="btn btn-on-ink" href="/visite">
+              <UIcon name="i-lucide-play" class="size-4" aria-hidden="true" />Rejouer ce run
+            </a>
+          </section>
         </section>
 
         <section id="carnet" class="block" aria-labelledby="t-carnet">
@@ -156,14 +215,13 @@ const ENTRIES = [
 <style scoped>
 .landing {
   min-height: 100dvh;
-  background: var(--color-paper);
   color: var(--color-ink);
 }
 .container {
   width: 100%;
-  max-width: 64rem;
+  max-width: 72rem;
   margin-inline: auto;
-  padding-inline: var(--space-20);
+  padding-inline: var(--gutter);
 }
 .s-sky {
   stroke: var(--color-sky);
@@ -195,6 +253,8 @@ p {
   margin: 0;
   text-wrap: pretty;
 }
+
+/* Navigation */
 .nav {
   display: flex;
   align-items: center;
@@ -228,114 +288,271 @@ p {
   font-size: var(--text-sm);
   text-decoration: none;
 }
-.nav ul a:hover {
-  background: var(--color-surface);
-  color: var(--color-ink);
+@media (hover: hover) {
+  .nav ul a:hover {
+    background: var(--color-surface);
+    color: var(--color-ink);
+  }
 }
+
+/* Hero: short headline, one line, one action. */
 .hero {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
-  max-width: 46rem;
+  max-width: 44rem;
   padding: var(--space-2xl) 0 var(--space-xl);
 }
-.kicker {
-  color: var(--color-muted);
-  font-size: var(--text-sm);
-}
 h1 {
-  font: 600 var(--text-2xl) / 1.12 var(--font-sans);
+  font: 600 clamp(2.25rem, 3.4vw + 1rem, 3.75rem) / 1.05 var(--font-sans);
+  letter-spacing: var(--tracking-display);
 }
 .lede {
+  max-width: 38rem;
   color: var(--color-ink-2);
-  font-size: var(--text-md);
-  line-height: 1.55;
+  font-size: var(--text-lead);
+  line-height: 1.5;
 }
 .actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-xs);
+  margin-top: var(--space-xs);
 }
 .door {
-  color: var(--color-muted);
+  color: var(--color-ink-2);
   font-size: var(--text-sm);
 }
 .alert {
   width: 100%;
   color: var(--color-error);
 }
+
+/* The run: three lanes, their threads knotting into the gate. */
+.run {
+  padding: clamp(24px, 4vw, 56px);
+  border-radius: var(--radius-card);
+  background: oklch(100% 0 0 / 0.42);
+  box-shadow:
+    var(--shadow-2),
+    0 0 0 1px oklch(100% 0 0 / 0.6);
+}
+.question {
+  max-width: 26ch;
+  font: 400 var(--text-question) / 1.1 var(--font-voice);
+  letter-spacing: -0.01em;
+}
+.caption {
+  margin: var(--space-sm) 0 var(--space-xl);
+  color: var(--color-ink-2);
+  font-size: var(--text-sm);
+}
+.lanes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+.lane {
+  position: relative;
+  padding: var(--space-lg) var(--space-lg) var(--space-md);
+  border-radius: var(--radius-in);
+  background: var(--color-surface);
+  box-shadow:
+    var(--shadow-1),
+    0 0 0 1px var(--color-rule);
+}
+/* The thread: the lane's top edge, in its agent's colour. */
+.lane::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: var(--space-lg);
+  left: var(--space-lg);
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--t);
+}
+.agent {
+  font: 400 var(--text-xl) / 1.15 var(--font-voice);
+}
+.status {
+  margin: 2px 0 var(--space-md);
+  color: var(--tt);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+/* The thread runs down the trace: one knot per event, a dashed segment for
+   what is still pending. */
+.trace {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--color-rule);
+  list-style: none;
+}
+.trace li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--color-rule);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+.trace li:last-child {
+  padding-bottom: var(--space-2xs);
+  border-bottom: 0;
+}
+.trace li::before {
+  content: '';
+  position: relative;
+  z-index: 1;
+  width: 10px;
+  height: 10px;
+  margin-top: 5px;
+  border: 2px solid var(--t);
+  border-radius: 50%;
+  background: var(--color-surface);
+}
+.trace li.done::before {
+  background: var(--t);
+}
+.trace li::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 2px;
+  background: var(--t);
+}
+.trace li:first-child::after {
+  top: calc(var(--space-sm) + 10px);
+}
+.trace li:last-child::after {
+  bottom: auto;
+  height: calc(var(--space-sm) + 5px);
+}
+.trace li:not(.done)::after {
+  background: repeating-linear-gradient(180deg, var(--t) 0 4px, transparent 4px 7px);
+}
+.trace .mono {
+  color: var(--color-ink-2);
+  font-size: 0.92em;
+}
+.knot {
+  display: block;
+  width: 100%;
+  height: 64px;
+  overflow: visible;
+}
+.knot path {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.gate {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: var(--space-xl) clamp(20px, 3vw, 40px) clamp(20px, 3vw, 32px);
+  border-radius: var(--radius-card);
+  background: var(--color-ink);
+  color: var(--color-on-ink);
+  box-shadow: var(--shadow-ink);
+}
+.gate-title {
+  font: 400 var(--text-2xl) / 1.1 var(--font-voice);
+}
+.gate-what {
+  margin: var(--space-xs) 0 var(--space-lg);
+  color: var(--color-on-ink-2);
+  font-size: var(--text-sm);
+}
+.payload {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-xs) var(--space-lg);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.payload dt {
+  color: var(--color-on-ink-2);
+}
+.payload dd {
+  margin: 0;
+}
+.payload .mono {
+  font-size: 0.86rem;
+}
+.rule {
+  margin: var(--space-lg) 0 var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid oklch(40% 0.01 264);
+  color: var(--color-on-ink-2);
+  font-size: var(--text-sm);
+}
+.btn-on-ink {
+  border-color: oklch(45% 0.01 264);
+  background: transparent;
+  color: var(--color-on-ink);
+}
+@media (hover: hover) {
+  .btn-on-ink:hover {
+    background: var(--color-ink-hover);
+  }
+}
+.gate :focus-visible {
+  outline-color: var(--color-on-ink);
+}
+
+/* Carnet */
 .block {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
-  padding: var(--space-xl) 0;
-  border-top: 1px solid var(--color-rule);
+  padding: var(--space-3xl) 0 var(--space-2xl);
 }
 .block h2 {
-  font: 600 var(--text-lg) / 1.3 var(--font-sans);
+  font: 600 var(--text-xl) / 1.2 var(--font-sans);
+  letter-spacing: -0.02em;
 }
-.steps {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-  gap: var(--space-sm);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.steps li {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-  padding: var(--space-md);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-1);
-}
-.num {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: var(--color-paper-3);
-  font: 600 var(--text-sm) / 1 var(--font-sans);
-}
-.num.ink {
-  background: var(--color-ink);
-  color: var(--color-on-ink);
-}
-.steps h3,
-.entry h3 {
-  font: 600 var(--text-md) / 1.3 var(--font-sans);
-}
-.steps p,
-.entry p,
 .intro {
+  max-width: 44rem;
   color: var(--color-ink-2);
-  font-size: var(--text-sm);
   line-height: 1.55;
-}
-.intro {
-  max-width: 46rem;
 }
 .entries {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
-  gap: var(--space-sm);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
+  margin-top: var(--space-xs);
 }
 .entry {
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
-  padding: var(--space-md);
-  border-left: 2px solid var(--color-ink);
+  padding: var(--space-lg);
+  border-radius: var(--radius-in);
   background: var(--color-surface);
+  box-shadow:
+    var(--shadow-1),
+    0 0 0 1px var(--color-rule);
 }
+.entry h3 {
+  font: 600 var(--text-md) / 1.3 var(--font-sans);
+}
+.entry p {
+  color: var(--color-ink-2);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+
 .foot {
   padding: var(--space-lg) 0;
-  border-top: 1px solid var(--color-rule);
-  color: var(--color-muted);
+  border-top: 1px solid oklch(85% 0.012 240);
+  color: var(--color-ink-2);
   font-size: var(--text-sm);
 }
 .foot-row {
@@ -349,5 +566,31 @@ h1 {
   align-items: center;
   min-height: 44px;
   color: var(--color-ink);
+}
+
+@media (max-width: 60rem) {
+  .lanes,
+  .entries {
+    grid-template-columns: 1fr;
+  }
+  .knot {
+    display: none;
+  }
+  .gate {
+    margin-top: var(--space-lg);
+  }
+}
+@media (max-width: 40rem) {
+  /* The primary action already leads to the visit: the nav keeps one line. */
+  .wide-only {
+    display: none;
+  }
+  .payload {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .payload dd {
+    margin-bottom: var(--space-xs);
+  }
 }
 </style>

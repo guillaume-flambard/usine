@@ -20,8 +20,11 @@ import { runDate, type RunDetail } from '../chat/runs'
 import { SIGN_IN_URL } from '../chat/session'
 import RunScene from './RunScene.vue'
 import AnswerMarkdown from './AnswerMarkdown'
+import { SPECIALIST_THREADS } from '../run/threads'
 
 const REPO = 'https://github.com/guillaume-flambard/usine'
+/** An agent's thread by its rank (1-based), the same colours as the graph. */
+const threadOf = (rank: number) => SPECIALIST_THREADS[(rank - 1) % SPECIALIST_THREADS.length]
 /**
  * The longest pause between two recorded events, once played. The real run
  * waited 22 s on the planner: played as is, step 1 sat alone long enough for a
@@ -167,7 +170,7 @@ const seconds = (value: number) =>
 </script>
 
 <template>
-  <div class="visit" data-visit>
+  <div class="visit ground-field" data-visit>
     <header class="bar">
       <a class="brand" href="/" aria-label="Usine, accueil">
         <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
@@ -187,14 +190,13 @@ const seconds = (value: number) =>
 
     <main class="page">
       <section class="intro" aria-labelledby="visit-title">
-        <p class="kicker">Visite guidée, une minute</p>
         <h1 id="visit-title">
           Un assistant qui enquête sur votre projet, et vous demande avant d’agir.
         </h1>
         <p class="lede">
-          Voici un vrai cas, enregistré le {{ recorded || '16 novembre 2026' }}. Le site de ce
-          projet ne se mettait plus à jour (c’est réglé depuis). On a posé la question à
-          l’assistant. Regardez ce qu’il fait.
+          Une minute de visite guidée. Voici un vrai cas, enregistré le
+          {{ recorded || '16 novembre 2026' }}. Le site de ce projet ne se mettait plus à jour
+          (c’est réglé depuis). On a posé la question à l’assistant. Regardez ce qu’il fait.
         </p>
       </section>
 
@@ -228,7 +230,7 @@ const seconds = (value: number) =>
             </p>
             <ul class="plain">
               <li v-for="(task, i) in plan" :key="i">
-                <span class="tag">Agent {{ i + 1 }}</span
+                <span class="who" :data-thread="threadOf(i + 1)">Agent {{ i + 1 }}</span
                 >{{ task }}
               </li>
             </ul>
@@ -243,7 +245,7 @@ const seconds = (value: number) =>
             <h2>Les faits</h2>
             <ul class="plain">
               <li v-for="a in agents" :key="a.id" :data-agent-done="a.done || undefined">
-                <span class="tag">Agent {{ a.rank }}</span>
+                <span class="who" :data-thread="threadOf(a.rank)">Agent {{ a.rank }}</span>
                 <template v-if="a.done">
                   {{ a.did.length ? a.did.join(', puis ') : 'a terminé' }}
                   <span class="time">en {{ seconds(a.seconds ?? 0) }}</span>
@@ -361,7 +363,6 @@ const seconds = (value: number) =>
 <style scoped>
 .visit {
   min-height: 100dvh;
-  background: var(--color-paper-2);
 }
 .bar {
   display: flex;
@@ -420,10 +421,6 @@ const seconds = (value: number) =>
   width: min(100% - 2 * var(--space-20), 46rem);
   margin: 0 auto;
   padding: var(--space-xl) 0 var(--space-3xl);
-}
-.kicker {
-  color: var(--color-muted);
-  font-size: var(--text-sm);
 }
 .intro h1 {
   margin-top: var(--space-xs);
@@ -510,13 +507,23 @@ const seconds = (value: number) =>
   font-size: var(--text-sm);
   line-height: 1.45;
 }
-.tag {
-  display: inline-block;
+/* An agent: a short length of its thread, then its name in its thread's ink
+   (DESIGN.md: no capsule, no dot). */
+.who {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
   margin-right: var(--space-xs);
-  padding: 0 var(--space-xs);
-  border-radius: var(--radius-pill);
-  background: var(--color-paper-3);
+  color: var(--tt);
   font-weight: 600;
+  white-space: nowrap;
+}
+.who::before {
+  content: '';
+  width: 14px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--t);
 }
 .time {
   color: var(--color-muted);

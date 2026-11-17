@@ -45,12 +45,15 @@ As built in `design/specimen.html` (`.ground--field`):
 - Text that sits directly on the bands is `--color-ink` or `--color-ink-2`; measured at 4.5:1 or better at 375, 768, 1024 and 1440 px. Thread colours never carry text on the bands, only on white panels (`-ink` tones).
 - The bands are still: no animation, so nothing to pause or reduce.
 
-## To apply after the interview of 18 November 2026
+## Applying it to the app
 
-The public site is frozen until then. In order:
+Done on 17 November 2026:
 
-1. Add the alias block above to `main.css`, and `--dur-signature: 560ms`.
-2. Replace the grey capsule `.tag` in `VisitPage.vue` with a status word.
-3. Apply the colour-field ground above to the public page and the atelier shell; panels keep their white surface.
-4. Tint `--shadow-*` toward hue 240 (they are tinted toward the ink's hue 264 today).
-5. Run `scripts/ui-check.js` at 375, 768, 1024 and 1440, and `impeccable detect` on the running app.
+- `main.css` carries the contract aliases, `--dur-signature`, `--color-field`, shadows tinted toward hue 240, and the `.ground-field` class (bands on a fixed layer).
+- The public page (`LandingPage.vue`) shows the run itself in its first screen: three agents on their threads, knotting into the gate with the first real proposal. Every line comes from `public/visite/run.json`.
+- The visit sits on the colour field; its grey « Agent N » capsules became a short length of the agent's thread and its name in the thread's ink.
+- Measured: no contrast or overflow defect at 375, 768, 1024 and 1440 on `/` and `/visite`; targets at 44 px or more in mobile emulation.
+
+Not yet:
+
+- The atelier (signed in) still sits on `--color-paper`. Whether the colour field suits a dense three-column tool is to be seen on the screen first.
