@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +12,7 @@ import pytest
 from usine_api.contracts import ProposedAction
 from usine_api.mcp_registry import Registry, RegistryRefusal
 from usine_api.triage.execute import TriageExecutor, to_action
-from usine_api.triage.github import Item, Snapshot, TriagePolicy
+from usine_api.triage.github import Current, Item, Snapshot, TriagePolicy
 from usine_api.triage.rules import Ruling
 
 NOW = datetime(2026, 11, 17, 8, 0, tzinfo=UTC)
@@ -55,14 +55,14 @@ class FakeMcp:
 
 
 class FakeReader:
-    def __init__(self, open_: bool = True) -> None:
-        self.open = open_
+    def __init__(self, open_: bool = True, updated_at: datetime = NOW) -> None:
+        self.now = Current(open=open_, updated_at=updated_at)
 
     async def stale(self, policy: TriagePolicy, now: datetime) -> Snapshot:
         return Snapshot()
 
-    async def is_open(self, repo: str, number: int) -> bool:
-        return self.open
+    async def current(self, repo: str, number: int) -> Current:
+        return self.now
 
 
 def test_action_carries_what_the_gate_shows() -> None:
@@ -79,6 +79,7 @@ def test_action_carries_what_the_gate_shows() -> None:
         "proof": PROOF,
         "comment": "Fermée par le tri quotidien de l'usine : résolue par " + PROOF + ".",
         "state_reason": "completed",
+        "updated_at": "2026-11-17T08:00:00Z",
     }
     assert json.loads(to_action(ruling(motif="doublon")).preview)["state_reason"] == "not_planned"
 
@@ -170,3 +171,34 @@ def test_comment_and_pr_update_are_irreversible() -> None:
     assert REGISTRY.allowed("github", "update_pull_request") == "irreversible"
     assert REGISTRY.allowed("github", "issue_write") == "irreversible"
     assert REGISTRY.allowed("github", "pull_request_read") == "read"
+
+
+async def test_item_updated_since_triage_is_skipped() -> None:
+    mcp = FakeMcp()
+    reader = FakeReader(updated_at=NOW + timedelta(hours=3))
+    outcome = await TriageExecutor(mcp, reader, POLICY).execute(to_action(ruling()))
+    assert mcp.calls == [] and outcome.startswith("modifié depuis le tri")
+
+
+async def test_comment_is_defused_again_at_execution() -> None:
+    mcp = FakeMcp()
+    action = to_action(ruling().model_copy(update={"comment": "cc @bob"}))
+    await TriageExecutor(mcp, FakeReader(), POLICY).execute(action)
+    assert mcp.calls[0][1]["body"] == "cc @\u2060bob"
+
+
+async def test_comment_timeout_is_reported_as_unknown() -> None:
+    mcp = FakeMcp({"github/add_issue_comment": "état inconnu : pas de réponse en 30 s"})
+    outcome = await TriageExecutor(mcp, FakeReader(), POLICY).execute(to_action(ruling()))
+    assert outcome.startswith("état inconnu, non fermée")
+    assert len(mcp.calls) == 1
+
+
+def test_the_chat_never_reaches_the_triage_tools() -> None:
+    from usine_api.triage.service import TRIAGE_ONLY
+
+    chat = REGISTRY.without(TRIAGE_ONLY)
+    for tool in ("add_issue_comment", "update_pull_request"):
+        with pytest.raises(RegistryRefusal):
+            chat.allowed("github", tool)
+    assert chat.allowed("github", "issue_write") == "irreversible"

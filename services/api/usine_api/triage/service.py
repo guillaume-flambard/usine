@@ -29,6 +29,13 @@ TOKEN_ENV = "USINE_GITHUB_TOKEN"
 #: A triage run is `tri-YYYY-MM-DD`: one a day, and its graph is found by name.
 TRIAGE_PREFIX = "tri-"
 
+#: The one organization whose triage token may start the triage and see its gate.
+ORG_ENV = "USINE_TRIAGE_ORG"
+
+#: Tools only the triage uses. The chat's agent never sees them: it has no
+#: exclusion list and no mention filter (review, 17 November 2026).
+TRIAGE_ONLY = frozenset({"add_issue_comment", "update_pull_request"})
+
 TriageFactory = Callable[[Any], Any]
 
 

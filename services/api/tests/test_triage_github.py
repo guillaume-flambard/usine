@@ -155,15 +155,16 @@ async def test_graphql_errors_are_reported_not_raised() -> None:
 @pytest.mark.parametrize(
     ("state", "expected"), [("OPEN", True), ("CLOSED", False), ("MERGED", False)]
 )
-async def test_is_open_reads_the_current_state(state: str, expected: bool) -> None:
+async def test_current_reads_state_and_last_update(state: str, expected: bool) -> None:
     def answer(body: dict[str, Any]) -> httpx.Response:
         assert body["variables"] == {"owner": "memolabs-dev", "name": "usine", "number": 41}
-        return httpx.Response(
-            200, json={"data": {"repository": {"issueOrPullRequest": {"state": state}}}}
-        )
+        found = {"state": state, "updatedAt": "2026-11-16T10:00:00Z"}
+        return httpx.Response(200, json={"data": {"repository": {"issueOrPullRequest": found}}})
 
     reader, _ = reader_with(answer)
-    assert await reader.is_open("memolabs-dev/usine", 41) is expected
+    now = await reader.current("memolabs-dev/usine", 41)
+    assert now.open is expected
+    assert now.updated_at == datetime(2026, 11, 16, 10, 0, tzinfo=UTC)
 
 
 def pr_node(number: int) -> dict[str, Any]:

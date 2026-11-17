@@ -13,18 +13,23 @@ state_reason)` ; `update_pull_request(owner, repo, pullNumber, state)`. Un
 doublon se ferme en `not_planned` : `state_reason="duplicate"` exigerait
 `duplicate_of`, un numéro que l'agent n'a pas toujours.
 
-Avant d'agir : le dépôt est revérifié contre la liste d'exclusion, et l'élément
-doit être encore ouvert. Sans commentaire publié, rien n'est fermé.
+Avant d'agir : le dépôt est revérifié contre la liste d'exclusion, l'élément
+doit être encore ouvert et inchangé depuis le tri (un commit, une réponse ou un
+« j'y travaille » arrivés pendant les 24 h de la porte annulent la proposition),
+et le commentaire est neutralisé une seconde fois. Sans commentaire publié,
+rien n'est fermé.
 """
 
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from typing import Any, Protocol
 
 from usine_api.contracts import ProposedAction
 
 from .github import GitHubReader, TriagePolicy
+from .judge import defuse
 from .rules import Ruling
 
 TARGET = "github/triage"
@@ -46,6 +51,8 @@ def to_action(ruling: Ruling) -> ProposedAction:
         "proof": ruling.proof,
         "comment": ruling.comment,
         "state_reason": "completed" if ruling.motif == "resolu" else "not_planned",
+        # What the triage saw: a newer update on GitHub cancels the proposal.
+        "updated_at": item.updated_at.isoformat().replace("+00:00", "Z"),
     }
     return ProposedAction(
         kind="external_write",
@@ -82,7 +89,8 @@ class TriageExecutor:
         try:
             data = json.loads(action.preview)
             repo, number, kind = str(data["repo"]), int(data["number"]), str(data["kind"])
-            comment = str(data["comment"] or "").strip()
+            comment = defuse(str(data["comment"] or "").strip())
+            seen = datetime.fromisoformat(str(data["updated_at"]))
         except (ValueError, KeyError, TypeError):
             return "refusée : la proposition approuvée est illisible"
         owner, _, name = repo.partition("/")
@@ -91,11 +99,13 @@ class TriageExecutor:
         if not comment:
             return "refusée : aucun commentaire à publier"
         try:
-            still_open = await self._reader.is_open(repo, number)
+            now = await self._reader.current(repo, number)
         except Exception as failure:  # noqa: BLE001 - one item never stops the others
             return f"état inconnu, rien envoyé : {failure}"
-        if not still_open:
+        if not now.open:
             return "déjà fermé : rien envoyé"
+        if now.updated_at > seen:
+            return "modifié depuis le tri : rien envoyé, à revoir demain"
 
         why = f"tri quotidien : {repo}#{number}"
         commented = await self._mcp.execute(
@@ -105,6 +115,9 @@ class TriageExecutor:
                 why,
             )
         )
+        if commented.startswith("état inconnu"):
+            # The comment may have gone out: say so, and do not close on a guess.
+            return f"état inconnu, non fermée : {commented}"
         if not _done(commented):
             return f"rien envoyé : {commented}"
         if kind == "pr":

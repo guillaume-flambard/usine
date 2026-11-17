@@ -34,8 +34,16 @@ from .rules import Motif, Ruling
 
 PROOF_PREFIX = "https://github.com/"
 
-#: `@login` not already inside backticks, and not the middle of an email address.
-MENTION = re.compile(r"(?<![`\w])@([A-Za-z0-9][\w-]*)")
+#: `@login`, not the middle of an email address.
+MENTION = re.compile(r"(?<!\w)@(?=[A-Za-z0-9])")
+
+#: A word joiner after `@`: GitHub no longer reads a mention, the text reads the same.
+#: Wrapping in backticks broke inside an existing code span (review, 17 November 2026).
+JOINER = "@\u2060"
+
+#: Longer than this, a comment is no longer a short closing note: the item is kept.
+#: It also bounds what an injected issue could make an agent copy into public view.
+MAX_COMMENT = 500
 
 INSTRUCTIONS = (
     "Tu tries les PR et issues qui traînent dans les dépôts de Guillaume. Pour chaque "
@@ -65,8 +73,8 @@ class Judge(Protocol):
 
 
 def defuse(comment: str) -> str:
-    """`@login` would notify someone: the comment shows it as code instead."""
-    return MENTION.sub(r"`@\1`", comment)
+    """`@login` would notify someone: a word joiner keeps it from being a mention."""
+    return MENTION.sub(JOINER, comment)
 
 
 def settle(item: Item, verdict: TriageVerdict | None) -> Ruling:
@@ -75,7 +83,8 @@ def settle(item: Item, verdict: TriageVerdict | None) -> Ruling:
         return Ruling(item=item, group="a_garder", by="agent")
     comment = defuse(verdict.comment.strip())
     proven = bool(verdict.proof and verdict.proof.startswith(PROOF_PREFIX))
-    if verdict.decision == "fermer" and proven and verdict.motif and comment:
+    short = 0 < len(comment) <= MAX_COMMENT
+    if verdict.decision == "fermer" and proven and verdict.motif and short:
         return Ruling(
             item=item,
             group="evident",

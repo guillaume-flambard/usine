@@ -65,8 +65,19 @@ def test_close_with_proof_is_proposed() -> None:
 
 
 def test_mentions_are_defused() -> None:
-    v = CLOSE_WITH_PROOF.model_copy(update={"comment": "Voir avec @alice et `@bob`, mail a@b.c"})
-    assert settle(ITEM, v).comment == "Voir avec `@alice` et `@bob`, mail a@b.c"
+    v = CLOSE_WITH_PROOF.model_copy(update={"comment": "Voir avec @alice, mail a@b.c"})
+    assert settle(ITEM, v).comment == "Voir avec @\u2060alice, mail a@b.c"
+
+
+def test_mentions_inside_code_spans_are_defused_too() -> None:
+    # Backticks around the mention failed inside an existing code span (review).
+    v = CLOSE_WITH_PROOF.model_copy(update={"comment": "voir `cc @bob` ici"})
+    assert settle(ITEM, v).comment == "voir `cc @\u2060bob` ici"
+
+
+def test_a_long_comment_is_kept_not_proposed() -> None:
+    v = CLOSE_WITH_PROOF.model_copy(update={"comment": "x" * 501})
+    assert settle(ITEM, v).group == "a_garder"
 
 
 def tool(name: str) -> StructuredTool:

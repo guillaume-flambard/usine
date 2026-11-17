@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Literal
 
@@ -105,6 +105,17 @@ class Registry:
 
     def names(self) -> tuple[str, ...]:
         return tuple(sorted(self._servers))
+
+    def without(self, tools: frozenset[str]) -> Registry:
+        """The same whitelist minus some tools: what the chat may not reach."""
+        servers = {
+            name: replace(
+                registered,
+                tools=tuple(tool for tool in registered.tools if tool.name not in tools),
+            )
+            for name, registered in self._servers.items()
+        }
+        return Registry(servers)
 
     def servers(self) -> dict[str, Server]:
         return {name: registered.server() for name, registered in self._servers.items()}

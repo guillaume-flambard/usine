@@ -134,7 +134,7 @@ from .specialists import UnknownSpecialist
 from .specialists.contract import Specialist
 from .threads import InMemoryThreadIndex, RunDetail, RunSummary, ThreadIndex
 from .tracing import trace_of
-from .triage.service import TRIAGE_PREFIX, default_triage, is_triage
+from .triage.service import ORG_ENV, TRIAGE_ONLY, TRIAGE_PREFIX, default_triage, is_triage
 
 logger = logging.getLogger("usine.service")
 
@@ -283,6 +283,33 @@ class RunPage(BaseModel):
     next_cursor: str | None = None
 
 
+def detached(
+    stream: AsyncIterator[str], runs: set[asyncio.Task[None]], name: str
+) -> AsyncIterator[str]:
+    """Run `stream` to its end in a task of its own, and relay it while someone reads.
+
+    A reader that goes away stops reading, not the run.
+    """
+    queue: asyncio.Queue[str | None] = asyncio.Queue()
+
+    async def pump() -> None:
+        try:
+            async for chunk in stream:
+                queue.put_nowait(chunk)
+        finally:
+            queue.put_nowait(None)
+
+    task = asyncio.create_task(pump(), name=f"{name}:gate")
+    runs.add(task)
+    task.add_done_callback(runs.discard)
+
+    async def relay() -> AsyncIterator[str]:
+        while (chunk := await queue.get()) is not None:
+            yield chunk
+
+    return relay()
+
+
 def create_app(
     *,
     key: str | None = None,
@@ -314,6 +341,7 @@ def create_app(
     open_atelier: bool | None = None,
     oidc: OidcClient | None = None,
     triage_graph: Callable[[Any], Any] | None = None,
+    triage_org: str | None = None,
 ) -> FastAPI:
     """Construit le service. Tout ce qui touche l'extérieur est injectable."""
     bounds = limits or Limits()
@@ -393,7 +421,7 @@ def create_app(
     if executor is None and whitelist.names():
         from .mcp_tools import McpExecutor
 
-        executor = McpExecutor(whitelist, transport=rpc)
+        executor = McpExecutor(whitelist.without(TRIAGE_ONLY), transport=rpc)
     # Le modèle passe par le LiteLLM du lab (MEM-13) : le service ne lit plus
     # aucune clé de fournisseur, seulement la sienne auprès de LiteLLM. Le choix
     # du modèle, le repli et le paramètre qui coupe le raisonnement suivent
@@ -494,7 +522,9 @@ def create_app(
                 "mcp-agent",
                 McpAgentSpecialist(
                     gateway,
-                    registry=whitelist,
+                    # Commenter et fermer appartiennent au tri, qui a sa liste
+                    # d'exclusion et son filtre de mentions ; le chat ne les voit pas.
+                    registry=whitelist.without(TRIAGE_ONLY),
                     transport=rpc,
                     http_client=cassette_client,
                 ),
@@ -522,6 +552,9 @@ def create_app(
             env=os.environ,
             http_client=cassette_client,
         )
+    # Le tri lit et écrit avec le jeton GitHub du propriétaire : une seule
+    # organisation le lance et voit sa porte (revue du 17 novembre 2026).
+    triage_owner = triage_org or os.environ.get(ORG_ENV) or None
     site_origin = origin or os.environ.get("USINE_ORIGIN", "https://usine.memolabs.dev")
     if not api_key:
         # Un déploiement dégradé doit se remarquer, pas servir un rejeu en silence.
@@ -712,11 +745,13 @@ def create_app(
         if token is None or token.scope != "triage":
             raise HTTPException(status_code=401, detail="Jeton de tri requis.")
         graph = getattr(request.app.state, "triage_graph", None)
-        if graph is None:
+        if graph is None or triage_owner is None:
             raise HTTPException(
                 status_code=503,
-                detail="Tri indisponible : jeton GitHub ou modèle absent.",
+                detail="Tri indisponible : jeton GitHub, modèle ou organisation absents.",
             )
+        if token.org != triage_owner:
+            raise HTTPException(status_code=403, detail="Ce jeton n'appartient pas au tri.")
         day = datetime.now(ZoneInfo("Europe/Paris")).date().isoformat()
         thread_id = f"{TRIAGE_PREFIX}{day}"
         runs: set[asyncio.Task[None]] = request.app.state.triage_runs
@@ -811,6 +846,10 @@ def create_app(
                     detail="Une modification garde le genre et la cible des actions proposées.",
                 )
         gate = waiting.interrupts[0].value
+        if gate.get("checklist") and decision.decision == "edit":
+            # Une porte à cocher approuve une sélection ou rejette tout : la
+            # corriger réécrirait dépôt, numéro et commentaire.
+            raise HTTPException(status_code=422, detail="Une porte à cocher ne se corrige pas.")
         if decision.selected is not None:
             # Une sélection n'a de sens que sur une porte à cocher, et ne nomme
             # que des actions proposées.
@@ -837,18 +876,20 @@ def create_app(
             messages=[ChatMessage(role="user", parts=[{"type": "text", "text": brief}])],
         )
         who = identity_of(request)
-        return StreamingResponse(
-            run_stream(
-                graph_for(request, thread_id),
-                body,
-                user_id=who.account.id if who is not None else None,
-                index=index,
-                owner=owner,
-                command=Command(resume=decision.model_dump(mode="json")),
-                specialist=detail.specialist,
-            ),
-            headers=STREAM_HEADERS,
+        stream = run_stream(
+            graph_for(request, thread_id),
+            body,
+            user_id=who.account.id if who is not None else None,
+            index=index,
+            owner=owner,
+            command=Command(resume=decision.model_dump(mode="json")),
+            specialist=detail.specialist,
         )
+        if is_triage(thread_id):
+            # Fermer la page ne coupe pas un lot entre un commentaire et sa
+            # fermeture : l'exécution tourne à part, la page n'en lit que le flux.
+            stream = detached(stream, request.app.state.triage_runs, thread_id)
+        return StreamingResponse(stream, headers=STREAM_HEADERS)
 
     @app.post("/api/runs/{thread_id}/resume", tags=["runs"])
     async def resume_thread(thread_id: str, request: Request) -> Response:
@@ -1116,6 +1157,9 @@ def create_app(
             raise HTTPException(status_code=401, detail="Connexion requise pour un jeton.")
         if body.scope not in SCOPES:
             raise HTTPException(status_code=422, detail=f"portée inconnue : {body.scope}")
+        if body.scope == "triage" and owner != triage_owner:
+            # Le tri agit sur les dépôts du propriétaire : lui seul en a la clé.
+            raise HTTPException(status_code=403, detail="Seul le propriétaire du tri l'émet.")
         return auth.issue(owner, body.label, body.scope).model_dump(mode="json")
 
     @app.get("/api/mcp/tokens", tags=["mcp"])

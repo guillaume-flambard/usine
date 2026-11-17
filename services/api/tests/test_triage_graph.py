@@ -11,7 +11,7 @@ from langgraph.types import Command
 
 from usine_api.contracts import ProposedAction
 from usine_api.graph.triage import build_triage_graph
-from usine_api.triage.github import Item, Snapshot, TriagePolicy
+from usine_api.triage.github import Current, Item, Snapshot, TriagePolicy
 from usine_api.triage.judge import RepoVerdicts, TriageVerdict
 
 NOW = datetime(2026, 11, 17, 8, 0, tzinfo=UTC)
@@ -40,8 +40,8 @@ class Reader:
     async def stale(self, policy: TriagePolicy, now: datetime) -> Snapshot:
         return self.snap
 
-    async def is_open(self, repo: str, number: int) -> bool:
-        return True
+    async def current(self, repo: str, number: int) -> Current:
+        return Current(open=True, updated_at=NOW)
 
 
 class Judge:
@@ -174,3 +174,14 @@ async def test_summary_reports_incomplete_read() -> None:
     )
     _, result = await run_to_gate(snap)
     assert "GitHub a répondu 403" in result["answer"]
+
+
+async def test_an_edit_never_changes_what_a_triage_executes() -> None:
+    executor = Executor()
+    g, result = await run_to_gate(
+        Snapshot(items=[issue(1, closed_by_merged_pr=MERGED)]), executor=executor
+    )
+    forged = dict(result["__interrupt__"][0].value["actions"][0])
+    forged["preview"] = json.dumps({"repo": "someone/else", "number": 9, "kind": "issue"})
+    await g.ainvoke(Command(resume={"decision": "edit", "actions": [forged]}), CONFIG)
+    assert [d["repo"] for d in executor.done] == []

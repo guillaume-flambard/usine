@@ -179,11 +179,14 @@ def build_triage_graph(
         return {"decision": GateDecision.model_validate(raw).model_dump(mode="json")}
 
     def after_gate(state: TriageState) -> str:
-        return END if state["decision"]["decision"] == "reject" else ACT
+        # Only an approval acts. An edit would let the gate rewrite repo, number
+        # and comment (review, 17 November 2026): the route refuses it, and the
+        # graph does not trust the route alone.
+        return ACT if state["decision"]["decision"] == "approve" else END
 
     async def act(state: TriageState) -> TriageState:
         decision = GateDecision.model_validate(state["decision"])
-        offered = decision.actions if decision.actions is not None else state["proposed"]
+        offered = state["proposed"]
         chosen = (
             range(len(offered))
             if decision.selected is None

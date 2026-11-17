@@ -74,8 +74,8 @@ STATE_QUERY = """
 query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     issueOrPullRequest(number: $number) {
-      ... on Issue { state }
-      ... on PullRequest { state }
+      ... on Issue { state updatedAt }
+      ... on PullRequest { state updatedAt }
     }
   }
 }
@@ -136,10 +136,17 @@ class Snapshot(BaseModel):
     incomplete: list[str] = []
 
 
+class Current(BaseModel):
+    """An item as GitHub sees it now, read again just before acting."""
+
+    open: bool
+    updated_at: datetime
+
+
 class GitHubReader(Protocol):
     async def stale(self, policy: TriagePolicy, now: datetime) -> Snapshot: ...
 
-    async def is_open(self, repo: str, number: int) -> bool: ...
+    async def current(self, repo: str, number: int) -> Current: ...
 
 
 class ReadFailure(Exception):
@@ -236,7 +243,7 @@ class GraphQLReader:
             for q, fields in searches:
                 try:
                     items, gap = await self._search(q, fields)
-                except (ReadFailure, httpx.HTTPError) as failure:
+                except (ReadFailure, httpx.HTTPError, KeyError, TypeError) as failure:
                     snap.incomplete.append(f"« {q} » illisible : {failure}")
                     continue
                 snap.items.extend(item for item in items if not policy.excludes(item.repo))
@@ -244,8 +251,10 @@ class GraphQLReader:
                     snap.incomplete.append(gap)
         return snap
 
-    async def is_open(self, repo: str, number: int) -> bool:
+    async def current(self, repo: str, number: int) -> Current:
         owner, _, name = repo.partition("/")
         data = await self._post(STATE_QUERY, {"owner": owner, "name": name, "number": number})
         found = (data.get("repository") or {}).get("issueOrPullRequest") or {}
-        return found.get("state") == "OPEN"
+        if "updatedAt" not in found:
+            raise ReadFailure(f"{repo}#{number} introuvable")
+        return Current(open=found.get("state") == "OPEN", updated_at=found["updatedAt"])

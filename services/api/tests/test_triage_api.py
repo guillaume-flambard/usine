@@ -49,6 +49,7 @@ class World:
             mcp_auth=self.tokens,
             threads=InMemoryThreadIndex(),
             triage_graph=factory,
+            triage_org=self.org,
         )
 
     def session(self) -> dict[str, str]:
@@ -183,3 +184,63 @@ def test_a_triage_run_is_not_forked() -> None:
         wait_for(client, world.read, "waiting")
         reply = client.post(f"/api/runs/{TODAY}/fork", json={"checkpoint_id": "x"})
         assert reply.status_code == 409
+
+
+def test_another_org_cannot_start_the_triage() -> None:
+    world = World()
+    stranger = world.tokens.issue("org-b", "timer", "triage").token
+    with TestClient(world.app) as client:
+        assert client.post("/api/triage", headers=bearer(stranger)).status_code == 403
+        # The owner's timer still gets the day's run.
+        assert client.post("/api/triage", headers=bearer(world.triage)).status_code == 202
+
+
+def test_only_the_triage_org_mints_a_triage_token() -> None:
+    world = World()
+    other = world.people.ensure("autre@atelier.co")
+    with TestClient(world.app, cookies={"usine_session": world.seats.open(other.account.id)}) as c:
+        body = {"label": "timer", "scope": "triage"}
+        assert c.post("/api/mcp/tokens", json=body).status_code == 403
+    with TestClient(world.app, cookies=world.session()) as client:
+        assert client.post("/api/mcp/tokens", json=body).status_code == 200
+
+
+def test_without_a_triage_org_triage_is_unavailable() -> None:
+    world = World()
+    world.app = create_app(
+        planner=CountingPlanner(),
+        specialist=CountingSpecialist(),
+        open_atelier=False,
+        mcp_auth=world.tokens,
+        triage_graph=lambda checkpointer: object(),
+    )
+    with TestClient(world.app) as client:
+        assert client.post("/api/triage", headers=bearer(world.triage)).status_code == 503
+
+
+def test_edit_on_a_checklist_gate_is_refused() -> None:
+    world = World()
+    with TestClient(world.app, cookies=world.session()) as client:
+        client.post("/api/triage", headers=bearer(world.triage))
+        run = wait_for(client, world.read, "waiting")
+        reply = client.post(
+            f"/api/runs/{TODAY}/gate",
+            json={"decision": "edit", "actions": run["gate"]["actions"]},
+        )
+        assert reply.status_code == 422
+    assert world.executor.done == []
+
+
+def test_execution_survives_a_closed_stream() -> None:
+    # Closing the tab must not cut a batch between a comment and its close.
+    world = World()
+    with TestClient(world.app, cookies=world.session()) as client:
+        client.post("/api/triage", headers=bearer(world.triage))
+        wait_for(client, world.read, "waiting")
+        with client.stream("POST", f"/api/runs/{TODAY}/gate", json={"decision": "approve"}):
+            pass
+        for _ in range(100):
+            if len(world.executor.done) == 3:
+                break
+            time.sleep(0.02)
+    assert [done["number"] for done in world.executor.done] == [1, 2, 3]
