@@ -1,6 +1,6 @@
 # ADR 0003 : l'usine trie chaque matin les PR et issues qui traînent
 
-- **Statut** : proposé, en relecture
+- **Statut** : accepté le 17 novembre 2026
 - **Date** : 17 novembre 2026
 - **Décideur** : Guillaume Flambard
 - **Suivi** : Linear, projet « Usine v2 » (le ticket est ouvert avec le plan d'implémentation)
