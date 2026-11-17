@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Usine · système « Le fil »</title>
+<!-- Specimen of Usine's design system (DESIGN.md), on the shared base (ui-craft socle.md).
+     Serve apps/web as the root (python3 -m http.server) so the self-hosted fonts load.
+     Content is the recorded run of 16 November 2026 (public/visite/run.json). -->
+<style>
+@font-face { font-family: 'Onest'; font-weight: 400; font-display: swap; src: url('../node_modules/@fontsource/onest/files/onest-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Onest'; font-weight: 500; font-display: swap; src: url('../node_modules/@fontsource/onest/files/onest-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Onest'; font-weight: 600; font-display: swap; src: url('../node_modules/@fontsource/onest/files/onest-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Instrument Serif'; font-weight: 400; font-display: swap; src: url('../node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 400; font-display: swap; src: url('../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2') format('woff2'); }
+
+:root {
+  /* F's tokens, as in src/assets/main.css. */
+  --font-sans: 'Onest', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Instrument Serif', ui-serif, Georgia, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  --space-2xs: 4px; --space-xs: 8px; --space-sm: 12px; --space-md: 16px; --space-lg: 24px;
+  --space-xl: 40px; --space-2xl: 64px; --space-3xl: 96px;
+  --text-xs: 0.8125rem; --text-sm: 0.875rem; --text-md: 1rem; --text-lg: 1.25rem;
+  --text-xl: 1.5625rem; --text-2xl: 1.953rem;
+  --text-question: clamp(1.75rem, 2.2vw + 1rem, 2.75rem);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-micro: 120ms; --dur-short: 220ms; --dur-signature: 560ms;
+  --color-paper: oklch(96.1% 0.003 106);
+  --color-paper-2: oklch(97.6% 0.003 106);
+  --color-paper-3: oklch(93.9% 0.004 106);
+  --color-surface: oklch(100% 0 0);
+  --color-ink: oklch(20.9% 0.004 264);
+  --color-ink-hover: oklch(29.3% 0.008 264);
+  --color-on-ink: oklch(97.6% 0.003 106);
+  --color-on-ink-2: oklch(86% 0.006 264);
+  --color-ink-2: oklch(43.1% 0.011 264);
+  --color-muted: oklch(51% 0.012 267);
+  --color-rule: oklch(92.4% 0.005 107);
+  --color-rule-2: oklch(88.1% 0.007 107);
+  --color-error: oklch(52% 0.19 27);
+  --color-sky: oklch(63% 0.14 246); --color-sky-ink: oklch(51.1% 0.122 248);
+  --color-mag: oklch(61.9% 0.216 327); --color-mag-ink: oklch(51.4% 0.189 328);
+  --color-grn: oklch(62.1% 0.141 153); --color-grn-ink: oklch(49.2% 0.114 153);
+  --color-amb: oklch(69.9% 0.146 68); --color-amb-ink: oklch(50.1% 0.108 67);
+  --radius-card: 24px; --radius-in: 12px; --radius-pill: 999px;
+  --shadow-hue: 264;
+  --shadow-1: 0 1px 2px oklch(20% 0.01 var(--shadow-hue) / 0.05), 0 6px 16px -8px oklch(20% 0.01 var(--shadow-hue) / 0.12);
+  --shadow-2: 0 2px 4px oklch(20% 0.01 var(--shadow-hue) / 0.04), 0 18px 40px -18px oklch(20% 0.01 var(--shadow-hue) / 0.18);
+  --shadow-ink: 0 1px 1px oklch(10% 0 0 / 0.16), 0 10px 24px -10px oklch(20% 0.01 264 / 0.45);
+
+  /* The shared contract (socle.md), mapped onto F. */
+  --color-ground: var(--color-paper);
+  --color-surface-raised: var(--color-paper-2);
+  --font-voice: var(--font-serif);
+
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  padding: var(--space-2xl) clamp(16px, 4vw, 64px) var(--space-3xl);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: 400 var(--text-md) / 1.55 var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+::selection { background: oklch(91% 0.04 246); color: var(--color-ink); }
+:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 3px; }
+
+.page { max-width: 1240px; margin: 0 auto; }
+h1, h2 { font-weight: 600; letter-spacing: -0.02em; text-wrap: balance; margin: 0; }
+h1 { font-size: var(--text-2xl); line-height: 1.15; }
+h2 { font-size: var(--text-xl); line-height: 1.2; margin-top: var(--space-3xl); }
+.lede { max-width: 68ch; margin: var(--space-sm) 0 0; color: var(--color-ink-2); text-wrap: pretty; }
+.note { max-width: 68ch; margin: var(--space-xs) 0 var(--space-lg); color: var(--color-ink-2); font-size: var(--text-sm); }
+code, .mono { font-family: var(--font-mono); font-size: 0.92em; }
+
+/* ---------- Ground candidates ---------- */
+.ground {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  padding: clamp(20px, 4vw, 56px);
+  margin-top: var(--space-lg);
+  background: var(--color-ground);
+}
+.ground-label { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-md); align-items: baseline; margin: var(--space-2xl) 0 0; }
+.ground-label h2 { margin: 0; font: 400 var(--text-xl) / 1.2 var(--font-voice); }
+.ground-label p { margin: 0; color: var(--color-ink-2); font-size: var(--text-sm); max-width: 70ch; }
+
+/* A: F's paper, flat. */
+.ground--paper { --color-ground: var(--color-paper); }
+
+/* B: a cool colour field, the four threads as wide translucent bands. */
+.ground--field {
+  --color-ground: oklch(95.4% 0.012 240);
+  --shadow-hue: 240;
+}
+.ground--field::before {
+  content: '';
+  position: absolute; inset: -20%;
+  z-index: -1;
+  background:
+    linear-gradient(104deg, transparent 6%, oklch(63% 0.14 246 / 0.30) 20%, transparent 34%),
+    linear-gradient(104deg, transparent 28%, oklch(61.9% 0.216 327 / 0.18) 42%, transparent 55%),
+    linear-gradient(104deg, transparent 50%, oklch(62.1% 0.141 153 / 0.22) 63%, transparent 76%),
+    linear-gradient(104deg, transparent 69%, oklch(69.9% 0.146 68 / 0.24) 82%, transparent 95%);
+}
+
+/* C: neutral stone with a fine grain, the material in the surface itself. */
+.ground--grain {
+  --color-ground: oklch(93.2% 0.004 250);
+  --shadow-hue: 250;
+}
+.ground--grain::before {
+  content: '';
+  position: absolute; inset: 0;
+  z-index: -1;
+  opacity: 0.55;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.1  0 0 0 0 0.11  0 0 0 0 0.13  0 0 0 0.22 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+/* ---------- The run ---------- */
+.question {
+  max-width: 30ch;
+  margin: 0;
+  font: 400 var(--text-question) / 1.12 var(--font-voice);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.replay { margin: var(--space-sm) 0 var(--space-xl); color: var(--color-ink-2); font-size: var(--text-sm); }
+
+.lanes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+.lane {
+  --sig: var(--color-sky); --sig-ink: var(--color-sky-ink);
+  position: relative;
+  padding: var(--space-lg) var(--space-lg) var(--space-md);
+  border-radius: var(--radius-in);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-1), 0 0 0 1px var(--color-rule);
+}
+.lane--mag { --sig: var(--color-mag); --sig-ink: var(--color-mag-ink); }
+.lane--grn { --sig: var(--color-grn); --sig-ink: var(--color-grn-ink); }
+.lane--amb { --sig: var(--color-amb); --sig-ink: var(--color-amb-ink); }
+/* The thread: the lane's top edge, in its agent's colour. */
+.lane::before {
+  content: '';
+  position: absolute; top: 0; left: var(--space-lg); right: var(--space-lg);
+  height: 3px; border-radius: 0 0 3px 3px;
+  background: var(--sig);
+}
+.agent { margin: 0; font: 400 var(--text-xl) / 1.15 var(--font-voice); }
+.status { margin: 2px 0 var(--space-md); color: var(--sig-ink); font-size: var(--text-sm); font-weight: 500; }
+.status--wait { color: var(--color-ink-2); }
+.trace { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--color-rule); }
+/* The thread runs down the trace: one segment per event, a knot on each.
+   An event still pending gets a dashed segment and an open knot. */
+.trace li {
+  position: relative;
+  display: grid; grid-template-columns: 10px 1fr; gap: var(--space-sm);
+  padding: var(--space-sm) 0; border-bottom: 1px solid var(--color-rule);
+  font-size: var(--text-sm); line-height: 1.45; color: var(--color-ink);
+}
+.trace li:last-child { border-bottom: 0; padding-bottom: var(--space-2xs); }
+.trace li::before {
+  content: ''; position: relative; z-index: 1;
+  width: 10px; height: 10px; margin-top: 5px; border-radius: 50%;
+  border: 2px solid var(--sig); background: var(--color-surface);
+}
+.trace li.done::before { background: var(--sig); }
+.trace li::after {
+  content: ''; position: absolute; left: 4px; top: 0; bottom: 0; width: 2px;
+  background: var(--sig);
+}
+.trace li:first-child::after { top: calc(var(--space-sm) + 10px); }
+.trace li:last-child::after { bottom: auto; height: calc(var(--space-sm) + 5px); }
+.trace li:not(.done)::after { background: repeating-linear-gradient(180deg, var(--sig) 0 4px, transparent 4px 7px); }
+.trace .mono { color: var(--color-ink-2); }
+
+/* Threads converging into the knot. */
+.knot { display: block; width: 100%; height: 72px; overflow: visible; }
+.knot path { fill: none; stroke-width: 3; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+
+.gate {
+  position: relative;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: var(--space-xl) clamp(20px, 3vw, 40px) clamp(20px, 3vw, 32px);
+  border-radius: var(--radius-card);
+  background: var(--color-ink);
+  color: var(--color-on-ink);
+  box-shadow: var(--shadow-ink);
+}
+.gate-title { margin: 0; font: 400 var(--text-2xl) / 1.1 var(--font-voice); }
+.gate-what { margin: var(--space-xs) 0 var(--space-lg); color: var(--color-on-ink-2); font-size: var(--text-sm); }
+.payload { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: var(--space-xs) var(--space-lg); font-size: var(--text-sm); }
+.payload dt { color: var(--color-on-ink-2); }
+.payload dd { margin: 0; }
+.payload .mono { font-size: 0.86rem; }
+.irrev { margin: var(--space-lg) 0 0; padding-top: var(--space-md); border-top: 1px solid oklch(40% 0.01 264); color: var(--color-on-ink-2); font-size: var(--text-sm); }
+.actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-top: var(--space-lg); }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 48px; padding: 0 var(--space-lg);
+  border: 1px solid transparent; border-radius: var(--radius-pill);
+  font: 500 var(--text-md) / 1 var(--font-sans); cursor: pointer;
+  transition: background-color var(--dur-short) var(--ease-out), transform var(--dur-micro) var(--ease-out);
+}
+.btn:active { transform: scale(0.97); }
+.btn--approve { background: var(--color-on-ink); color: var(--color-ink); }
+.btn--quiet { background: transparent; color: var(--color-on-ink); border-color: oklch(45% 0.01 264); }
+@media (hover: hover) {
+  .btn--approve:hover { background: oklch(90% 0.004 264); }
+  .btn--quiet:hover { background: oklch(28% 0.008 264); }
+}
+.gate :focus-visible { outline-color: var(--color-on-ink); }
+
+/* ---------- Roles, states ---------- */
+.roles { display: grid; gap: var(--space-lg); margin-top: var(--space-lg); }
+.role { display: grid; grid-template-columns: minmax(120px, 200px) 1fr; gap: var(--space-md); align-items: baseline; padding-bottom: var(--space-lg); border-bottom: 1px solid var(--color-rule); }
+.role dt { color: var(--color-ink-2); font-size: var(--text-sm); }
+.role dd { margin: 0; }
+.r-voice { font: 400 var(--text-2xl) / 1.15 var(--font-voice); }
+.r-ui { font: 500 var(--text-lg) / 1.3 var(--font-sans); }
+.r-data { font: 400 var(--text-md) / 1.4 var(--font-mono); color: var(--color-ink-2); }
+
+.states { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-md); }
+.state-msg { margin: 0; font-size: var(--text-sm); color: var(--color-ink); }
+.state-msg + .state-msg { margin-top: var(--space-xs); color: var(--color-ink-2); }
+.lane--fail { --sig: var(--color-error); --sig-ink: var(--color-error); }
+.lane--fail::before { background: repeating-linear-gradient(90deg, var(--color-error) 0 10px, transparent 10px 16px); }
+.link-btn {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 var(--space-md); margin: var(--space-sm) var(--space-xs) 0 0;
+  border: 1px solid var(--color-rule-2); border-radius: var(--radius-pill); background: var(--color-surface);
+  color: var(--color-ink); font: 500 var(--text-sm) / 1 var(--font-sans); cursor: pointer;
+}
+.wait-line { height: 3px; margin-top: var(--space-md); border-radius: 3px; background: linear-gradient(90deg, var(--color-amb) 0 38%, var(--color-rule) 38%); }
+
+@media (max-width: 760px) {
+  .lanes, .states { grid-template-columns: 1fr; }
+  .knot { display: none; }
+  .gate { margin-top: var(--space-lg); }
+  .role { grid-template-columns: 1fr; gap: var(--space-2xs); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn { transition: background-color var(--dur-short) linear; }
+  .btn:active { transform: none; }
+}
+</style>
+</head>
+<body>
+<main class="page">
+  <h1>Usine, le système «&nbsp;Le fil&nbsp;»</h1>
+  <p class="lede">Le même run, réel, posé sur trois fonds. Les composants ne changent pas&nbsp;: seul le fond change. Choisis le fond, le reste du système en découle.</p>
+
+  <div class="ground-label"><h2>A. Le papier</h2><p>Le fond actuel de «&nbsp;Le fil&nbsp;»&nbsp;: un blanc cassé presque neutre, uni. Calme, mais sans matière.</p></div>
+  <div class="ground ground--paper" data-run></div>
+
+  <div class="ground-label"><h2>B. Le champ de couleur</h2><p>Un fond froid, traversé de larges bandes translucides aux couleurs des quatre fils. La marque devient le fond.</p></div>
+  <div class="ground ground--field" data-run></div>
+
+  <div class="ground-label"><h2>C. La pierre</h2><p>Un gris pierre légèrement froid, avec un grain fin. La matière est dans la surface, sans couleur ajoutée.</p></div>
+  <div class="ground ground--grain" data-run></div>
+
+  <h2>Trois voix, trois rôles</h2>
+  <p class="note">Le serif parle (noms des agents, verdict, question), Onest fait l'interface, le mono porte les données. Aucun mot en italique pour décorer.</p>
+  <dl class="roles">
+    <div class="role"><dt>Voix · Instrument Serif</dt><dd class="r-voice">Rien ne sort sans vous.</dd></div>
+    <div class="role"><dt>Interface · Onest</dt><dd class="r-ui">Approuver l'ouverture de l'issue</dd></div>
+    <div class="role"><dt>Données · JetBrains Mono</dt><dd class="r-data">f52872e · verify.yml · workflow_dispatch</dd></div>
+  </dl>
+
+  <h2>Les états disent ce qui se passe</h2>
+  <p class="note">Exemples de forme&nbsp;: un fil qui attend nomme ce qu'il attend, un fil qui échoue s'effiloche et propose la suite. Ni roue seule, ni zéro, ni pastille.</p>
+  <div class="ground ground--paper">
+    <div class="states">
+      <section class="lane lane--amb">
+        <h3 class="agent">Synthèse</h3>
+        <p class="status status--wait">en attente des trois lectures</p>
+        <p class="state-msg">Deux lectures sur trois sont arrivées. La synthèse commence quand la troisième est là.</p>
+        <div class="wait-line" role="img" aria-label="Deux lectures sur trois arrivées"></div>
+      </section>
+      <section class="lane lane--fail">
+        <h3 class="agent">Lecture</h3>
+        <p class="status">échec</p>
+        <p class="state-msg">Le fichier <span class="mono">deployment/README.md</span> est introuvable sur <span class="mono">main</span>.</p>
+        <p class="state-msg">Les deux autres agents ont fini&nbsp;; la porte attend de savoir comment continuer.</p>
+        <button class="link-btn" type="button">Relancer cet agent</button><button class="link-btn" type="button">Continuer sans lui</button>
+      </section>
+    </div>
+  </div>
+  <template id="run">
+    <p class="question">Pourquoi la production ne se mettait plus à jour&nbsp;?</p>
+    <p class="replay">Run du 16 novembre 2026 sur <span class="mono">guillaume-flambard/usine</span>, rejoué depuis son journal d'événements. Le superviseur a partagé la question en trois.</p>
+    <div class="lanes">
+      <section class="lane">
+        <h3 class="agent">Lecture</h3>
+        <p class="status">terminé</p>
+        <ol class="trace">
+          <li class="done"><span>lit <span class="mono">deployment/README.md</span></span></li>
+          <li class="done"><span>relève la section «&nbsp;La chaîne est arrêtée depuis le 2 novembre 2026&nbsp;»</span></li>
+        </ol>
+      </section>
+      <section class="lane lane--mag">
+        <h3 class="agent">Explication</h3>
+        <p class="status">terminé</p>
+        <ol class="trace">
+          <li class="done"><span>relie le commit <span class="mono">f52872e</span> au déclenchement manuel de <span class="mono">verify.yml</span></span></li>
+          <li class="done"><span>explique pourquoi le builder attend un run qui ne vient plus</span></li>
+        </ol>
+      </section>
+      <section class="lane lane--grn">
+        <h3 class="agent">Proposition</h3>
+        <p class="status">en attente de la porte</p>
+        <ol class="trace">
+          <li class="done"><span>rédige le titre, le corps et les étiquettes</span></li>
+          <li><span>propose <span class="mono">issue_write</span>, rien n'est envoyé</span></li>
+        </ol>
+      </section>
+    </div>
+    <svg class="knot" viewBox="0 0 300 72" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M50 0 C50 40 150 30 150 72" stroke="var(--color-sky)"/>
+      <path d="M150 0 L150 72" stroke="var(--color-mag)"/>
+      <path d="M250 0 C250 40 150 30 150 72" stroke="var(--color-grn)"/>
+    </svg>
+    <section class="gate" aria-label="La porte">
+      <h3 class="gate-title">La porte</h3>
+      <p class="gate-what">Ouvrir une issue sur <span class="mono">guillaume-flambard/usine</span>, au nom du compte de l'atelier.</p>
+      <dl class="payload">
+        <dt>Titre</dt><dd>Déploiement bloqué&nbsp;: verify.yml ne se déclenche plus sur push vers main</dd>
+        <dt>Étiquettes</dt><dd class="mono">bug, deployment, production, ci/cd</dd>
+        <dt>Corps</dt><dd>le problème, l'extrait du journal du builder, l'état de la production, les étapes pour rétablir le déclenchement</dd>
+      </dl>
+      <p class="irrev">Irréversible à partir d'ici&nbsp;: une issue publiée ne se retire pas en revenant en arrière dans le run.</p>
+      <div class="actions">
+        <button class="btn btn--approve" type="button">Approuver</button>
+        <button class="btn btn--quiet" type="button">Modifier</button>
+        <button class="btn btn--quiet" type="button">Rejeter</button>
+      </div>
+    </section>
+  </template>
+</main>
+<script>
+  const tpl = document.getElementById('run');
+  document.querySelectorAll('[data-run]').forEach((el) => el.appendChild(tpl.content.cloneNode(true)));
+</script>
+</body>
+</html>
