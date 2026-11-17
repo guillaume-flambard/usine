@@ -154,3 +154,20 @@ async def test_one_proposal_per_action_reaches_the_person():
     state = await graph.aget_state(config)
     assert len(state.values["proposed"]) == 1
     assert "3 propositions pour 1 action" in state.values["answer"]
+
+
+async def test_the_most_complete_proposal_reaches_the_person():
+    # 16 November 2026: the gate kept whichever proposal came first, often the
+    # thinnest. Of several proposals for one action, the person sees the one
+    # that carries the most, here the longest preview.
+    graph = build_graph(
+        FakePlanner(["court", "la version la plus complète du ticket", "moyen ici"]),
+        ProposingSpecialist(),
+        checkpointer=InMemorySaver(),
+    )
+    config = {"configurable": {"thread_id": "fullest"}}
+    await graph.ainvoke({"brief": "trois agents"}, config)
+    state = await graph.aget_state(config)
+    [kept] = state.values["proposed"]
+    assert "la version la plus complète du ticket" in kept.preview
+    assert "la plus complète" in state.values["answer"]

@@ -216,17 +216,19 @@ def build_graph(
             raise NoSpecialistFinished(failed)
         # Several agents may propose the same write (three issues for one bug,
         # 16 November 2026): approving would send them all. One proposal per
-        # target reaches the person; the answer says how many were set aside.
-        proposed: list[ProposedAction] = []
-        seen: set[tuple[str, str]] = set()
+        # target reaches the person, the most complete one (the longest
+        # preview: the first to arrive was often the thinnest); the answer says
+        # how many were set aside. Order follows each target's first proposal.
+        best: dict[tuple[str, str], ProposedAction] = {}
         offered = 0
         for result in finished:
             for action in result.actions:
                 offered += 1
                 key = (action.kind, action.target)
-                if key not in seen:
-                    seen.add(key)
-                    proposed.append(action)
+                kept = best.get(key)
+                if kept is None or len(action.preview) > len(kept.preview):
+                    best[key] = action
+        proposed: list[ProposedAction] = list(best.values())
         # The answer opens with what happens next, from the facts and not from
         # the agents' prose: one run claimed "cette issue propose une solution"
         # while nothing was proposed (16 November 2026). Each agent's findings
@@ -251,8 +253,8 @@ def build_graph(
         if offered > len(proposed):
             parts.append(
                 f"*{offered} propositions pour {len(proposed)} action"
-                f"{'s' if len(proposed) > 1 else ''} : seule la première de chaque "
-                "action vous est soumise.*"
+                f"{'s' if len(proposed) > 1 else ''} : seule la plus complète de "
+                "chaque action vous est soumise.*"
             )
         if failed:
             total, n = len(state["results"]), len(failed)
