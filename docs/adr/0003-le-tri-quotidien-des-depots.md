@@ -55,6 +55,7 @@ Trois approches ont été comparées :
 
 - Une étape revient au propriétaire : créer un PAT à grain fin limité à ses dépôts, avec Issues et Pull requests en écriture et Contents en lecture, et le poser dans le `.env` du service. L'agent ne crée pas de jeton.
 - Le jeton actuel (`USINE_GITHUB_TOKEN`, limité au dépôt `usine`) ne suffit plus pour le tri.
+- **Correction du 17 novembre 2026 (revue de l'implémentation)** : un PAT à grain fin ne couvre qu'un seul propriétaire (« Each token is limited to access resources owned by a single user or organization », docs.github.com, *Managing your personal access tokens*). Un seul jeton à grain fin ne lirait donc qu'un des deux comptes, et la recherche ne verrait de l'autre que ses dépôts publics, sans que le tri puisse le savoir. Avant la mise en service, il faut trancher : deux jetons à grain fin (un par compte, ce qui demande au code de choisir le jeton selon le propriétaire) ou un jeton classique `repo` (un seul jeton, mais un accès plus large). Le tri ne s'active pas tant que `USINE_TRIAGE_ORG` n'est pas posé.
 - La visite publique pourra, plus tard, rejouer un vrai tri à la place de la question du guide de contribution.
 - Le collecteur `watch-open-work.py`, arrêté depuis le 10 novembre 2026, est hors périmètre : c'est un chantier à part.
 - Hors périmètre aussi : fusionner, étiqueter, assigner, et trier d'autres plateformes que GitHub.
