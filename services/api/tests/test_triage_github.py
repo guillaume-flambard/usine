@@ -234,3 +234,22 @@ async def test_partial_graphql_errors_keep_what_was_readable() -> None:
     assert any(
         "illisible" in reason and "user:memolabs-dev" in reason for reason in snap.incomplete
     )
+
+
+async def test_an_unreadable_ci_rollup_is_not_an_unreadable_pr() -> None:
+    def rollup_refused(body: dict[str, Any]) -> httpx.Response:
+        if "is:pr" in body["variables"]["q"] and "user:memolabs-dev" in body["variables"]["q"]:
+            payload = fixture("search_prs.json")
+            payload["data"]["search"]["nodes"][0]["commits"]["nodes"][0]["commit"][
+                "statusCheckRollup"
+            ] = None
+            path = ["search", "nodes", 0, "commits", "nodes", 0, "commit", "statusCheckRollup"]
+            payload["errors"] = [{"message": "Resource not accessible", "path": path}]
+            return httpx.Response(200, json=payload)
+        return httpx.Response(200, json={"data": {"search": empty()}})
+
+    reader, _ = reader_with(rollup_refused)
+    snap = await reader.stale(POLICY, NOW)
+    pr = next(i for i in snap.items if i.number == 41)
+    assert pr.ci == "none"
+    assert snap.incomplete == []

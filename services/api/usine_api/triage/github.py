@@ -247,7 +247,14 @@ class GraphQLReader:
         if response.status_code != 200:
             raise ReadFailure(f"GitHub a répondu {response.status_code}")
         payload: dict[str, Any] = response.json()
-        errors = [str(e.get("message", "erreur GraphQL")) for e in payload.get("errors") or []]
+        errors = [
+            str(e.get("message", "erreur GraphQL"))
+            for e in payload.get("errors") or []
+            # Measured on 17 November 2026: a fine-grained token without commit
+            # statuses cannot read some CI rollups. The PR itself is readable;
+            # only its CI is unknown, which `_item` already says ("none").
+            if "statusCheckRollup" not in [str(step) for step in e.get("path") or []]
+        ]
         data = payload.get("data")
         if not data:
             raise ReadFailure(f"GitHub a refusé la requête : {errors[0] if errors else 'vide'}")
