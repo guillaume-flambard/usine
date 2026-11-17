@@ -5,6 +5,8 @@ export const NODE_NAMES: Record<string, string> = {
   synthesize: 'Synthèse',
   human_gate: 'Votre accord',
   act: 'Action',
+  pretriage: 'Pré-tri',
+  judge: 'Agent de tri',
 }
 
 export function nodeName(name: string): string {

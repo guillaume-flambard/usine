@@ -124,4 +124,36 @@ describe('run read model', () => {
     expect(failed?.failure).toMatch(/^Le modèle est saturé/)
     expect(model.nodes.find((n) => n.name === 'synthesize')?.state).toBe('finished')
   })
+
+  it('a triage judge keeps its repository, verdict and items, or why it failed', () => {
+    const ev = (kind: string, at: number, node: string, data: object) =>
+      ({ kind, at, node, data }) as unknown as RunEventPayload
+    const item = {
+      number: 2,
+      kind: 'issue',
+      title: 'Issue 2',
+      url: 'https://github.com/o/r/issues/2',
+      decision: 'close',
+    }
+    const model = replay([
+      ev('run-started', 0, '', {}),
+      ev('node-started', 0.1, 'judge', { taskId: 't1', task: 'o/r' }),
+      ev('node-finished', 1, 'judge', {
+        taskId: 't1',
+        triage: { repo: 'o/r', counts: { close: 1, keep: 0, nudge: 0 }, items: [item] },
+      }),
+      ev('node-started', 0.1, 'judge', { taskId: 't2', task: 'o/s' }),
+      ev('node-finished', 2, 'judge', {
+        taskId: 't2',
+        failed: 'Le modèle est saturé pour le moment (429).',
+        triage: { repo: 'o/s', counts: { close: 0, keep: 1, nudge: 0 }, items: [] },
+      }),
+    ])
+    const [ok, ko] = model.nodes
+    expect(ok?.task).toBe('o/r')
+    expect(ok?.triage?.items).toEqual([item])
+    expect(ok?.state).toBe('finished')
+    expect(ko?.state).toBe('failed')
+    expect(ko?.failure).toMatch(/saturé/)
+  })
 })

@@ -236,3 +236,60 @@ async def test_judges_run_a_few_at_a_time_and_retry_when_saturated() -> None:
     assert judge.peak <= 3
     assert len(result["__interrupt__"][0].value["actions"]) == 8
     assert "Agents en échec" not in result["answer"]
+
+
+async def test_the_scene_gets_each_repository_its_verdict_and_items() -> None:
+    from usine_api.chat_stream import ChatMessage, ChatRequest, run_stream
+
+    snap = Snapshot(items=[issue(1, closed_by_merged_pr=MERGED), issue(2)])
+    g = graph(snap, judge=Judge(broken=()))
+    body = ChatRequest(
+        id="tri-2026-11-17",
+        messages=[ChatMessage(role="user", parts=[{"type": "text", "text": "Tri du jour"}])],
+    )
+    events = []
+    async for chunk in run_stream(g, body):
+        if chunk.startswith("data: {") and '"data-run-event"' in chunk:
+            events.append(json.loads(chunk[6:])["data"])
+    started = next(e for e in events if e["kind"] == "node-started" and e["node"] == "judge")
+    assert started["data"]["task"] == "memolabs-dev/usine"
+    finished = next(e for e in events if e["kind"] == "node-finished" and e["node"] == "judge")
+    triage = finished["data"]["triage"]
+    assert triage["repo"] == "memolabs-dev/usine"
+    assert triage["counts"] == {"close": 1, "keep": 0, "nudge": 0}
+    assert triage["items"] == [
+        {
+            "number": 2,
+            "kind": "issue",
+            "title": "Issue 2",
+            "url": "https://github.com/memolabs-dev/usine/issues/2",
+            "decision": "close",
+            "motif": "abandonne",
+            "proof": "https://github.com/memolabs-dev/usine/issues/2",
+            "comment": "Plus d'activité depuis un mois.",
+        }
+    ]
+    pre = next(e for e in events if e["kind"] == "node-finished" and e["node"] == "pretriage")
+    assert pre["data"]["triage"]["read"] == 2
+    assert pre["data"]["triage"]["counts"] == {"close": 1, "keep": 0, "judge": 1}
+
+
+async def test_a_failed_judge_says_why_on_its_card() -> None:
+    from usine_api.chat_stream import ChatMessage, ChatRequest, run_stream
+
+    snap = Snapshot(items=[issue(5, repo="memolabs-dev/navirox"), issue(6)])
+    g = graph(snap, judge=Judge(broken=("memolabs-dev/navirox",)))
+    body = ChatRequest(
+        id="tri-x", messages=[ChatMessage(role="user", parts=[{"type": "text", "text": "Tri"}])]
+    )
+    events = [
+        json.loads(c[6:])["data"]
+        async for c in run_stream(g, body)
+        if c.startswith("data: {") and '"data-run-event"' in c
+    ]
+    failed = [
+        e
+        for e in events
+        if e["kind"] == "node-finished" and e["node"] == "judge" and e["data"].get("failed")
+    ]
+    assert len(failed) == 1 and failed[0]["data"]["triage"]["repo"] == "memolabs-dev/navirox"

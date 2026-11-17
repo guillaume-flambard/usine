@@ -86,6 +86,70 @@ class RepoState(TypedDict):
     items: list[dict[str, Any]]
 
 
+def _decision(ruling: dict[str, Any]) -> str:
+    if ruling.get("group") == "evident":
+        return "close"
+    return "nudge" if ruling.get("by") == "agent" and ruling.get("comment") else "keep"
+
+
+def _scene_item(ruling: dict[str, Any]) -> dict[str, Any]:
+    item = ruling.get("item") or {}
+    return {
+        "number": item.get("number"),
+        "kind": item.get("kind"),
+        "title": item.get("title"),
+        "url": item.get("url"),
+        "decision": _decision(ruling),
+        "motif": ruling.get("motif"),
+        "proof": ruling.get("proof"),
+        "comment": ruling.get("comment"),
+    }
+
+
+def scene_summary(node: str, payload: dict[str, Any], *, finished: bool) -> dict[str, Any] | None:
+    """What a triage node shows on its card: plain JSON, from the node's own data.
+
+    Without it the atelier drew 35 cards that all said « judge » and opened on
+    nothing (owner, 17 November 2026): the repository, the verdict and the
+    items it judged are what the person needs.
+    """
+    if node == JUDGE and not finished:
+        return {"task": str(payload.get("repo", ""))}
+    if node == JUDGE and finished:
+        rulings = list(payload.get("rulings") or [])
+        repo = str(((rulings[0] if rulings else {}).get("item") or {}).get("repo", ""))
+        decisions = [_decision(r) for r in rulings]
+        summary: dict[str, Any] = {
+            "triage": {
+                "repo": repo,
+                "counts": {k: decisions.count(k) for k in ("close", "keep", "nudge")},
+                "items": [_scene_item(r) for r in rulings],
+            }
+        }
+        failures = payload.get("failures") or []
+        if failures:
+            summary["failed"] = str(failures[0]).partition(" : ")[2] or str(failures[0])
+        return summary
+    if node == PRETRIAGE and finished:
+        rulings = list(payload.get("rulings") or [])
+        pending = payload.get("pending") or {}
+        waiting = sum(len(items) for items in pending.values())
+        closing = [r for r in rulings if r.get("group") == "evident"]
+        return {
+            "triage": {
+                "read": len(rulings) + waiting,
+                "counts": {
+                    "close": len(closing),
+                    "keep": len(rulings) - len(closing),
+                    "judge": waiting,
+                },
+                "items": [_scene_item(r) for r in closing],
+                "incomplete": list(payload.get("incomplete") or []),
+            }
+        }
+    return None
+
+
 def now_utc() -> datetime:
     return datetime.now(UTC)
 

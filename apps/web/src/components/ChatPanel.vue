@@ -22,6 +22,7 @@ import { fetchRun, runDate, type RunDetail } from '../chat/runs'
 import { initialsOf } from '../chat/session'
 import ConversationThread from './ConversationThread.vue'
 import RunScene from './RunScene.vue'
+import TriageBoard from './TriageBoard.vue'
 import RunsList from './RunsList.vue'
 import StepsList from './StepsList.vue'
 import ForkPanel from './ForkPanel.vue'
@@ -162,6 +163,9 @@ function decide(decision: GateDecisionInput) {
 }
 
 /** The LangGraph thread of this chat, as the service announced it (MEM-14). */
+/** The daily triage (ADR 0003): its own board, no brief to type. */
+const isTriage = computed(() => run.value.nodes.some((n) => n.name === 'pretriage'))
+
 const threadId = computed(() => {
   const last = [...messages.value].reverse().find((m) => m.role === 'assistant')
   const meta = last?.metadata as { threadId?: string } | undefined
@@ -352,7 +356,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <div class="canvas" data-canvas>
           <!-- The scene exists once the run has said something: no empty frame. -->
           <div v-if="run.events > 0" class="scene-wrap" tabindex="0" aria-label="Scène">
-            <RunScene :model="run" @decide="inspector?.focusGate()" />
+            <!-- A daily triage reads as a list of repositories, not a graph of
+                 35 identical cards (owner, 17 November 2026). -->
+            <TriageBoard v-if="isTriage" :model="run" @decide="inspector?.focusGate()" />
+            <RunScene v-else :model="run" @decide="inspector?.focusGate()" />
           </div>
 
           <!-- Before the first event the conversation holds the canvas; after it,
@@ -365,7 +372,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             @choose="(text) => (input = text)"
           />
 
-          <div v-if="messages.length > 0" class="dock" role="toolbar" aria-label="Actions du run">
+          <div
+            v-if="messages.length > 0 && !isTriage"
+            class="dock"
+            role="toolbar"
+            aria-label="Actions du run"
+          >
             <button
               type="button"
               :disabled="!canReplay"
@@ -405,7 +417,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           </div>
         </div>
 
-        <footer class="composer" data-composer>
+        <!-- A triage is started by the morning timer, not by a brief. -->
+        <footer v-if="!isTriage" class="composer" data-composer>
           <p v-if="error" class="alert" role="alert" data-chat-error>{{ error.message }}</p>
           <p v-if="replayBrief" class="note" data-replay>
             Run enregistré : aucun modèle n'est branché, le service rejoue des réponses

@@ -32,8 +32,32 @@ export interface RunNode {
   }[]
   /** Why this node did not finish, as the service worded it for a person. */
   failure?: string
+  /** A daily-triage node (ADR 0003): its repository, verdict and items. */
+  triage?: TriageCard
   /** Reasoning started and settled inside this node (reasoning events). */
   reasoning: { started: number; settled: number }
+}
+
+/** One item a triage node decided on, as the service sends it. */
+export interface TriageItem {
+  number: number
+  kind: 'pr' | 'issue'
+  title: string
+  url: string
+  decision: 'close' | 'keep' | 'nudge'
+  motif?: string | null
+  proof?: string | null
+  comment?: string | null
+}
+
+export interface TriageCard {
+  /** The repository a judge read; absent on the pre-triage. */
+  repo?: string
+  /** Items read (pre-triage only). */
+  read?: number
+  counts: Partial<Record<'close' | 'keep' | 'nudge' | 'judge', number>>
+  items: TriageItem[]
+  incomplete?: string[]
 }
 
 export interface RunEdge {
@@ -132,7 +156,11 @@ export function reduceRun(model: RunReadModel, event: RunEventPayload): RunReadM
         : undefined
       // A specialist that failed while the others went on (16 November 2026):
       // its card says so, with the reason the service gave.
-      const failure = specialists?.find((s) => typeof s.failed === 'string')?.failed
+      const failure =
+        specialists?.find((s) => typeof s.failed === 'string')?.failed ??
+        (typeof data.failed === 'string' ? data.failed : undefined)
+      const triage =
+        data.triage && typeof data.triage === 'object' ? (data.triage as TriageCard) : undefined
       const nodes = model.nodes.map((n): RunNode => {
         if (n.id !== id) return n
         return {
@@ -142,6 +170,7 @@ export function reduceRun(model: RunReadModel, event: RunEventPayload): RunReadM
           ...(Array.isArray(data.subtasks) ? { subtasks: data.subtasks as string[] } : {}),
           ...(specialists ? { specialists } : {}),
           ...(failure ? { failure } : {}),
+          ...(triage ? { triage } : {}),
         }
       })
       return { ...base, nodes }

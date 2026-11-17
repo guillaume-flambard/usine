@@ -93,6 +93,11 @@ def sse(chunk: dict[str, Any] | str) -> str:
 
 def _summary(node: str, payload: dict[str, Any], *, finished: bool) -> dict[str, Any]:
     """Plain JSON for the screen: never a live object (CLAUDE.md, rule 2)."""
+    from usine_api.graph.triage import scene_summary
+
+    triage = scene_summary(node, payload, finished=finished)
+    if triage is not None:
+        return triage
     if node == SUPERVISOR and finished:
         return {"subtasks": list(payload.get("subtasks", []))}
     if node == SPECIALIST and not finished:
