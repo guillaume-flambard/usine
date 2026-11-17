@@ -39,9 +39,11 @@ servers:
   # Le serveur MCP officiel de GitHub, hébergé par GitHub
   # (https://github.com/github/github-mcp-server, docs/remote-server.md).
   # Le jeton est un PAT à grain fin, limité aux dépôts que l'usine suit, avec
-  # Contents en lecture et Issues en lecture et écriture.
-  # `issue_write` crée ou modifie une issue : irréversible, il ne part qu'après
-  # la porte humaine, avec les arguments que la personne a lus ou corrigés.
+  # Contents en lecture, Issues et Pull requests en lecture et écriture (le tri
+  # quotidien, ADR 0003, commente et ferme).
+  # `issue_write`, `add_issue_comment` et `update_pull_request` écrivent :
+  # irréversibles, ils ne partent qu'après la porte humaine, avec les arguments
+  # que la personne a lus ou corrigés. `merge_pull_request` n'est jamais listé.
   - name: github
     url: https://api.githubcopilot.com/mcp/
     description: les dépôts GitHub suivis par l'usine
@@ -51,4 +53,7 @@ servers:
       list_issues: read
       search_issues: read
       issue_read: read
+      pull_request_read: read
       issue_write: irreversible
+      add_issue_comment: irreversible
+      update_pull_request: irreversible
