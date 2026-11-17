@@ -55,44 +55,58 @@ onBeforeUnmount(() => observer?.disconnect())
 const REPO = 'https://github.com/guillaume-flambard/usine'
 
 /**
- * The three agents of the run of 16 November, in the supervisor's order. Each
- * line is an event of public/visite/run.json: the subtask the supervisor gave,
- * the GitHub tools the agent called, and its time. Each agent proposed an issue
- * and stopped at the gate: nothing was written.
+ * The three agents of the run of 17 November 2026 (thread WkkmutTlh5Aaqgfd), in
+ * the supervisor's order. Every line is an event of public/visite/run.json: the
+ * part the supervisor gave, the GitHub calls the agent made, its time. Two
+ * agents read and report; the third finds no contribution guide and proposes
+ * one ticket, which stops at the gate: nothing was written.
  */
 const LANES = [
   {
     thread: 'sky',
     name: 'Agent 1',
-    task: 'lire deployment/README.md et en restituer l’essentiel',
-    status: 'terminé en 25 s',
-    seconds: 24.7,
+    status: 'terminé en 10 s',
+    seconds: 10.2,
+    steps: [
+      { text: 'reçoit sa part : lire le README pour un nouveau contributeur', done: true },
+      { text: 'lit', code: 'README.md', after: 'avec get_file_contents', done: true },
+      { text: 'rend l’installation et les commandes, sans rien proposer', done: true },
+    ],
   },
   {
     thread: 'mag',
     name: 'Agent 2',
-    task: 'expliquer pourquoi la production ne se mettait plus à jour',
-    status: 'terminé en 26 s',
-    seconds: 25.6,
+    status: 'terminé en 11 s',
+    seconds: 10.7,
+    steps: [
+      { text: 'reçoit sa part : lire la configuration de la CI', done: true },
+      { text: 'lit', code: '.github/workflows/verify.yml', done: true },
+      { text: 'rend les déclencheurs et les étapes, sans rien proposer', done: true },
+    ],
   },
   {
     thread: 'grn',
     name: 'Agent 3',
-    task: 'rédiger une issue complète pour suivre le problème',
-    status: 'terminé en 24 s',
-    seconds: 24.1,
+    status: 'terminé en 22 s',
+    seconds: 22.4,
+    steps: [
+      { text: 'reçoit sa part : chercher un guide de contribution', done: true },
+      { text: 'lit trois fois le dépôt : aucun', code: 'CONTRIBUTING.md', done: true },
+      { text: 'propose', code: 'issue_write', after: ', arrêté à la porte', done: false },
+    ],
   },
 ] as const
 /**
  * The animation keeps the log's timing (checklist L6): the three agents start
  * together, and each one's last step lands in the order they really finished,
- * one second of the run played as 100 ms.
+ * one second of the run played as 40 ms.
  */
 const FIRST_DONE = Math.min(...LANES.map((lane) => lane.seconds))
-const finishDelay = (seconds: number) => `${Math.round((seconds - FIRST_DONE) * 100)}ms`
+const finishDelay = (seconds: number) => `${Math.round((seconds - FIRST_DONE) * 40)}ms`
 
 const RUN_LOG = '/visite/run.json'
-const README = `${REPO}/blob/main/deployment/README.md`
+const README = `${REPO}/blob/main/README.md`
+const CI = `${REPO}/blob/main/.github/workflows/verify.yml`
 
 /** What the day of going live really broke, and the fix. Each has its test. */
 const ENTRIES = [
@@ -181,13 +195,13 @@ const ENTRIES = [
           data-landing-run
         >
           <h2 id="t-run" class="question">
-            Pourquoi la production ne se mettait plus à jour&nbsp;?
+            Un nouveau contributeur peut-il démarrer sur ce dépôt&nbsp;?
           </h2>
           <p class="caption">
-            Le vrai run du 16 novembre 2026 sur
-            <span class="mono">guillaume-flambard/usine</span>, résumé depuis son journal. En 22 s,
+            Le vrai run du 17 novembre 2026 sur
+            <span class="mono">guillaume-flambard/usine</span>, résumé depuis son journal. En 13 s,
             le chef d’équipe a partagé la question entre trois agents, qui ont travaillé en même
-            temps.
+            temps, chacun sur sa source.
           </p>
 
           <div class="lanes">
@@ -197,16 +211,7 @@ const ENTRIES = [
               :thread="lane.thread"
               :name="lane.name"
               :status="lane.status"
-              :steps="[
-                { text: `reçoit sa part : ${lane.task}`, done: true },
-                { text: 'lit le dépôt avec', code: 'get_file_contents', done: true },
-                {
-                  text: 'propose',
-                  code: 'issue_write',
-                  after: ', arrêté à la porte',
-                  done: false,
-                },
-              ]"
+              :steps="[...lane.steps]"
               :style="{ '--finish': finishDelay(lane.seconds) }"
             />
           </div>
@@ -220,24 +225,23 @@ const ENTRIES = [
           <section class="gate" aria-labelledby="t-gate">
             <h3 id="t-gate" class="gate-title">La porte</h3>
             <p class="gate-what">
-              Trois propositions d’issue sur <span class="mono">guillaume-flambard/usine</span>
-              attendent ici. La première, telle qu’elle partirait :
+              Une seule proposition attend ici : ouvrir un ticket sur
+              <span class="mono">guillaume-flambard/usine</span>. Telle qu’elle partirait :
             </p>
             <dl class="payload">
               <dt>Titre</dt>
-              <dd>Déploiement bloqué : verify.yml ne se déclenche plus sur push vers main</dd>
-              <dt>Étiquettes</dt>
-              <dd class="mono">bug, deployment, production, ci/cd</dd>
+              <dd>Ajouter un guide de contribution (CONTRIBUTING.md)</dd>
               <dt>Corps</dt>
               <dd>
-                La production de usine.memolabs.dev ne se met plus à jour depuis le 2 novembre 2026.
-                Le commit <span class="mono">f52872e</span>…
+                Le dépôt ne dispose actuellement d’aucun guide de contribution : aucun fichier
+                <span class="mono">CONTRIBUTING.md</span> à la racine, aucune documentation dédiée
+                dans <span class="mono">docs/</span>, aucune section « Contribuer » dans le README…
               </dd>
             </dl>
             <p class="rule">
               <strong>Irréversible à partir d’ici.</strong> Une personne approuve, corrige ou
               rejette ; tant qu’elle n’a rien dit, rien ne part. Revenir en arrière restaure l’état
-              du run, pas le monde : une issue publiée ne se retire pas.
+              du run, pas le monde : un ticket publié ne se retire pas.
             </p>
             <a class="btn btn-on-ink" href="/visite">
               <UIcon name="i-lucide-play" class="size-4 nudge-x" aria-hidden="true" />Rejouer ce run
@@ -248,27 +252,24 @@ const ENTRIES = [
             <div>
               <dt>Vérifié</dt>
               <dd>
-                les trois agents ont lu le dépôt avec l’outil GitHub, chacun en 24 à 26 s, en même
-                temps
+                le README et la CI ont été lus par l’outil GitHub, et le dépôt n’a pas de
+                <span class="mono">CONTRIBUTING.md</span>
               </dd>
             </div>
             <div>
               <dt>Supposé</dt>
-              <dd>
-                l’explication repose sur ce que dit le README ; le journal ne dit pas quels autres
-                fichiers ont été ouverts
-              </dd>
+              <dd>ce qu’un guide devrait contenir : le ticket le propose, une personne le relit</dd>
             </div>
             <div>
               <dt>Non fait</dt>
-              <dd>aucune issue n’a été ouverte : le run s’est arrêté à la porte</dd>
+              <dd>aucun ticket n’a été ouvert : le run s’est arrêté à la porte</dd>
             </div>
           </dl>
           <p class="proof">
             Les preuves :
-            <a :href="README">le fichier lu</a>,
+            <a :href="README">le README</a>, <a :href="CI">la CI</a>,
             <a :href="RUN_LOG">le journal du run</a>
-            (<span class="mono">dNJtY0kiJ7PqO4VM</span>), <a :href="REPO">le code</a>.
+            (<span class="mono">WkkmutTlh5Aaqgfd</span>), <a :href="REPO">le code</a>.
           </p>
         </section>
 
@@ -638,7 +639,7 @@ h1 {
    log's timing (checklist L6). The three threads draw together (the agents
    started together), their first two steps follow every 260 ms, each last step
    lands in the order the agents really finished (--finish), the threads knot
-   at 1.3 s over --dur-signature, the gate settles at 1.7 s. Only clip-path,
+   at 1.5 s over --dur-signature, the gate settles at 1.9 s. Only clip-path,
    opacity, transform and stroke-dashoffset move. Before playing,
    [data-motion] holds the start state; without it (no JS, reduced motion)
    nothing is ever hidden. */
@@ -664,7 +665,7 @@ h1 {
 .run[data-motion] .knot path {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  transition: stroke-dashoffset var(--dur-signature) var(--ease-in-out) 1300ms;
+  transition: stroke-dashoffset var(--dur-signature) var(--ease-in-out) 1500ms;
 }
 .run[data-motion] .gate,
 .run[data-motion] .ledger,
@@ -672,12 +673,12 @@ h1 {
   opacity: 0;
   transform: translateY(12px);
   transition:
-    opacity 400ms var(--ease-out) 1700ms,
-    transform 400ms var(--ease-out) 1700ms;
+    opacity 400ms var(--ease-out) 1900ms,
+    transform 400ms var(--ease-out) 1900ms;
 }
 .run[data-motion] .ledger,
 .run[data-motion] .proof {
-  transition-delay: 1900ms;
+  transition-delay: 2100ms;
 }
 .run[data-motion].is-playing .lane::before,
 .run[data-motion].is-playing :deep(.trace li)::after {

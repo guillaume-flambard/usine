@@ -83,7 +83,11 @@ const agents = computed(() =>
   model.value.nodes
     .filter((n) => n.name === 'specialist')
     .map((n, i) => {
-      const tools = [...new Set((n.specialists ?? []).flatMap((s) => s.tools ?? []))]
+      // The log lists one entry per call: count them, so three reads say three.
+      const calls = new Map<string, number>()
+      for (const tool of (n.specialists ?? []).flatMap((s) => s.tools ?? [])) {
+        calls.set(tool, (calls.get(tool) ?? 0) + 1)
+      }
       return {
         id: n.id,
         rank: i + 1,
@@ -91,7 +95,11 @@ const agents = computed(() =>
         done: n.state === 'finished',
         failed: n.state === 'failed',
         seconds: n.finishedAt === undefined ? null : n.finishedAt - n.startedAt,
-        did: tools.map((t) => TOOL_WORDS[t] ?? t),
+        did: [...calls].map(([tool, count]) =>
+          tool === 'github__get_file_contents' && count > 1
+            ? `a lu ${count} fichiers du projet sur GitHub`
+            : (TOOL_WORDS[tool] ?? tool),
+        ),
       }
     }),
 )
@@ -269,14 +277,14 @@ const seconds = (value: number) =>
         </h1>
         <p class="lede">
           Une minute de visite guidée. Voici un vrai cas, enregistré le
-          {{ recorded || '16 novembre 2026' }}. Le site de ce projet ne se mettait plus à jour
-          (c’est réglé depuis). On a posé la question à l’assistant. Regardez ce qu’il fait.
+          {{ recorded || '17 novembre 2026' }}. On a demandé à l’assistant si un nouveau
+          contributeur pouvait démarrer sur ce projet. Regardez ce qu’il fait.
         </p>
         <!-- Conclusion first (checklist V5): the answer, then how it was reached. -->
         <p class="answer" data-visit-answer>
-          <b>La réponse, en bref.</b> Un commit avait rendu la vérification du code manuelle, et le
-          déploiement attendait une vérification qui ne venait plus. Les agents ont proposé un
-          ticket pour le suivre ; rien n’est parti sans accord.
+          <b>La réponse, en bref.</b> Pas encore : le dépôt n’a aucun guide de contribution. Trois
+          agents ont lu le README, la CI et le dépôt ; l’un d’eux propose un seul ticket pour en
+          écrire un, et rien n’est parti sans accord.
         </p>
       </section>
 
@@ -289,7 +297,8 @@ const seconds = (value: number) =>
           <div>
             <h2>La question</h2>
             <p class="bubble you">
-              Pourquoi mon site ne se met plus à jour ? Propose un ticket pour le suivre.
+              Un nouveau contributeur peut-il démarrer sur ce dépôt ? Propose un seul ticket pour ce
+              qui manque.
             </p>
             <p class="why">
               On lui parle comme à un collègue. La demande exacte est en bas de page.

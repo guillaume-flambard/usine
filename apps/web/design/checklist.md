@@ -35,10 +35,10 @@ Added at 11 h 40: the story findings of the 16 November survey were left out of 
 
 | ID | Rule | Source | How to check | State |
 |---|---|---|---|---|
-| R1 | The agents have distinct reasons to work in parallel: they read different files and the run ends in one proposal, not three duplicates (a tech lead reads three agents re-reading one file as naive orchestration) | RL 1, RL A | read `public/visite/run.json` | missing |
-| R2 | The proposal carries nothing internal: no `ssh lab`, no `MEM-n`, no internal SHA, no English, no copied figures | RL 2 | read the ticket body | missing |
-| R3 | The subject does not read « the candidate's site is broken » to a recruiter | RL 3, RL A | read the question | missing |
-| R4 | The run never says « issue » where the page says « ticket » | RL 5 | read the visit | missing |
+| R1 | The agents have distinct reasons to work in parallel: they read different files and the run ends in one proposal, not three duplicates (a tech lead reads three agents re-reading one file as naive orchestration) | RL 1, RL A | read `public/visite/run.json` | applied (run WkkmutTlh5Aaqgfd, 17 Nov: README, CI, a search; one proposal reaches the gate) |
+| R2 | The proposal carries nothing internal: no `ssh lab`, no `MEM-n`, no internal SHA, no English, no copied figures | RL 2 | read the ticket body | applied (the ticket body has nothing internal) |
+| R3 | The subject does not read « the candidate's site is broken » to a recruiter | RL 3, RL A | read the question | applied (Â« Un nouveau contributeur peut-il dÃ©marrer ? Â») |
+| R4 | The run never says « issue » where the page says « ticket » | RL 5 | read the visit | applied on the pages (the word survives only in agent 2's raw answer, which the pages do not show) |
 
 ## The visit (`/visite`)
 
