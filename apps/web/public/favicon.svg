@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Usine's mark: three agents' threads knotting into the black gate (DESIGN.md).
+       A light tile keeps it readable on light and dark tab bars. -->
+  <rect width="32" height="32" rx="7" fill="#eef3f8"/>
+  <g transform="translate(4 3)" fill="none" stroke-linecap="round" stroke-width="2.6">
+    <path d="M4.6 2.4C4.6 8.6 7.6 11.4 10.4 13.6" stroke="#3a86c8"/>
+    <path d="M12 2.4V13" stroke="#b8399f"/>
+    <path d="M19.4 2.4C19.4 8.6 16.4 11.4 13.6 13.6" stroke="#2f9157"/>
+    <path d="M12 21v2.4" stroke="#1c1d21"/>
+  </g>
+  <circle cx="16" cy="19.4" r="5" fill="#1c1d21"/>
+</svg>
