@@ -11,10 +11,45 @@
  * lists what production really broke the day it went live, each fix with its
  * test. The page calls no model and no authenticated route.
  */
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { SIGN_IN_URL } from '../chat/session'
 
 defineProps<{ unreachable?: boolean }>()
 defineEmits<{ retry: [] }>()
+
+/*
+ * Motion (standard-2026, micro-motion). One expressive moment: when the run
+ * comes into view, each thread draws, each agent's steps arrive one by one (the
+ * three agents in parallel, as in the real run), the threads knot, the gate
+ * settles. The carnet's entries rise into place as they are reached. Without
+ * JavaScript, an IntersectionObserver or with reduced motion, everything is
+ * simply there: the motion only ever starts from a visible page.
+ */
+const runEl = ref<HTMLElement | null>(null)
+const carnetEl = ref<HTMLElement | null>(null)
+const motion = ref(false)
+const playing = ref(false)
+let observer: IntersectionObserver | undefined
+
+onMounted(() => {
+  const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  if (reduced || typeof IntersectionObserver === 'undefined') return
+  motion.value = true
+  observer = new IntersectionObserver(
+    (seen) => {
+      for (const entry of seen) {
+        if (!entry.isIntersecting) continue
+        if (entry.target === runEl.value) playing.value = true
+        else entry.target.classList.add('is-visible')
+        observer?.unobserve(entry.target)
+      }
+    },
+    { threshold: 0.25 },
+  )
+  if (runEl.value) observer.observe(runEl.value)
+  carnetEl.value?.querySelectorAll('.entry').forEach((el) => observer?.observe(el))
+})
+onBeforeUnmount(() => observer?.disconnect())
 
 const REPO = 'https://github.com/guillaume-flambard/usine'
 
@@ -30,20 +65,33 @@ const LANES = [
     name: 'Agent 1',
     task: 'lire deployment/README.md et en restituer l’essentiel',
     status: 'terminé en 25 s',
+    seconds: 24.7,
   },
   {
     thread: 'mag',
     name: 'Agent 2',
     task: 'expliquer pourquoi la production ne se mettait plus à jour',
     status: 'terminé en 26 s',
+    seconds: 25.6,
   },
   {
     thread: 'grn',
     name: 'Agent 3',
     task: 'rédiger une issue complète pour suivre le problème',
     status: 'terminé en 24 s',
+    seconds: 24.1,
   },
 ] as const
+/**
+ * The animation keeps the log's timing (checklist L6): the three agents start
+ * together, and each one's last step lands in the order they really finished,
+ * one second of the run played as 100 ms.
+ */
+const FIRST_DONE = Math.min(...LANES.map((lane) => lane.seconds))
+const finishDelay = (seconds: number) => `${Math.round((seconds - FIRST_DONE) * 100)}ms`
+
+const RUN_LOG = '/visite/run.json'
+const README = `${REPO}/blob/main/deployment/README.md`
 
 /** What the day of going live really broke, and the fix. Each has its test. */
 const ENTRIES = [
@@ -101,16 +149,20 @@ const ENTRIES = [
               Le service ne répond pas pour l’instant.
             </p>
             <button type="button" class="btn btn-line" data-retry @click="$emit('retry')">
-              <UIcon name="i-lucide-rotate-ccw" class="size-4" aria-hidden="true" />Réessayer
+              <UIcon
+                name="i-lucide-rotate-ccw"
+                class="size-4 nudge-spin"
+                aria-hidden="true"
+              />Réessayer
             </button>
           </div>
           <div v-else class="actions">
             <a class="btn btn-ink" href="/visite" data-visit-button>
-              <UIcon name="i-lucide-play" class="size-4" aria-hidden="true" />Voir un vrai run, sans
-              compte
+              <UIcon name="i-lucide-play" class="size-4 nudge-x" aria-hidden="true" />Voir un vrai
+              run, sans compte
             </a>
             <a class="btn btn-line" :href="SIGN_IN_URL" data-sign-in-button>
-              <UIcon name="i-lucide-log-in" class="size-4" aria-hidden="true" />Se connecter
+              <UIcon name="i-lucide-log-in" class="size-4 nudge-x" aria-hidden="true" />Se connecter
             </a>
           </div>
           <p v-if="!unreachable" class="door">
@@ -119,7 +171,14 @@ const ENTRIES = [
           </p>
         </section>
 
-        <section class="run" aria-labelledby="t-run" data-landing-run>
+        <section
+          ref="runEl"
+          class="run"
+          :class="{ 'is-playing': playing }"
+          :data-motion="motion || undefined"
+          aria-labelledby="t-run"
+          data-landing-run
+        >
           <h2 id="t-run" class="question">
             Pourquoi la production ne se mettait plus à jour&nbsp;?
           </h2>
@@ -132,22 +191,23 @@ const ENTRIES = [
 
           <div class="lanes">
             <section
-              v-for="lane in LANES"
+              v-for="(lane, l) in LANES"
               :key="lane.name"
               class="lane"
+              :style="{ '--lane': l, '--finish': finishDelay(lane.seconds) }"
               :data-thread="lane.thread"
               :aria-label="`${lane.name}, ${lane.status}`"
             >
               <h3 class="agent">{{ lane.name }}</h3>
               <p class="status">{{ lane.status }}</p>
               <ol class="trace">
-                <li class="done">
+                <li class="done" style="--step: 0">
                   <span>reçoit sa part : {{ lane.task }}</span>
                 </li>
-                <li class="done">
+                <li class="done" style="--step: 1">
                   <span>lit le dépôt avec <span class="mono">get_file_contents</span></span>
                 </li>
-                <li>
+                <li style="--step: 2">
                   <span>propose <span class="mono">issue_write</span>, arrêté à la porte</span>
                 </li>
               </ol>
@@ -155,9 +215,9 @@ const ENTRIES = [
           </div>
 
           <svg class="knot" viewBox="0 0 300 64" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M50 0 C50 36 150 28 150 64" class="s-sky" />
-            <path d="M150 0 L150 64" class="s-mag" />
-            <path d="M250 0 C250 36 150 28 150 64" class="s-grn" />
+            <path d="M50 0 C50 36 150 28 150 64" class="s-sky" pathLength="1" />
+            <path d="M150 0 L150 64" class="s-mag" pathLength="1" />
+            <path d="M250 0 C250 36 150 28 150 64" class="s-grn" pathLength="1" />
           </svg>
 
           <section class="gate" aria-labelledby="t-gate">
@@ -178,22 +238,62 @@ const ENTRIES = [
               </dd>
             </dl>
             <p class="rule">
-              Une personne approuve, corrige ou rejette. Tant qu’elle n’a rien dit, rien ne part.
+              <strong>Irréversible à partir d’ici.</strong> Une personne approuve, corrige ou
+              rejette ; tant qu’elle n’a rien dit, rien ne part. Revenir en arrière restaure l’état
+              du run, pas le monde : une issue publiée ne se retire pas.
             </p>
             <a class="btn btn-on-ink" href="/visite">
-              <UIcon name="i-lucide-play" class="size-4" aria-hidden="true" />Rejouer ce run
+              <UIcon name="i-lucide-play" class="size-4 nudge-x" aria-hidden="true" />Rejouer ce run
             </a>
           </section>
+
+          <dl class="ledger" aria-label="Ce que ce run établit">
+            <div>
+              <dt>Vérifié</dt>
+              <dd>
+                les trois agents ont lu le dépôt avec l’outil GitHub, chacun en 24 à 26 s, en même
+                temps
+              </dd>
+            </div>
+            <div>
+              <dt>Supposé</dt>
+              <dd>
+                l’explication repose sur ce que dit le README ; le journal ne dit pas quels autres
+                fichiers ont été ouverts
+              </dd>
+            </div>
+            <div>
+              <dt>Non fait</dt>
+              <dd>aucune issue n’a été ouverte : le run s’est arrêté à la porte</dd>
+            </div>
+          </dl>
+          <p class="proof">
+            Les preuves :
+            <a :href="README">le fichier lu</a>,
+            <a :href="RUN_LOG">le journal du run</a>
+            (<span class="mono">dNJtY0kiJ7PqO4VM</span>), <a :href="REPO">le code</a>.
+          </p>
         </section>
 
-        <section id="carnet" class="block" aria-labelledby="t-carnet">
+        <section
+          id="carnet"
+          ref="carnetEl"
+          class="block"
+          :data-motion="motion || undefined"
+          aria-labelledby="t-carnet"
+        >
           <h2 id="t-carnet">Carnet de mise en production</h2>
           <p class="intro">
             Le 16 novembre 2026, j’ai mis Usine en ligne et joué le parcours sur le vrai site. Les
             tests passaient, et pourtant voici ce qui a cassé. Chaque correction a son test.
           </p>
           <div class="entries">
-            <article v-for="entry in ENTRIES" :key="entry.topic" class="entry">
+            <article
+              v-for="(entry, i) in ENTRIES"
+              :key="entry.topic"
+              class="entry"
+              :style="{ '--i': i }"
+            >
               <h3>{{ entry.topic }}</h3>
               <p>{{ entry.text }}</p>
             </article>
@@ -287,11 +387,22 @@ p {
   color: var(--color-ink-2);
   font-size: var(--text-sm);
   text-decoration: none;
+  transition:
+    background-color var(--dur-short) var(--ease-out),
+    color var(--dur-short) var(--ease-out);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .nav ul a:hover {
     background: var(--color-surface);
     color: var(--color-ink);
+  }
+}
+.brand svg {
+  transition: transform var(--dur-short) var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .brand:hover svg {
+    transform: rotate(-8deg);
   }
 }
 
@@ -344,6 +455,7 @@ h1 {
   letter-spacing: -0.01em;
 }
 .caption {
+  max-width: 68ch;
   margin: var(--space-sm) 0 var(--space-xl);
   color: var(--color-ink-2);
   font-size: var(--text-sm);
@@ -493,14 +605,59 @@ h1 {
   color: var(--color-on-ink-2);
   font-size: var(--text-sm);
 }
+.rule strong {
+  color: var(--color-on-ink);
+  font-weight: 600;
+}
+/* Its border must read on the ink: 3:1 at least (checklist D2). */
 .btn-on-ink {
-  border-color: oklch(45% 0.01 264);
+  border-color: oklch(70% 0.01 264);
   background: transparent;
   color: var(--color-on-ink);
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .btn-on-ink:hover {
     background: var(--color-ink-hover);
+    border-color: oklch(85% 0.006 264);
+  }
+}
+
+/* What the run establishes, then the proof as links (checklist L8, L9). */
+.ledger {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-md);
+  max-width: 46rem;
+  margin: var(--space-xl) auto 0;
+  font-size: var(--text-sm);
+}
+.ledger div {
+  padding-top: var(--space-sm);
+  border-top: 1px solid oklch(80% 0.012 240);
+}
+.ledger dt {
+  font-weight: 600;
+}
+.ledger dd {
+  margin: var(--space-2xs) 0 0;
+  color: var(--color-ink-2);
+  line-height: 1.5;
+}
+.proof {
+  max-width: 46rem;
+  margin: var(--space-lg) auto 0;
+  color: var(--color-ink-2);
+  font-size: var(--text-sm);
+}
+.proof a {
+  color: var(--color-ink);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  transition: text-decoration-color var(--dur-short) var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .proof a:hover {
+    text-decoration-color: var(--color-sky);
   }
 }
 .gate :focus-visible {
@@ -568,22 +725,103 @@ h1 {
   color: var(--color-ink);
 }
 
+/* The signature: the run tells itself once, when it comes into view, on the
+   log's timing (checklist L6). The three threads draw together (the agents
+   started together), their first two steps follow every 260 ms, each last step
+   lands in the order the agents really finished (--finish), the threads knot
+   at 1.3 s over --dur-signature, the gate settles at 1.7 s. Only clip-path,
+   opacity, transform and stroke-dashoffset move. Before playing,
+   [data-motion] holds the start state; without it (no JS, reduced motion)
+   nothing is ever hidden. */
+.run[data-motion] .lane::before {
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 420ms var(--ease-out);
+}
+.run[data-motion] .trace li {
+  --at: calc(320ms + var(--step) * 260ms);
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 300ms var(--ease-out) var(--at),
+    transform 300ms var(--ease-out) var(--at);
+}
+.run[data-motion] .trace li:last-child {
+  --at: calc(840ms + var(--finish));
+}
+.run[data-motion] .trace li::after {
+  clip-path: inset(0 0 100% 0);
+  transition: clip-path 260ms var(--ease-out) var(--at);
+}
+.run[data-motion] .knot path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset var(--dur-signature) var(--ease-in-out) 1300ms;
+}
+.run[data-motion] .gate,
+.run[data-motion] .ledger,
+.run[data-motion] .proof {
+  opacity: 0;
+  transform: translateY(12px);
+  transition:
+    opacity 400ms var(--ease-out) 1700ms,
+    transform 400ms var(--ease-out) 1700ms;
+}
+.run[data-motion] .ledger,
+.run[data-motion] .proof {
+  transition-delay: 1900ms;
+}
+.run[data-motion].is-playing .lane::before,
+.run[data-motion].is-playing .trace li::after {
+  clip-path: inset(0);
+}
+.run[data-motion].is-playing .trace li,
+.run[data-motion].is-playing .gate,
+.run[data-motion].is-playing .ledger,
+.run[data-motion].is-playing .proof {
+  opacity: 1;
+  transform: none;
+}
+.run[data-motion].is-playing .knot path {
+  stroke-dashoffset: 0;
+}
+
+/* The carnet's entries rise into place as they are reached, 60 ms apart. */
+.block[data-motion] .entry {
+  opacity: 0;
+  transform: translateY(12px);
+  transition:
+    opacity 360ms var(--ease-out) calc(var(--i) * 60ms),
+    transform 360ms var(--ease-out) calc(var(--i) * 60ms);
+}
+.block[data-motion] .entry.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
 @media (max-width: 60rem) {
   .lanes,
   .entries {
     grid-template-columns: 1fr;
   }
+  /* One column on a phone: the three threads still knot into the gate,
+     narrower, instead of disappearing (standard-2026, guided replay). */
   .knot {
-    display: none;
-  }
-  .gate {
-    margin-top: var(--space-lg);
+    width: 40%;
+    margin-inline: auto;
   }
 }
 @media (max-width: 40rem) {
   /* The primary action already leads to the visit: the nav keeps one line. */
   .wide-only {
     display: none;
+  }
+  /* Phone: the two actions stacked at full width (checklist L11). */
+  .actions .btn {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+  .ledger {
+    grid-template-columns: 1fr;
   }
   .payload {
     grid-template-columns: 1fr;

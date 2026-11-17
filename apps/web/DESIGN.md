@@ -1,5 +1,7 @@
 # Usine design system
 
+**Before any change to the public pages, read `design/checklist.md`**: the research of 16 November turned into numbered rules, each with its source and how to check it. A change is shown only with that table filled in.
+
 Usine is the first project on the shared Memo Labs base: the rules, scales and components come from `ui-craft` (`references/socle.md`, `taste.md`, `standard-2026.md`), and this file holds only Usine's brand layer and how it maps onto the base. Written 17 November 2026. The tokens live in `src/assets/main.css`.
 
 ## Brand layer: « Le fil »

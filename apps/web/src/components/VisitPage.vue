@@ -117,21 +117,46 @@ const step = computed(() => {
   return 1
 })
 
-function play() {
+/**
+ * Pause and resume (checklist V2, WCAG 2.2.2): the replay runs longer than
+ * 5 seconds, so a visible control stops it and picks it up where it stood.
+ * With reduced motion nothing plays: every step is there at once.
+ */
+const paused = ref(false)
+const done = computed(() => events.value.length > 0 && shown.value >= events.value.length)
+
+function schedule(from: number) {
   for (const t of timers) clearTimeout(t)
   timers = []
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  let clock = from === 0 ? 0.6 : 0.3
+  events.value.forEach((event, index, list) => {
+    if (index < from) return
+    const previous = list[index - 1]
+    if (previous && index > from) clock += Math.min(event.at - previous.at, MAX_GAP_SECONDS)
+    const delay = still ? 0 : Math.round(clock * 1000)
+    timers.push(setTimeout(() => (shown.value = Math.max(shown.value, index + 1)), delay))
+  })
+}
+
+function play() {
   shown.value = 0
   decision.value = null
   chosen.value = 0
   wholeTicket.value = false
-  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  let clock = 0.6
-  events.value.forEach((event, index, list) => {
-    const previous = list[index - 1]
-    if (previous) clock += Math.min(event.at - previous.at, MAX_GAP_SECONDS)
-    const delay = still ? 0 : Math.round(clock * 1000)
-    timers.push(setTimeout(() => (shown.value = Math.max(shown.value, index + 1)), delay))
-  })
+  paused.value = false
+  schedule(0)
+}
+
+function togglePause() {
+  if (paused.value) {
+    paused.value = false
+    schedule(shown.value)
+  } else {
+    for (const t of timers) clearTimeout(t)
+    timers = []
+    paused.value = true
+  }
 }
 
 /** Each new step comes into view as it arrives: the story should not end below the fold. */
@@ -182,6 +207,26 @@ const seconds = (value: number) =>
         </svg>
         Usine
       </a>
+      <div class="replay-control" data-visit-control>
+        <span class="progress" aria-live="polite">Étape {{ step }} sur 4</span>
+        <button
+          v-if="!done"
+          type="button"
+          class="btn btn-line btn-small"
+          :aria-pressed="paused"
+          data-visit-pause
+          @click="togglePause"
+        >
+          <UIcon
+            :name="paused ? 'i-lucide-play' : 'i-lucide-pause'"
+            class="size-4"
+            aria-hidden="true"
+          />{{ paused ? 'Reprendre' : 'Pause' }}
+        </button>
+        <button v-else type="button" class="btn btn-line btn-small" @click="play">
+          <UIcon name="i-lucide-rotate-ccw" class="size-4 nudge-spin" aria-hidden="true" />Revoir
+        </button>
+      </div>
       <nav class="links" aria-label="Aller plus loin">
         <a :href="REPO">Le code</a>
         <a :href="SIGN_IN_URL">Se connecter</a>
@@ -197,6 +242,12 @@ const seconds = (value: number) =>
           Une minute de visite guidée. Voici un vrai cas, enregistré le
           {{ recorded || '16 novembre 2026' }}. Le site de ce projet ne se mettait plus à jour
           (c’est réglé depuis). On a posé la question à l’assistant. Regardez ce qu’il fait.
+        </p>
+        <!-- Conclusion first (checklist V5): the answer, then how it was reached. -->
+        <p class="answer" data-visit-answer>
+          <b>La réponse, en bref.</b> Un commit avait rendu la vérification du code manuelle, et le
+          déploiement attendait une vérification qui ne venait plus. Les agents ont proposé un
+          ticket pour le suivre ; rien n’est parti sans accord.
         </p>
       </section>
 
@@ -364,7 +415,11 @@ const seconds = (value: number) =>
 .visit {
   min-height: 100dvh;
 }
+/* The bar stays in view, so the pause control always does (checklist V2). */
 .bar {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: var(--z-raised);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -373,6 +428,38 @@ const seconds = (value: number) =>
   padding: var(--space-xs) var(--space-20);
   border-bottom: 1px solid var(--color-rule);
   background: var(--color-surface);
+}
+.replay-control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-left: auto;
+}
+.progress {
+  color: var(--color-ink-2);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.btn-small {
+  min-height: 44px;
+  padding: 0 var(--space-md);
+  font-size: var(--text-sm);
+}
+.answer {
+  margin-top: var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-in);
+  background: var(--color-surface);
+  box-shadow:
+    var(--shadow-1),
+    0 0 0 1px var(--color-rule);
+  line-height: 1.55;
+}
+@media (max-width: 40rem) {
+  .links {
+    display: none;
+  }
 }
 .brand {
   display: inline-flex;
@@ -547,16 +634,30 @@ const seconds = (value: number) =>
   gap: var(--space-xs);
   margin-top: var(--space-sm);
 }
+/* A choice's edge reads on white at 3:1 (checklist D2); the chosen one doubles it in ink. */
 .choice {
   min-height: 44px;
   padding: var(--space-xs) var(--space-md);
-  border: 1px solid var(--color-rule);
+  border: 1px solid oklch(58% 0.016 240);
   border-radius: var(--radius-in);
   background: var(--color-surface);
   color: var(--color-ink);
   font: 500 var(--text-sm) / 1.35 var(--font-sans);
   text-align: left;
   cursor: pointer;
+  transition:
+    border-color var(--dur-short) var(--ease-out),
+    background-color var(--dur-short) var(--ease-out),
+    transform var(--dur-micro) var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .choice:hover:not(:disabled) {
+    border-color: var(--color-ink-2);
+    background: var(--color-paper-2);
+  }
+}
+.choice:active:not(:disabled) {
+  transform: scale(0.99);
 }
 .choice[aria-checked='true'] {
   border-color: var(--color-ink);

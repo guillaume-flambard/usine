@@ -252,13 +252,51 @@ code,
   white-space: nowrap;
   text-decoration: none;
   cursor: pointer;
+  /* Micro-motion (ui-craft, micro-motion skill): named properties only, the
+     lift on hover, 0.97 on press, the higher shadow faded in on a layer
+     (a box-shadow is never animated directly). */
+  position: relative;
+  isolation: isolate;
   transition:
     background-color var(--dur-short) var(--ease-out),
     border-color var(--dur-short) var(--ease-out),
+    color var(--dur-short) var(--ease-out),
     transform var(--dur-micro) var(--ease-out);
 }
-.btn:active {
-  transform: translateY(1px);
+.btn::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border-radius: inherit;
+  box-shadow: var(--shadow-2);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-short) var(--ease-out);
+}
+.btn .iconify {
+  transition: transform var(--dur-short) var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+  .btn:hover:not(:disabled)::after {
+    opacity: 1;
+  }
+  /* Each icon answers the way its action goes. Nuxt UI renders icons as SVG
+     without their name in the class, so the component says it: nudge-x for
+     forward and play, nudge-spin for retry. */
+  .btn:hover:not(:disabled) .nudge-x {
+    transform: translateX(2px);
+  }
+  .btn:hover:not(:disabled) .nudge-spin {
+    transform: rotate(-60deg);
+  }
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+  transition-duration: var(--dur-micro);
 }
 .btn:disabled {
   opacity: 0.55;
@@ -273,14 +311,17 @@ code,
 .btn-ink:hover:not(:disabled) {
   background: var(--color-ink-hover);
 }
+/* The line button stands on any ground: a white surface, a border dark
+   enough to read on the colour field, a low shadow (17 November 2026: the
+   transparent version was barely visible on the field). */
 .btn-line {
-  background: transparent;
+  background: var(--color-surface);
   color: var(--color-ink);
-  border-color: var(--color-rule-2);
+  border-color: oklch(58% 0.016 240);
+  box-shadow: var(--shadow-1);
 }
 .btn-line:hover:not(:disabled) {
-  background: var(--color-surface);
-  border-color: var(--color-muted);
+  border-color: var(--color-ink-2);
 }
 .kbd {
   display: inline-grid;
@@ -309,13 +350,21 @@ code,
   white-space: nowrap;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Reduced motion reduces, it does not remove (standard-2026): no travel, no
+   scale, no drawing, but fades and colour changes still explain a state. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
+    animation-duration: 1ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    transition-property: opacity, color, background-color, border-color !important;
     scroll-behavior: auto !important;
   }
 }
