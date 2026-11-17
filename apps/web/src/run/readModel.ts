@@ -47,6 +47,8 @@ export type RunStatus = 'idle' | 'running' | 'waiting' | 'finished' | 'failed'
 export interface GateView {
   actions: { kind: string; target: string; justification: string; preview: string }[]
   notice: string
+  /** The daily triage's gate: one box per action, a selection is approved. */
+  checklist?: boolean
   decision?: string
   reason?: string
 }
@@ -153,7 +155,11 @@ export function reduceRun(model: RunReadModel, event: RunEventPayload): RunReadM
         ...base,
         nodes,
         status: 'waiting',
-        gate: { actions: request.actions ?? [], notice: request.notice ?? '' },
+        gate: {
+          actions: request.actions ?? [],
+          notice: request.notice ?? '',
+          checklist: request.checklist === true,
+        },
       }
     }
     case 'gate-decided': {

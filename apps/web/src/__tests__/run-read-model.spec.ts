@@ -68,6 +68,8 @@ describe('run read model', () => {
       expect.objectContaining({ kind: 'send', target: '#annonces' }),
     ])
     expect(model.gate?.notice).toMatch(/pas le monde/)
+    // The chat's gate is all or nothing; only the triage's is a checklist.
+    expect(model.gate?.checklist).toBe(false)
     expect(model.edges).toContainEqual({
       from: model.nodes.find((n) => n.name === 'synthesize')!.id,
       to: model.nodes.find((n) => n.name === 'human_gate')!.id,

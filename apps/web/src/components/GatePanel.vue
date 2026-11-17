@@ -17,6 +17,27 @@ export interface GateDecisionInput {
   decision: 'approve' | 'reject' | 'edit'
   reason?: string
   actions?: GateView['actions']
+  /** On a checklist gate, the approved actions by index. */
+  selected?: number[]
+}
+
+/** One proposal of the daily triage, as `triage/execute.py` writes its preview. */
+interface TriageItem {
+  repo: string
+  number: number
+  kind: 'pr' | 'issue'
+  title: string
+  url: string
+  motif: string
+  proof: string
+  comment: string
+}
+
+const MOTIFS: Record<string, string> = {
+  resolu: 'résolue',
+  doublon: 'doublon',
+  depasse: 'remplacée',
+  abandonne: 'abandonnée',
 }
 
 const props = withDefaults(
@@ -34,11 +55,14 @@ const root = ref<HTMLElement | null>(null)
 // The comparison shows two gates: ids must not collide.
 const uid = useId()
 
+// Every box starts checked: the person unchecks what stays open (ADR 0003).
+const checked = ref<boolean[]>(props.gate.actions.map(() => true))
 // A new gate (a resumed run that stops again) starts the choice over.
 watch(
   () => props.gate.actions,
   (actions) => {
     previews.value = actions.map((a) => a.preview)
+    checked.value = actions.map(() => true)
     mode.value = 'choose'
     reason.value = ''
     sent.value = null
@@ -48,7 +72,34 @@ watch(
 const decided = computed(() => Boolean(props.gate.decision) || sent.value !== null)
 const decision = computed(() => props.gate.decision ?? sent.value?.decision)
 const canReject = computed(() => reason.value.trim().length > 0)
-const question = computed(() => gateQuestion(props.gate))
+const selection = computed(() => checked.value.flatMap((on, index) => (on ? [index] : [])))
+const question = computed(() => {
+  if (!props.gate.checklist) return gateQuestion(props.gate)
+  const n = selection.value.length
+  return n === 1 ? 'Fermer l’élément coché ?' : `Fermer les ${n} éléments cochés ?`
+})
+
+function triageItem(preview: string): TriageItem | null {
+  try {
+    const item = JSON.parse(preview) as Partial<TriageItem>
+    return typeof item.repo === 'string' && typeof item.number === 'number'
+      ? (item as TriageItem)
+      : null
+  } catch {
+    return null
+  }
+}
+
+const items = computed(() => props.gate.actions.map((a) => triageItem(a.preview)))
+
+function approve() {
+  if (props.gate.checklist) {
+    if (selection.value.length === 0) return
+    decide({ decision: 'approve', selected: selection.value })
+  } else {
+    decide({ decision: 'approve' })
+  }
+}
 
 /** A ticket-like proposal (title and body) read as a ticket, not as JSON. */
 function readable(preview: string): { title: string; body: string } | null {
@@ -121,8 +172,8 @@ function onKey(event: KeyboardEvent) {
   const key = event.key.toLowerCase()
   if (key === 'a') {
     event.preventDefault()
-    decide({ decision: 'approve' })
-  } else if (key === 'c') {
+    approve()
+  } else if (key === 'c' && !props.gate.checklist) {
     event.preventDefault()
     void choose('edit')
   } else if (key === 'r') {
@@ -141,7 +192,53 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 <template>
   <div ref="root" class="gate-panel" data-gate :data-gate-mode="mode">
     <section
-      v-for="(action, index) in gate.actions"
+      v-if="gate.checklist"
+      class="pane"
+      data-thread="amb"
+      aria-label="Propositions du tri du jour"
+    >
+      <h3 class="pane-head"><span class="thr" aria-hidden="true" />Proposées par le tri du jour</h3>
+      <ul class="checklist">
+        <li v-for="(action, index) in gate.actions" :key="index" data-gate-item>
+          <label class="check">
+            <input
+              v-model="checked[index]"
+              type="checkbox"
+              :disabled="decided || busy"
+              data-gate-check
+            />
+            <span class="check-body">
+              <template v-if="items[index]">
+                <span class="item-head">
+                  <a
+                    :href="items[index]?.url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="mono item-ref"
+                    >{{ items[index]?.repo }}#{{ items[index]?.number }}</a
+                  >
+                  <span class="kind">{{ items[index]?.kind === 'pr' ? 'PR' : 'issue' }}</span>
+                </span>
+                <span class="item-title">{{ items[index]?.title }}</span>
+                <span class="item-why">
+                  {{ MOTIFS[items[index]?.motif ?? ''] ?? items[index]?.motif }},
+                  <a :href="items[index]?.proof" target="_blank" rel="noopener noreferrer"
+                    >preuve</a
+                  >
+                </span>
+                <span class="item-comment">
+                  <span class="label">Commentaire publié avant la fermeture</span>
+                  <q>{{ items[index]?.comment }}</q>
+                </span>
+              </template>
+              <span v-else class="item-title">{{ action.justification }}</span>
+            </span>
+          </label>
+        </li>
+      </ul>
+    </section>
+    <section
+      v-for="(action, index) in gate.checklist ? [] : gate.actions"
       :key="index"
       class="pane"
       data-thread="amb"
@@ -209,7 +306,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       </h3>
       <p :id="`${uid}-q`" class="q">{{ question }}</p>
       <p class="why">
-        Les arguments ci-dessus partiront tels quels.
+        {{
+          gate.checklist
+            ? 'Chaque élément coché reçoit son commentaire, puis il est fermé. Rien n’est fusionné.'
+            : 'Les arguments ci-dessus partiront tels quels.'
+        }}
         <span class="notice" data-gate-notice>{{ gate.notice }}</span>
       </p>
 
@@ -233,14 +334,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <button
             type="button"
             class="btn btn-ink"
-            :disabled="busy"
+            :disabled="busy || (gate.checklist && selection.length === 0)"
             aria-keyshortcuts="A"
             data-gate-approve
-            @click="decide({ decision: 'approve' })"
+            @click="approve"
           >
-            Approuver<span v-if="shortcuts" class="kbd" aria-hidden="true">A</span>
+            {{ gate.checklist ? `Approuver la sélection (${selection.length})` : 'Approuver'
+            }}<span v-if="shortcuts" class="kbd" aria-hidden="true">A</span>
           </button>
           <button
+            v-if="!gate.checklist"
             type="button"
             class="btn btn-line"
             :disabled="busy"
@@ -263,7 +366,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             data-gate-reject
             @click="choose('reject')"
           >
-            Rejeter<span v-if="shortcuts" class="kbd" aria-hidden="true">R</span>
+            {{ gate.checklist ? 'Tout rejeter' : 'Rejeter'
+            }}<span v-if="shortcuts" class="kbd" aria-hidden="true">R</span>
           </button>
         </template>
         <template v-else>
@@ -442,6 +546,86 @@ textarea.json:focus-visible,
   align-items: center;
   color: var(--color-muted);
   cursor: pointer;
+}
+.checklist {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--color-rule);
+}
+.checklist li {
+  border-bottom: 1px solid var(--color-rule);
+}
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
+  cursor: pointer;
+}
+.check input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  accent-color: var(--color-ink);
+  cursor: pointer;
+}
+.check:has(input:not(:checked)) .check-body {
+  color: var(--color-muted);
+}
+.check-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  min-width: 0;
+  max-width: 72ch;
+  transition: color var(--dur-press, 120ms) var(--ease-out);
+}
+.item-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+.item-ref {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.item-title {
+  font: 600 var(--text-sm) / 1.35 var(--font-sans);
+  overflow-wrap: anywhere;
+}
+.item-why {
+  font-size: var(--text-xs);
+}
+.item-comment {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-sm);
+}
+.item-comment .label {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  font-weight: 400;
+}
+.item-comment q {
+  quotes: none;
+  overflow-wrap: anywhere;
+}
+.check-body a {
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-color: var(--color-muted);
+  text-underline-offset: 3px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .check-body a:hover {
+    text-decoration-color: currentColor;
+  }
 }
 .gate {
   padding: var(--space-20);
